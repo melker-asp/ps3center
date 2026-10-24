@@ -29,6 +29,7 @@ make install                    # release-CLI → ~/.local/bin/ps3
 make app                        # xcodegen + xcodebuild (kräver `brew install xcodegen`)
 make run-app                    # bygg och öppna appen
 make snapshot DIR=/tmp/shots    # rendera varje flik till PNG och avsluta (kräver nåbar PS3)
+make snapshot-fixtures DIR=/tmp/shots   # samma sak från PS3Kit:s Fixtures, utan PS3
 ```
 
 Lägger du till en fil i `App/Sources` måste projektet genereras om (`make project`), annars hittar
@@ -41,6 +42,9 @@ xcodebuild den inte.
 - **CI kontrollerar varje push.** GitHub Actions (`.github/workflows/ci.yml`, macos-15) kör
   `swift test`, bygger CLI:t och bygger appen. Pusha och läs CI-resultatet i stället för att bygga
   lokalt.
+- **Skärmbilder:** CI renderar varje skärm från `Fixtures` (`PS3CENTER_FIXTURES=1`) och laddar upp
+  dem som artefakten `screenshots`. Granska designändringar där. Nya skärmar läggs till i
+  `Snapshot.run`, och data som behövs för dem i `Fixtures.swift`.
 - **Konsolen finns bara på användarens hemnätverk.** Allt som kräver en riktig PS3 (snapshot,
   installationer, `ps3 status`) får användaren köra på sin Mac. Beskriv vad som ska provas.
 - **CI kan ha en äldre Xcode** än användarens (Xcode 27 / Swift 6.4). Undvik helt nya API:er utan

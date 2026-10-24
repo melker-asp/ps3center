@@ -13,7 +13,12 @@ struct PS3CenterApp: App {
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)
                 .task {
-                    console.start()
+                    if Snapshot.usesFixtures {
+                        console.loadFixture()
+                        apps.loadFixture()
+                    } else {
+                        console.start()
+                    }
                     if let directory = Snapshot.directory {
                         await Snapshot.run(console: console, apps: apps, into: directory)
                     }

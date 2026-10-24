@@ -103,5 +103,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
   när `ps3` körs utan argument, och Finder-åtgärden "Skicka till PS3".
 - **App 0.1 (klar):** Xcode-projekt genererat från `App/project.yml` som länkar PS3Kit, Swift 6
   strikt läge, flikarna Status och Appar, och skärmbildsläget (`PS3CENTER_SNAPSHOT_DIR`).
-- **App härnäst:** Spel-fliken med dra-och-släpp (kräver att PS3Kit kan lista spelen på
-  konsolen), menyraden, en appikon och skärmbilder från fixturdata så att CI kan rendera utan PS3.
+- **Skärmbilder utan PS3 (klart):** `PS3CENTER_FIXTURES=1` ger appen data från PS3Kit:s
+  `Fixtures`; CI renderar varje skärm och laddar upp PNG:erna som artefakten `screenshots`.
+- **App härnäst:** PS-inspirerat utseende (se nedan), Spel-fliken med dra-och-släpp (kräver att
+  PS3Kit kan lista spelen på konsolen), menyraden och en appikon.

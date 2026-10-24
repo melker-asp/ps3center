@@ -78,6 +78,14 @@ final class AppsStore {
         }
     }
 
+    /// Fixture mode (`PS3CENTER_FIXTURES=1`): canned rows and README, no network.
+    func loadFixture(statuses: [AppStatus] = Fixtures.appStatuses()) {
+        self.statuses = statuses
+        phase = .loaded
+        lastChecked = Date()
+        readmes[Fixtures.readme.repo] = .loaded(Fixtures.readme)
+    }
+
     func loadReadme(for entry: CatalogEntry) async {
         guard let repo = entry.repository else { return }
         switch readmes[repo] {

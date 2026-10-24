@@ -3,7 +3,7 @@ BIN := .build/release/ps3
 XCODE_FLAGS := -project App/PS3Center.xcodeproj -scheme PS3Center -derivedDataPath .build/xcode
 APP := .build/xcode/Build/Products/Debug/PS3 Center.app
 
-.PHONY: build test install uninstall project app run-app snapshot
+.PHONY: build test install uninstall project app run-app snapshot snapshot-fixtures
 
 build:
 	swift build -c release
@@ -33,3 +33,7 @@ run-app: app
 # Renders each tab to PNG (needs a reachable console): make snapshot DIR=/tmp/shots
 snapshot: app
 	PS3CENTER_SNAPSHOT_DIR="$(or $(DIR),$(CURDIR)/.build/snapshots)" "$(APP)/Contents/MacOS/PS3 Center"
+
+# The same without a console, from PS3Kit's Fixtures (what CI renders): make snapshot-fixtures DIR=/tmp/shots
+snapshot-fixtures: app
+	PS3CENTER_FIXTURES=1 PS3CENTER_SNAPSHOT_DIR="$(or $(DIR),$(CURDIR)/.build/snapshots)" "$(APP)/Contents/MacOS/PS3 Center"

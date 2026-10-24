@@ -134,25 +134,7 @@ import Testing
 }
 
 /// Builds a minimal PARAM.SFO with string values.
-func makeSFO(_ values: [String: String]) -> Data {
-    let keys = values.keys.sorted()
-    var keyTable = Data()
-    var dataTable = Data()
-    var index = Data()
-    func le16(_ v: Int) -> Data { Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
-    func le32(_ v: Int) -> Data { le16(v & 0xFFFF) + le16(v >> 16) }
-    for key in keys {
-        let value = Data(values[key]!.utf8) + Data([0])
-        index += le16(keyTable.count) + le16(0x0204) + le32(value.count) + le32(value.count) + le32(dataTable.count)
-        keyTable += Data(key.utf8) + Data([0])
-        dataTable += value
-    }
-    let keyStart = 20 + index.count
-    let dataStart = keyStart + keyTable.count
-    var header = Data([0x00, 0x50, 0x53, 0x46]) + le32(0x101)
-    header += le32(keyStart) + le32(dataStart) + le32(keys.count)
-    return header + index + keyTable + dataTable
-}
+func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
 
 @Test func looksUpCatalogEntries() {
     guard case .found(let byID) = Catalog.lookup("ezremote") else { Issue.record("ezremote"); return }
@@ -305,4 +287,30 @@ func makeSFO(_ values: [String: String]) -> Data {
         .code("<b>not html</b>"),
     ])
     #expect(Readme.plainText("Se **[Apollo](https://x.invalid/a)** och `kod`, *kursiv*, ds45pad_vsh*2") == "Se Apollo (https://x.invalid/a) och kod, kursiv, ds45pad_vsh*2")
+}
+
+// MARK: Fixtures
+
+@Test func fixturesMatchWhatTheScreensShow() throws {
+    let snapshot = Fixtures.snapshot
+    #expect(snapshot.henVersion == "3.5.0")
+    #expect(snapshot.isGameRunning)
+    let statuses = Fixtures.appStatuses()
+    #expect(statuses.count == Catalog.entries.count)
+    let byID = Dictionary(uniqueKeysWithValues: statuses.map { ($0.id, $0) })
+    #expect(byID["apollo"]?.state == .updateAvailable)
+    #expect(byID["apollo"]?.canInstall == true)
+    #expect(byID["hen"]?.state == .updateAvailable)
+    #expect(byID["hen"]?.canInstall == false)
+    #expect(byID["pkgi"]?.state == .upToDate)
+    #expect(byID["ds45pad"]?.state == .upToDate)
+    #expect(byID["filemanager"]?.state == .manual)
+    #expect(byID["ezremote"]?.installable == true)
+    #expect(statuses.allSatisfy { !$0.blocked })
+
+    let cfw = Dictionary(uniqueKeysWithValues: Fixtures.appStatuses(on: Fixtures.cfwSnapshot).map { ($0.id, $0) })
+    #expect(cfw["ps3health"]?.compatibility.verdict == .untested)
+    #expect(cfw["ps3health"]?.installable == true)
+    #expect(cfw["hen"]?.compatibility.verdict == .incompatible)
+    #expect(Fixtures.readme.blocks.contains { if case .table = $0 { return true }; return false })
 }

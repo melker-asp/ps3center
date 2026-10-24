@@ -67,6 +67,20 @@ final class ConsoleStore {
         }
     }
 
+    /// Fixture mode (`PS3CENTER_FIXTURES=1`): canned data, no network.
+    func loadFixture(_ snapshot: ConsoleSnapshot = Fixtures.snapshot) {
+        pollTask?.cancel()
+        pollTask = nil
+        host = snapshot.host
+        self.snapshot = snapshot
+        latency = 0.18
+        cpuHistory = Fixtures.series(around: Double(snapshot.cpuTemp ?? 60))
+        rsxHistory = Fixtures.series(around: Double(snapshot.rsxTemp ?? 65))
+        fanHistory = Fixtures.series(around: Double(snapshot.fanPercent ?? 30), swing: 2)
+        history = Fixtures.history
+        connection = .online
+    }
+
     private func record(_ next: ConsoleSnapshot) {
         snapshot = next
         func push(_ value: Int?, into array: inout [Double]) {

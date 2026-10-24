@@ -38,6 +38,27 @@ public struct ParamSFO: Equatable, Sendable {
         self.values = values
     }
 
+    /// A minimal PARAM.SFO with string values (fixtures and tests).
+    static func encode(_ values: [String: String]) -> Data {
+        let keys = values.keys.sorted()
+        var keyTable = Data()
+        var dataTable = Data()
+        var index = Data()
+        func le16(_ v: Int) -> Data { Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
+        func le32(_ v: Int) -> Data { le16(v & 0xFFFF) + le16(v >> 16) }
+        for key in keys {
+            let value = Data(values[key]!.utf8) + Data([0])
+            index += le16(keyTable.count) + le16(0x0204) + le32(value.count) + le32(value.count) + le32(dataTable.count)
+            keyTable += Data(key.utf8) + Data([0])
+            dataTable += value
+        }
+        let keyStart = 20 + index.count
+        let dataStart = keyStart + keyTable.count
+        var header = Data([0x00, 0x50, 0x53, 0x46]) + le32(0x101)
+        header += le32(keyStart) + le32(dataStart) + le32(keys.count)
+        return header + index + keyTable + dataTable
+    }
+
     public func string(_ key: String) -> String? {
         if case .string(let s) = values[key], !s.isEmpty { return s }
         return nil
