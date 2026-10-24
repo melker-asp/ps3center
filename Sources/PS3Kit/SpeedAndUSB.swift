@@ -50,13 +50,13 @@ public enum SpeedTest {
             events(.started(route, resumingFrom: 0))
             let start = Date()
             var lastReport = Date.distantPast
-            let sent = try await ftp.uploadZeros(to: remote, seconds: seconds, limit: limit) { sent in
+            let sent = try await ftp.uploadZeros(to: remote, seconds: seconds, limit: limit) { bytes in
                 let now = Date()
                 guard now.timeIntervalSince(lastReport) >= 0.25 else { return }
                 lastReport = now
                 let elapsed = max(now.timeIntervalSince(start), 0.001)
                 // The time, not the size, sets how far along it is.
-                events(.progress(route, sent: Int64(min(elapsed / seconds, 1) * 1000), total: 1000, bytesPerSecond: Double(sent) / elapsed))
+                events(.progress(route, sent: Int64(min(elapsed / seconds, 1) * 1000), total: 1000, bytesPerSecond: Double(bytes) / elapsed))
             }
             let upSeconds = max(Date().timeIntervalSince(start), 0.001)
             events(.finished(route, seconds: upSeconds))
