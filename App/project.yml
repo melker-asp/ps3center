@@ -1,0 +1,38 @@
+# Generates PS3Center.xcodeproj: `xcodegen` in this folder (or `make app` one level up).
+name: PS3Center
+options:
+  bundleIdPrefix: local.ps3center
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  PS3Center:
+    path: ..
+targets:
+  PS3Center:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: PS3Center
+        product: PS3Kit
+    settings:
+      base:
+        PRODUCT_NAME: PS3 Center
+        PRODUCT_BUNDLE_IDENTIFIER: local.ps3center.app
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: PS3 Center
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: PS3 Center pratar med webMAN på din PS3 över det lokala nätverket.
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        # Personal tool: no sandbox, signed to run locally.
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""

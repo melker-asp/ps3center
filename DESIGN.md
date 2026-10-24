@@ -1,0 +1,91 @@
+# PS3 Center – design och arkitektur
+
+Förebild: [Mole](https://github.com/tw93/mole). Mole är ett öppet CLI (`mo`) som gör jobbet,
+plus en separat Mac-app som visar samma funktioner som flikar. PS3 Center följer samma idé,
+men med **en** gemensam motor i stället för två kodbaser.
+
+```
+PS3Kit (Swift-bibliotek)   ← all logik: webMAN, FTP, ISO/SFO/PKG, uppdateringar
+ ├── ps3   (CLI)           ← det här, version 0.1
+ └── PS3 Center.app        ← SwiftUI, kommer sen – länkar PS3Kit direkt
+```
+
+CLI:t skriver också JSON (`--json`, och automatiskt när utdata skickas vidare), och
+`ps3 status --watch --json` strömmar NDJSON. Det gör att widgets, Raycast eller Claude kan
+läsa samma data utan appen.
+
+## Principer från Mole
+
+| Mole | PS3 Center |
+|---|---|
+| `mo status` är skrivskyddat | `ps3 status` läser bara |
+| `--dry-run` före allt som ändrar något | `send`, `apps update` och `apps install` har `--dry-run` |
+| Frågar innan ändringar, `--yes` hoppar över frågan | `apps update` frågar per program, `-y` svarar ja |
+| Skyddade sökvägar rörs aldrig | HEN och plugins installeras aldrig automatiskt, bara råd |
+| `~/Library/Logs/mole/operations.log` + `mo history` | `~/Library/Logs/ps3center/operations.log` + `ps3 history` |
+| `~/.config/mole/` | `~/.config/ps3center/config.json` (delas med appen) |
+| JSON automatiskt när utdata skickas vidare | Samma sak för `status`, `apps` och `history` |
+| ➤ rubriker, ✓ ◎ → markörer, hälsopoäng 0–100 | Samma stil |
+
+Egen regel: **"varna och vänta"**. Det som påverkar konsolen (installera, uppdatera spellistan)
+väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör ändå.
+
+## Kommandon ↔ flikar i appen
+
+| Flik | CLI | Innehåll |
+|---|---|---|
+| **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
+| **Spel** | `ps3 send` (+ senare `games`) | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
+| **Appar** | `ps3 apps`, `apps available`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg |
+| **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
+| **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
+| **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka fil, Uppdatera spellista, Stäng av) |
+
+## Utseende (från Moles skärmbilder)
+
+- Flikar som piller centrerade högst upp, med logotyp till vänster.
+- Mörk, varm bakgrund med en färgton som byter per flik eller tillstånd.
+- Kort: liten versal rubrik med ikon, chip i hörnet (t.ex. "Wi-Fi", "Normal"), stort tal med
+  enhet, en sparkline eller stapel och en grå fotnot.
+- Hjältebild som speglar hälsan. Mole använder en planet; här kan det vara konsolen eller en
+  skiva som lyser i hälsofärgen.
+- Granskningsvy före ändringar: grupper med kryssrutor och storlek, och en vit huvudknapp som
+  säger exakt vad som händer ("Installera 2 uppdateringar").
+- Detaljrapport efteråt: Klart / Hoppade över, med skälet högerställt i grått.
+
+## Fakta om konsolen som koden bygger på
+
+- **webMAN hänger sig på återanvända HTTP-anslutningar.** Varje anrop skickar `Connection: close`
+  och körs ett i taget. Parallella anrop tar 4+ sekunder styck medan ett spel körs.
+- **Spel som körs** läses via PS3MAPI `PROCESS GETCURRENTPID` + `GETNAME` (`…_EBOOT.BIN` = spel,
+  `vsh.self` = XMB). `GETALLPID` skickar trasig JSON.
+- **FTP:** `SIZE` fungerar. Avbrutna uppladdningar fortsätter med `APPE`. När PS3:an stänger en
+  dataanslutning kommer det som ENODATA i stället för filslut.
+- **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
+- **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
+  som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när
+  `PARAM.SFO` i `/dev_hdd0/game/<title ID>/` fått en ny `MDTM`-tidsstämpel och mappen sedan
+  inte ändrats på två kontroller i rad. Därefter tar verktyget bort sin kopia av paketet.
+  Ominstallation av Apollo tog 11 sekunder.
+- **`/refresh.ps3` och `/popup.ps3`** svarar OK direkt, även med åäö i texten (provat 24 okt 2026).
+- **Brewology** ligger bakom ett Cloudflare-skydd mot automatiska anrop och kringgås inte.
+  Program som bara finns där får en länk.
+- **PS3HEN** har inga GitHub-releaser. Senaste versionen läses från `HEN_REV` i
+  `payload/main.c` (0x0360 → 3.6.0).
+
+## Färdplan
+
+- **CLI 0.1 (klart):** `status`, `send`, `apps` (list/available/update/install via namn eller
+  fil), `popup`, `refresh`, `history`, `discover`, `config`. Katalogen har 19 program. Nya
+  kandidater granskas mot hur väletablerade de är; repon som är några veckor gamla med 1–2
+  stjärnor tas inte med automatiskt.
+- **Spel:** bara egna filer via `send`. Ingen inbyggd nedladdning från ROM-/ISO-arkiv.
+  Planerat i stället: `ps3 rip` (kopiera skivan i spelaren med `/copy.ps3/dev_bdvd`),
+  Finder-åtgärden "Skicka till PS3" och en bevakad mapp.
+- **CLI härnäst:** `games` (lista/starta/avsluta/ta bort), `maintain`, `analyze`,
+  `backup-saves`, `plugin add/remove` (säker ändring av boot_plugins.txt), en interaktiv meny
+  när `ps3` körs utan argument, och Finder-åtgärden "Skicka till PS3".
+- **App 0.1 (klar):** Xcode-projekt genererat från `App/project.yml` som länkar PS3Kit, Swift 6
+  strikt läge, flikarna Status och Appar, och skärmbildsläget (`PS3CENTER_SNAPSHOT_DIR`).
+- **App härnäst:** Spel-fliken med dra-och-släpp (kräver att PS3Kit kan lista spelen på
+  konsolen), menyraden, en appikon och skärmbilder från fixturdata så att CI kan rendera utan PS3.
