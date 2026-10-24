@@ -26,6 +26,9 @@ final class AppsStore {
     private(set) var phase: Phase = .idle
     private(set) var statuses: [AppStatus] = []
     private(set) var icons: [String: NSImage] = [:]
+    /// XMB backgrounds (PIC1.PNG) of installed apps, for the detail page's banner.
+    private(set) var backgrounds: [String: NSImage] = [:]
+    private var backgroundsTried: Set<String> = []
     private(set) var operations: [String: Operation] = [:]
     private(set) var lastChecked: Date?
     /// READMEs by repo, fetched when a program's detail page opens.
@@ -84,6 +87,15 @@ final class AppsStore {
         phase = .loaded
         lastChecked = Date()
         readmes[Fixtures.readme.repo] = .loaded(Fixtures.readme)
+    }
+
+    func loadBackground(for entry: CatalogEntry) async {
+        guard let host, !backgroundsTried.contains(entry.id),
+              statuses.first(where: { $0.id == entry.id })?.installed != nil else { return }
+        backgroundsTried.insert(entry.id)
+        if let data = await AppsService(host: host).background(for: entry), let image = NSImage(data: data) {
+            backgrounds[entry.id] = image
+        }
     }
 
     func loadReadme(for entry: CatalogEntry) async {

@@ -261,6 +261,22 @@ public struct AppsService: Sendable {
         return result
     }
 
+    /// The XMB background (PIC1.PNG, 1920×1080) of an installed app, cached on disk like the icons.
+    public func background(for entry: CatalogEntry) async -> Data? {
+        guard let titleID = entry.titleID else { return nil }
+        let cache = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/ps3center/backgrounds", isDirectory: true)
+        let file = cache.appendingPathComponent("\(titleID).png")
+        if let data = try? Data(contentsOf: file) { return data }
+        let downloaded = try? await TransferService(host: host).withFTP { ftp in
+            try await ftp.download("/dev_hdd0/game/\(titleID)/PIC1.PNG", limit: 8 << 20)
+        }
+        guard let data = downloaded ?? nil else { return nil }
+        try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        try? data.write(to: file)
+        return data
+    }
+
     // MARK: Install and update
 
     /// Fetches the release package for `entry`, archives it in _Installerat/Paket (older copies

@@ -148,7 +148,10 @@ struct AppsView: View {
             let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil || $0.blocked) }
             if !rows.isEmpty {
                 SectionHeader(title: category.label, count: rows.count)
-                ForEach(rows, id: \.id) { AppRow(status: $0, mode: .get) }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 16)], alignment: .leading, spacing: 16) {
+                    ForEach(rows, id: \.id) { AppTile(status: $0) }
+                }
+                .padding(.horizontal, 14)
             }
         }
     }
@@ -175,7 +178,7 @@ struct SectionHeader: View {
 }
 
 struct AppRow: View {
-    enum Mode { case update, current, manual, get }
+    enum Mode { case update, current, manual }
 
     @Environment(AppsStore.self) private var apps
     @Environment(\.openURL) private var openURL
@@ -215,7 +218,9 @@ struct AppRow: View {
         .help("Visa mer om \(status.name)")
     }
 
-    private var sourceLabel: String {
+    private var sourceLabel: String { Self.sourceLabel(for: status) }
+
+    static func sourceLabel(for status: AppStatus) -> String {
         guard let entry = AppsStore.entry(for: status) else { return "" }
         switch entry.source {
         case .github(let repo, _, _):
@@ -244,9 +249,6 @@ struct AppRow: View {
         case .manual:
             Text([status.installed, status.note].compactMap { $0 }.joined(separator: "  ·  "))
                 .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
-        case .get:
-            Text(status.blocked ? status.compatibility.summary : status.summary)
-                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         }
     }
 
@@ -267,24 +269,69 @@ struct AppRow: View {
                     .buttonStyle(PillButtonStyle(prominent: false))
             case .current:
                 EmptyView()
-            case .get:
-                if status.blocked {
-                    Label("Fungerar inte", systemImage: "nosign")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.hot)
-                } else if let installed = status.installed {
-                    Label(installed, systemImage: "checkmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.good)
-                } else if status.installable {
-                    HStack(spacing: 10) {
-                        if let latest = status.latest {
-                            Text(latest).font(.system(size: 12, design: .rounded)).foregroundStyle(Theme.tertiaryText)
-                        }
-                        Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
+            }
+        }
+    }
+}
+
+/// A tile in Hämta, like the PS app's library: the XMB icon large, name, summary and action.
+struct AppTile: View {
+    @Environment(AppsStore.self) private var apps
+    let status: AppStatus
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Color.clear
+                .aspectRatio(320.0 / 176.0, contentMode: .fit)
+                .overlay {
+                    GeometryReader { proxy in
+                        AppIcon(image: apps.icons[status.id], name: status.name, category: status.category,
+                                symbol: AppRow.symbols[status.id], size: proxy.size)
                     }
                 }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(status.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
+                Text(status.blocked ? status.compatibility.summary : status.summary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(2, reservesSpace: true)
             }
+            HStack(spacing: 8) {
+                Chip(text: AppRow.sourceLabel(for: status))
+                if let badge = status.compatibility.badge {
+                    Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
+                }
+                Spacer()
+                action
+            }
+            .frame(height: 30)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hovering ? 0.08 : 0.045)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.cardStroke))
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id } }
+        .onHover { hovering = $0 }
+        .help("Visa mer om \(status.name)")
+    }
+
+    @ViewBuilder private var action: some View {
+        if let op = apps.operations[status.id] {
+            OperationView(operation: op)
+        } else if status.blocked {
+            Label("Fungerar inte", systemImage: "nosign")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.hot)
+        } else if let installed = status.installed {
+            Label(installed, systemImage: "checkmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.good)
+        } else if status.installable {
+            Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
         }
     }
 }
@@ -358,7 +405,9 @@ struct AppIcon: View {
         .overlay(RoundedRectangle(cornerRadius: 8 * scale, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
     }
 
-    private var tint: Color {
+    private var tint: Color { Self.tint(for: category) }
+
+    static func tint(for category: CatalogEntry.Category) -> Color {
         switch category {
         case .system: return Theme.psBlue
         case .tools: return Theme.galacticPurple
