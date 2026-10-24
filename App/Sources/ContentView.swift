@@ -47,43 +47,61 @@ struct ContentView: View {
     }
 }
 
-/// Centered pill tabs with the logo on the left, as in Mole.
+/// Centered pill tabs as in Mole, styled like the PS app's segmented control: a dark
+/// capsule with a lighter pill for the selection, the logo on a PlayStation-blue disc with
+/// a green presence dot while the console answers, and a green count on Appar.
 struct TabBar: View {
+    @Environment(ConsoleStore.self) private var console
+    @Environment(AppsStore.self) private var apps
     @Binding var selection: MainTab
     @Namespace private var pill
 
     var body: some View {
         HStack(spacing: 4) {
-            ZStack {
-                Circle().fill(Color.white)
-                Image(systemName: "playstation.logo")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.black)
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
+                    Circle().fill(Theme.psBlue)
+                    Image(systemName: "playstation.logo")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 34, height: 34)
+                if console.connection == .online {
+                    Circle()
+                        .fill(Theme.good)
+                        .frame(width: 10, height: 10)
+                        .overlay(Circle().strokeBorder(Color.black.opacity(0.6), lineWidth: 2))
+                        .offset(x: 1, y: 1)
+                }
             }
-            .frame(width: 34, height: 34)
             .padding(.trailing, 6)
 
             ForEach(MainTab.allCases) { tab in
                 Button {
                     withAnimation(.spring(duration: 0.3)) { selection = tab }
                 } label: {
-                    Text(tab.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(selection == tab ? Color.black : Theme.primaryText.opacity(0.8))
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 9)
-                        .background {
-                            if selection == tab {
-                                Capsule().fill(Color.white).matchedGeometryEffect(id: "pill", in: pill)
-                            }
+                    HStack(spacing: 7) {
+                        Text(tab.title)
+                        if tab == .apps, !apps.updates.isEmpty {
+                            CountBadge(count: apps.updates.count)
                         }
-                        .contentShape(Capsule())
+                    }
+                    .font(.system(size: 14, weight: selection == tab ? .bold : .semibold))
+                    .foregroundStyle(selection == tab ? Theme.primaryText : Theme.primaryText.opacity(0.7))
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 9)
+                    .background {
+                        if selection == tab {
+                            Capsule().fill(Color.white.opacity(0.14)).matchedGeometryEffect(id: "pill", in: pill)
+                        }
+                    }
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(5)
-        .background(Capsule().fill(Color.white.opacity(0.07)))
+        .background(Capsule().fill(Color.black.opacity(0.45)))
         .overlay(Capsule().strokeBorder(Color.white.opacity(0.06)))
     }
 }
@@ -109,7 +127,7 @@ struct ConnectionView: View {
                 Button("Försök igen") { console.retry() }
                     .buttonStyle(PillButtonStyle(tint: Theme.warm))
             } else {
-                ProgressView().controlSize(.small)
+                Spinner()
             }
             Spacer()
             Spacer()
@@ -122,7 +140,7 @@ struct ConnectionView: View {
         return false
     }
 
-    private var orbColor: Color { isOffline ? Theme.hot : Theme.warm }
+    private var orbColor: Color { isOffline ? Theme.hot : Theme.psBlue }
 
     private var title: String {
         switch console.connection {

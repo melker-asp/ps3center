@@ -5,8 +5,11 @@ import Foundation
 public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public var host: String = ""
     public var firmware: String?
+    /// "CEX", "DEX", "DECR" or "PEX" (Evilnat's PEX/D-PEX), as webMAN prints it.
     public var firmwareType: String?
     public var henVersion: String?
+    /// The CFW payload, e.g. "Cobra 8.4" or "Mamba 8.4". Nil on HEN, which reports henVersion instead.
+    public var payload: String?
     public var webmanVersion: String?
     public var cpuTemp: Int?
     public var rsxTemp: Int?
@@ -39,6 +42,8 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
 
     /// `sysInfo` is PS3MAPI "PS3 GETSYSINFO", e.g.
     /// "CPU: 60°C RSX: 67°C FAN: 31% Play: 00:28:50 MAX: 68°C Firmware : 4.93 CEX PS3HEN 3.5.0 IP: 10.0.1.35 WLAN System storage: 355.8 GB free ..."
+    /// On CFW the firmware part reads "4.92 CEX Cobra 8.4" or "4.92 DEX Mamba 8.4" (webMAN's
+    /// get_cobra_version in include/cpursx.h).
     /// `statusPage` is the HTML of /cpursx.ps3 (webMAN version and mounted game).
     public static func parse(sysInfo: String, statusPage: String) -> ConsoleSnapshot {
         var s = ConsoleSnapshot()
@@ -47,11 +52,12 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
         s.fanPercent = firstMatch(#"FAN:\s*(\d+)\s*%"#, in: sysInfo).flatMap { Int($0[1]) }
         s.fanTargetMax = firstMatch(#"MAX:\s*(\d+)\s*°C"#, in: sysInfo).flatMap { Int($0[1]) }
         s.playTime = firstMatch(#"Play:\s*([\d:]+)"#, in: sysInfo)?[1]
-        if let fw = firstMatch(#"Firmware\s*:\s*([\d.]+)\s+(\w+)"#, in: sysInfo) {
+        if let fw = firstMatch(#"Firmware\s*:\s*([\d.]+)\s+([\w-]+)"#, in: sysInfo) {
             s.firmware = fw[1]
             s.firmwareType = fw[2]
         }
         s.henVersion = firstMatch(#"PS3HEN\s+([\d.]+)"#, in: sysInfo)?[1]
+        s.payload = firstMatch(#"\b(Cobra|Mamba|qCFW)\s+([\d.]+)"#, in: sysInfo).map { "\($0[1]) \($0[2])" }
         if let ip = firstMatch(#"IP:\s*([\d.]+)\s+(\w+)"#, in: sysInfo) {
             s.ip = ip[1]
             s.network = ip[2] == "WLAN" ? "Wi-Fi" : ip[2]
@@ -71,7 +77,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
         }
         // Fall back to the HTML if PS3MAPI did not answer some fields.
         if s.henVersion == nil { s.henVersion = firstMatch(#"PS3HEN\s+([\d.]+)"#, in: statusPage)?[1] }
-        if s.firmware == nil, let fw = firstMatch(#"Firmware:\s*([\d.]+)\s+(\w+)"#, in: statusPage) {
+        if s.firmware == nil, let fw = firstMatch(#"Firmware:\s*([\d.]+)\s+([\w-]+)"#, in: statusPage) {
             s.firmware = fw[1]
             s.firmwareType = fw[2]
         }

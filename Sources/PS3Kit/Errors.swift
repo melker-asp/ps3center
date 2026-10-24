@@ -11,6 +11,7 @@ public enum PS3Error: LocalizedError, Equatable {
     case unsupportedFile(String)
     case invalidFile(String)
     case github(String)
+    case incompatible(String)
     case gameRunning
     case cancelled
 
@@ -30,7 +31,7 @@ public enum PS3Error: LocalizedError, Equatable {
             return "Tidsgränsen gick ut: \(what)"
         case .notEnoughSpace(let needed, let free):
             return "Inte tillräckligt med plats på PS3:an: behöver \(Format.bytes(needed)), ledigt \(Format.bytes(free)). Använd --force för att försöka ändå."
-        case .unsupportedFile(let message), .invalidFile(let message), .github(let message):
+        case .unsupportedFile(let message), .invalidFile(let message), .github(let message), .incompatible(let message):
             return message
         case .gameRunning:
             return "Ett spel eller program körs på PS3:an."

@@ -29,6 +29,7 @@ make install                    # release-CLI → ~/.local/bin/ps3
 make app                        # xcodegen + xcodebuild (kräver `brew install xcodegen`)
 make run-app                    # bygg och öppna appen
 make snapshot DIR=/tmp/shots    # rendera varje flik till PNG och avsluta (kräver nåbar PS3)
+make snapshot-fixtures DIR=/tmp/shots   # samma sak från PS3Kit:s Fixtures, utan PS3
 ```
 
 Lägger du till en fil i `App/Sources` måste projektet genereras om (`make project`), annars hittar
@@ -41,6 +42,9 @@ xcodebuild den inte.
 - **CI kontrollerar varje push.** GitHub Actions (`.github/workflows/ci.yml`, macos-15) kör
   `swift test`, bygger CLI:t och bygger appen. Pusha och läs CI-resultatet i stället för att bygga
   lokalt.
+- **Skärmbilder:** CI renderar varje skärm från `Fixtures` (`PS3CENTER_FIXTURES=1`) och laddar upp
+  dem som artefakten `screenshots`. Granska designändringar där. Nya skärmar läggs till i
+  `Snapshot.run`, och data som behövs för dem i `Fixtures.swift`.
 - **Konsolen finns bara på användarens hemnätverk.** Allt som kräver en riktig PS3 (snapshot,
   installationer, `ps3 status`) får användaren köra på sin Mac. Beskriv vad som ska provas.
 - **CI kan ha en äldre Xcode** än användarens (Xcode 27 / Swift 6.4). Undvik helt nya API:er utan
@@ -66,6 +70,14 @@ xcodebuild den inte.
   0x30. `AppsService` jämför installerad `APP_VER` med GitHub-releasen. Har PS3 Center själv
   installerat programmet används kopplingen tagg ↔ `APP_VER` i `installed.json` i stället för
   `VersionStyle`.
+- **Säkerhetsspärren** (`Compatibility.swift`): `ConsoleProfile` läses ur snapshoten (HEN/CFW,
+  CEX/DEX, firmware) och jämförs med `CatalogEntry.requirements`. `AppsService.status` sätter
+  `compatibility`/`blocked` och nollar `canInstall`/`installable`; `AppsService.install` och CLI:ts
+  `apps install` (även egna .pkg via title ID) stoppar före nedladdning. Okänd firmware blockerar
+  program med krav.
+- **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
+  `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
+  Samma data visar `ps3 apps info`.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -74,6 +86,8 @@ xcodebuild den inte.
 
 ## Regler
 
+- **Krav i katalogen ska ha en källa** (README, releaseanteckningar). Gissa inte att något kräver
+  CFW; ett felaktigt krav blockerar ett program som fungerar.
 - **HEN och plugins (ds45pad) installeras aldrig automatiskt.** De får bara `notifyOnly` med råd.
   En trasig sprx kan få konsolen att frysa vid start.
 - **Spara eller visa aldrig PSID/IDPS.** `/cpursx.ps3` innehåller dem.

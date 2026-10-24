@@ -134,25 +134,7 @@ import Testing
 }
 
 /// Builds a minimal PARAM.SFO with string values.
-func makeSFO(_ values: [String: String]) -> Data {
-    let keys = values.keys.sorted()
-    var keyTable = Data()
-    var dataTable = Data()
-    var index = Data()
-    func le16(_ v: Int) -> Data { Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
-    func le32(_ v: Int) -> Data { le16(v & 0xFFFF) + le16(v >> 16) }
-    for key in keys {
-        let value = Data(values[key]!.utf8) + Data([0])
-        index += le16(keyTable.count) + le16(0x0204) + le32(value.count) + le32(value.count) + le32(dataTable.count)
-        keyTable += Data(key.utf8) + Data([0])
-        dataTable += value
-    }
-    let keyStart = 20 + index.count
-    let dataStart = keyStart + keyTable.count
-    var header = Data([0x00, 0x50, 0x53, 0x46]) + le32(0x101)
-    header += le32(keyStart) + le32(dataStart) + le32(keys.count)
-    return header + index + keyTable + dataTable
-}
+func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
 
 @Test func looksUpCatalogEntries() {
     guard case .found(let byID) = Catalog.lookup("ezremote") else { Issue.record("ezremote"); return }
@@ -194,4 +176,141 @@ func makeSFO(_ values: [String: String]) -> Data {
     #expect(henStatus.state == .updateAvailable)
     #expect(!henStatus.canInstall)
     #expect(!henStatus.installable)
+}
+
+// MARK: Compatibility
+
+@Test func readsFirmwareProfiles() {
+    let hen = ConsoleProfile(snapshot: ConsoleSnapshot.parse(sysInfo: "CPU: 60°C RSX: 67°C FAN: 31% Firmware : 4.93 CEX PS3HEN 3.5.0 IP: 10.0.1.35 WLAN", statusPage: ""))
+    #expect(hen == ConsoleProfile(firmware: "4.93", kind: .cex, exploit: .hen, payload: "PS3HEN 3.5.0"))
+    #expect(hen.label == "4.93 CEX · PS3HEN 3.5.0")
+    // webMAN's get_cobra_version: "<CEX|DEX|DECR> <Cobra|Mamba|qCFW> <version>", P for PEX/D-PEX.
+    let cfw = ConsoleProfile(snapshot: ConsoleSnapshot.parse(sysInfo: "Firmware : 4.92 DEX Mamba 8.4 IP: 10.0.1.35 LAN", statusPage: ""))
+    #expect(cfw == ConsoleProfile(firmware: "4.92", kind: .dex, exploit: .cfw, payload: "Mamba 8.4"))
+    let pex = ConsoleProfile(snapshot: ConsoleSnapshot.parse(sysInfo: "Firmware : 4.93 PEX Cobra 8.5 IP: 10.0.1.35 LAN", statusPage: ""))
+    #expect(pex.exploit == .cfw)
+    #expect(pex.kind == nil)
+    #expect(ConsoleProfile(snapshot: ConsoleSnapshot()).exploit == nil)
+}
+
+@Test func blocksProgramsTheConsoleCannotRun() {
+    let hen = ConsoleProfile(firmware: "4.93", kind: .cex, exploit: .hen)
+    let cfwOnHEN = Compatibility.check(.cfwOnly, on: hen)
+    #expect(cfwOnHEN.verdict == .incompatible)
+    #expect(cfwOnHEN.reasons == ["Kräver CFW, din PS3 kör HEN"])
+    #expect(throws: PS3Error.self) { try cfwOnHEN.enforce("Test") }
+    #expect(Compatibility.check(.dexOnly, on: hen).blocksInstall)
+    #expect(Compatibility.check(Requirements(minFirmware: "4.80"), on: hen) == .compatible)
+    #expect(Compatibility.check(Requirements(maxFirmware: "4.88"), on: hen).reasons == ["Fungerar bara till och med firmware 4.88, din har 4.93"])
+    // Requirements that cannot be checked block too; programs without any never do.
+    #expect(Compatibility.check(.cfwOnly, on: ConsoleProfile()).verdict == .unknown)
+    #expect(Compatibility.check(.any, on: ConsoleProfile()) == .compatible)
+    // Untested is a warning, not a block.
+    let untested = Compatibility.check(Requirements(untestedOn: [.cfw]), on: ConsoleProfile(firmware: "4.92", kind: .cex, exploit: .cfw))
+    #expect(untested.verdict == .untested)
+    #expect(!untested.blocksInstall)
+}
+
+@Test func blockedAppsCannotBeInstalledOrUpdated() throws {
+    let entry = CatalogEntry(id: "cfwtool", name: "CFW Tool", summary: "", category: .tools,
+                             installed: .paramSFO(titleID: "CFWTOOL00"),
+                             source: .github(repo: "example/cfwtool", asset: #"\.pkg$"#),
+                             homepage: "https://example.invalid", requirements: .cfwOnly)
+    var console = ConsoleSnapshot()
+    console.firmware = "4.93"
+    console.firmwareType = "CEX"
+    console.henVersion = "3.5.0"
+    let release = AppsService.LatestInfo(version: "1.1", assetURL: URL(string: "https://example.invalid/a.pkg"), assetName: "a.pkg", assetData: nil)
+    let service = AppsService(host: "x")
+    let missing = service.status(for: entry, installedFile: nil, console: console, release: .success(release))
+    #expect(!missing.installable)
+    #expect(missing.blocked)
+    #expect(missing.compatibility.verdict == .incompatible)
+    let old = service.status(for: entry, installedFile: makeSFO(["APP_VER": "01.00"]), console: console, release: .success(release))
+    #expect(old.state == .updateAvailable)
+    #expect(!old.canInstall)
+    #expect(old.note == "Kräver CFW, din PS3 kör HEN")
+
+    let apollo = try #require(Catalog.entry(titleID: "np0apollo"))
+    #expect(apollo.id == "apollo")
+    #expect(apollo.repository == "bucanero/apollo-ps3")
+    #expect(service.status(for: apollo, installedFile: nil, console: console, release: .success(release)).installable)
+}
+
+// MARK: README
+
+@Test func parsesReadmeMarkdownAndHTML() {
+    let markdown = """
+    <h1 align="center">Tool<br>for PS3</h1>
+    <p align="center"><img src="docs/logo.png" alt="Logo" width="200"></p>
+
+    [![Build](https://github.com/o/r/actions/workflows/build.yml/badge.svg)](https://github.com/o/r/actions) [![Downloads][img]][dl]
+
+    A **tool** with [docs](docs/USAGE.md), [a section](#usage) and `<titleID>`.
+    Second line<br>
+    third line.
+
+    Changelog
+    ---------
+
+    - [x] Done
+    - Item with ![shot](https://github.com/o/r/blob/main/shot.png)
+      continued here
+      - Nested
+
+    > [!WARNING]
+    > Can freeze the console.
+
+    | Key | Action |
+    |-----|--------|
+    | X   | Select |
+
+    ```
+    <b>not html</b>
+    ```
+
+    [img]: https://img.shields.io/github/downloads/o/r/total.svg
+    [dl]: https://github.com/o/r/releases
+    """
+    let readme = Readme(markdown: markdown, repo: "o/r",
+                        rawBase: URL(string: "https://raw.githubusercontent.com/o/r/main/"),
+                        htmlBase: URL(string: "https://github.com/o/r/blob/main/"))
+    #expect(readme.blocks == [
+        .heading(level: 1, text: "Tool for PS3"),
+        .image(.init(url: URL(string: "https://raw.githubusercontent.com/o/r/main/docs/logo.png")!, alt: "Logo")),
+        .paragraph("A **tool** with [docs](https://github.com/o/r/blob/main/docs/USAGE.md), a section and `<titleID>`. Second line\nthird line."),
+        .heading(level: 2, text: "Changelog"),
+        .list(items: [.init(text: "☑ Done", depth: 0), .init(text: "Item with continued here", depth: 0), .init(text: "Nested", depth: 1)], ordered: false),
+        .image(.init(url: URL(string: "https://raw.githubusercontent.com/o/r/main/shot.png")!, alt: "shot")),
+        .quote("**Varning**\nCan freeze the console."),
+        .table(rows: [["Key", "Action"], ["X", "Select"]]),
+        .code("<b>not html</b>"),
+    ])
+    #expect(Readme.plainText("Se **[Apollo](https://x.invalid/a)** och `kod`, *kursiv*, ds45pad_vsh*2") == "Se Apollo (https://x.invalid/a) och kod, kursiv, ds45pad_vsh*2")
+}
+
+// MARK: Fixtures
+
+@Test func fixturesMatchWhatTheScreensShow() throws {
+    let snapshot = Fixtures.snapshot
+    #expect(snapshot.henVersion == "3.5.0")
+    #expect(snapshot.isGameRunning)
+    let statuses = Fixtures.appStatuses()
+    #expect(statuses.count == Catalog.entries.count)
+    let byID = Dictionary(uniqueKeysWithValues: statuses.map { ($0.id, $0) })
+    #expect(byID["apollo"]?.state == .updateAvailable)
+    #expect(byID["apollo"]?.canInstall == true)
+    #expect(byID["hen"]?.state == .updateAvailable)
+    #expect(byID["hen"]?.canInstall == false)
+    #expect(byID["pkgi"]?.state == .upToDate)
+    #expect(byID["ds45pad"]?.state == .upToDate)
+    #expect(byID["filemanager"]?.state == .manual)
+    #expect(byID["ezremote"]?.installable == true)
+    #expect(statuses.allSatisfy { !$0.blocked })
+
+    let cfw = Dictionary(uniqueKeysWithValues: Fixtures.appStatuses(on: Fixtures.cfwSnapshot).map { ($0.id, $0) })
+    #expect(cfw["ps3health"]?.compatibility.verdict == .untested)
+    #expect(cfw["ps3health"]?.installable == true)
+    #expect(cfw["hen"]?.compatibility.verdict == .incompatible)
+    #expect(Fixtures.readme.blocks.contains { if case .table = $0 { return true }; return false })
 }

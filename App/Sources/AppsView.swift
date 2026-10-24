@@ -22,14 +22,19 @@ struct AppsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            toolbar
+            if apps.selected == nil { toolbar }
             if let game = apps.waitingGame {
                 WaitingBanner(game: game) { apps.forceWaiting() }
             }
             if apps.archiveMissing {
                 MissingFolderBanner { apps.chooseMirrorFolder() }
             }
-            content
+            if let selected = apps.selected {
+                AppDetailView(status: selected, scrolls: scrolls)
+                    .transition(.opacity)
+            } else {
+                content
+            }
         }
         .task(id: console.host) {
             guard let host = console.host, apps.phase == .idle || apps.statuses.isEmpty else { return }
@@ -44,35 +49,33 @@ struct AppsView: View {
                     Button {
                         section = item
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             Text(item.title)
                             if item == .updates, !apps.updates.isEmpty {
-                                Text("\(apps.updates.count)").foregroundStyle(Theme.accent)
+                                CountBadge(count: apps.updates.count)
                             }
                         }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(section == item ? Theme.primaryText : Theme.secondaryText)
+                        .font(.system(size: 14, weight: section == item ? .bold : .semibold))
+                        .foregroundStyle(section == item ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Capsule().fill(section == item ? Color.white.opacity(0.1) : .clear))
+                        .background(Capsule().fill(section == item ? Color.white.opacity(0.14) : .clear))
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(4)
-            .background(Capsule().fill(Color.white.opacity(0.05)))
+            .background(Capsule().fill(Color.black.opacity(0.45)))
 
             Button {
                 guard let host = console.host else { return }
                 Task { await apps.load(host: host, refreshIcons: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.secondaryText)
                     .rotationEffect(.degrees(apps.phase == .loading ? 360 : 0))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconButtonStyle())
             .help("Kolla igen")
             .disabled(apps.isBusy)
 
@@ -91,7 +94,7 @@ struct AppsView: View {
         switch apps.phase {
         case _ where firstLoad:
             VStack(spacing: 12) {
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Kollar versioner på PS3:an och GitHub…")
                     .font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
             }
@@ -142,7 +145,7 @@ struct AppsView: View {
 
     @ViewBuilder private var getList: some View {
         ForEach(CatalogEntry.Category.allCases, id: \.self) { category in
-            let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil) }
+            let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil || $0.blocked) }
             if !rows.isEmpty {
                 SectionHeader(title: category.label, count: rows.count)
                 ForEach(rows, id: \.id) { AppRow(status: $0, mode: .get) }
@@ -157,15 +160,12 @@ struct SectionHeader: View {
     var action: (String, () -> Void)?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.primaryText.opacity(0.85))
-            Text("\(count)").font(.system(size: 13)).foregroundStyle(Theme.tertiaryText)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title).font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
+            Text("\(count)").font(.system(size: 14)).foregroundStyle(Theme.tertiaryText)
             Spacer()
             if let action {
-                Button(action.0, action: action.1)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+                Button(action.0, action: action.1).buttonStyle(PillButtonStyle())
             }
         }
         .padding(.horizontal, 14)
@@ -193,16 +193,26 @@ struct AppRow: View {
                 HStack(spacing: 8) {
                     Text(status.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.primaryText)
                     Chip(text: sourceLabel)
+                    if let badge = status.compatibility.badge {
+                        Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
+                    }
                 }
                 subtitle
             }
             Spacer()
             trailing
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.tertiaryText.opacity(hovering ? 1 : 0.5))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(hovering ? 0.04 : 0)))
+        .contentShape(Rectangle())
+        // Buttons in the row keep their own action; the rest of the row opens the detail page.
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id } }
         .onHover { hovering = $0 }
+        .help("Visa mer om \(status.name)")
     }
 
     private var sourceLabel: String {
@@ -235,7 +245,8 @@ struct AppRow: View {
             Text([status.installed, status.note].compactMap { $0 }.joined(separator: "  ·  "))
                 .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         case .get:
-            Text(status.summary).font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
+            Text(status.blocked ? status.compatibility.summary : status.summary)
+                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         }
     }
 
@@ -248,7 +259,7 @@ struct AppRow: View {
                 if status.canInstall {
                     Button("Uppdatera") { apps.install(status) }.buttonStyle(PillButtonStyle())
                 } else {
-                    Button("Läs mer") { if let url = URL(string: status.homepage) { openURL(url) } }
+                    Button("Läs mer") { apps.selectedID = status.id }
                         .buttonStyle(PillButtonStyle(prominent: false))
                 }
             case .manual:
@@ -257,7 +268,11 @@ struct AppRow: View {
             case .current:
                 EmptyView()
             case .get:
-                if let installed = status.installed {
+                if status.blocked {
+                    Label("Fungerar inte", systemImage: "nosign")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.hot)
+                } else if let installed = status.installed {
                     Label(installed, systemImage: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.good)
@@ -266,7 +281,7 @@ struct AppRow: View {
                         if let latest = status.latest {
                             Text(latest).font(.system(size: 12, design: .rounded)).foregroundStyle(Theme.tertiaryText)
                         }
-                        Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle(tint: Theme.cool))
+                        Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
                     }
                 }
             }
@@ -283,16 +298,16 @@ struct OperationView: View {
             case .queued:
                 Text("I kö").foregroundStyle(Theme.tertiaryText)
             case .downloading:
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Laddar ner…").foregroundStyle(Theme.secondaryText)
             case .uploading(let fraction):
-                ProgressView(value: fraction).frame(width: 110).tint(Theme.accent)
+                PSProgressBar(fraction: fraction).frame(width: 110)
                 Text("\(Int(fraction * 100)) %").foregroundStyle(Theme.secondaryText).monospacedDigit()
             case .waitingForGame:
                 Image(systemName: "pause.circle").foregroundStyle(Theme.warm)
                 Text("Väntar på spelet").foregroundStyle(Theme.warm)
             case .installing:
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Installerar…").foregroundStyle(Theme.secondaryText)
             case .done:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
@@ -312,6 +327,10 @@ struct AppIcon: View {
     let name: String
     let category: CatalogEntry.Category
     var symbol: String?
+    // ICON0.PNG is 320×176, so a wide tile shows it without cropping too much.
+    var size = CGSize(width: 64, height: 36)
+
+    private var scale: CGFloat { size.height / 36 }
 
     var body: some View {
         Group {
@@ -321,30 +340,29 @@ struct AppIcon: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     if let symbol {
                         Image(systemName: symbol)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16 * scale, weight: .semibold))
                             .foregroundStyle(Color.white.opacity(0.9))
                     } else {
                         Text(String(name.prefix(1)))
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(size: 18 * scale, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.white.opacity(0.9))
                     }
                 }
             }
         }
-        // ICON0.PNG is 320×176, so a wide tile shows it without cropping too much.
-        .frame(width: 64, height: 36)
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 8 * scale, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8 * scale, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
     }
 
     private var tint: Color {
         switch category {
-        case .system: return Theme.warm
-        case .tools: return Theme.cool
-        case .webmanAddons: return Theme.good
+        case .system: return Theme.psBlue
+        case .tools: return Theme.galacticPurple
+        case .webmanAddons: return Theme.cosmicRed
         }
     }
 }

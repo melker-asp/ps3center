@@ -46,7 +46,7 @@ struct StatusView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(s.health)")
-                            .font(.system(size: 38, weight: .semibold, design: .rounded))
+                            .font(.system(size: 40, weight: .light))
                             .foregroundStyle(Theme.primaryText)
                         Text(s.healthLabel)
                             .font(.system(size: 17, weight: .medium))
@@ -105,7 +105,7 @@ struct StatusView: View {
     private func networkCard(_ s: ConsoleSnapshot) -> some View {
         Card(icon: "network", title: "Nätverk", chip: s.network) {
             Text(s.ip ?? console.host ?? "–")
-                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                .font(.system(size: 28, weight: .light))
                 .foregroundStyle(Theme.primaryText)
             Spacer(minLength: 0)
             HStack {
@@ -190,7 +190,7 @@ struct HistoryTable: View {
             ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
                 HStack {
                     Image(systemName: icon(for: entry.action))
-                        .foregroundStyle(Theme.warm)
+                        .foregroundStyle(Theme.accent)
                         .frame(width: 20)
                     Text((entry.detail as NSString).lastPathComponent)
                         .font(.system(size: 14, weight: .medium))

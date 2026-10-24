@@ -53,10 +53,13 @@ public struct CatalogEntry: Sendable {
     public let homepage: String
     /// False for packages bundled in someone else's release (their version does not follow the tag).
     public let tracksUpdates: Bool
+    /// HEN/CFW, CEX/DEX and firmware limits. Installs that do not meet them are blocked.
+    public let requirements: Requirements
 
     public init(id: String, name: String, summary: String, category: Category, installed: Installed, source: Source,
                 installedStyle: VersionStyle = .appVer, releaseStyle: VersionStyle = .dotted,
-                action: Action = .installPackage, homepage: String, tracksUpdates: Bool = true) {
+                action: Action = .installPackage, homepage: String, tracksUpdates: Bool = true,
+                requirements: Requirements = .any) {
         self.id = id
         self.name = name
         self.summary = summary
@@ -68,11 +71,21 @@ public struct CatalogEntry: Sendable {
         self.action = action
         self.homepage = homepage
         self.tracksUpdates = tracksUpdates
+        self.requirements = requirements
     }
 
     public var titleID: String? {
         if case .paramSFO(let id) = installed { return id }
         return nil
+    }
+
+    /// The GitHub repo whose README describes the program, nil for Brewology-only entries.
+    public var repository: String? {
+        switch source {
+        case .github(let repo, _, _): return repo
+        case .henSource: return "PS3Xploit/PS3HEN"
+        case .manual: return nil
+        }
     }
 
     /// Can `ps3 apps install <name>` fetch and install it?
@@ -93,7 +106,9 @@ public enum Catalog {
             id: "hen", name: "PS3HEN", summary: "Homebrew Enabler – grunden för allt annat",
             category: .system, installed: .hen, source: .henSource, installedStyle: .dotted,
             action: .notifyOnly("Uppdatera HEN först när du vet att dina plugins (t.ex. ds45pad) fungerar med den nya versionen. Installeras via HFW-webbläsaren eller HEN-installeraren."),
-            homepage: "https://github.com/PS3Xploit/PS3HEN"),
+            homepage: "https://github.com/PS3Xploit/PS3HEN",
+            // README: OFW 4.80–4.82, HFW 4.83–4.93; "CFWs can be used for testing, but not recommended".
+            requirements: Requirements(exploits: [.hen], minFirmware: "4.80", note: "På CFW behövs inte HEN")),
         CatalogEntry(
             id: "webman", name: "webMAN MOD", summary: "Spelmeny, FTP, ISO-montering och webbkommandon",
             category: .system, installed: .webman,
@@ -142,7 +157,8 @@ public enum Catalog {
             id: "ps3health", name: "PS3 Health", summary: "Visar hårddiskens SMART-hälsa på TV:n",
             category: .tools, installed: .paramSFO(titleID: "HDSH00001"),
             source: .github(repo: "lucasdaddiego/ps3-health", asset: #"^PS3-Health-v[\d.]+\.pkg$"#), releaseStyle: .semverAsAppVer,
-            homepage: "https://github.com/lucasdaddiego/ps3-health/releases"),
+            homepage: "https://github.com/lucasdaddiego/ps3-health/releases",
+            requirements: Requirements(untestedOn: [.cfw], note: "Enligt README kan ett diskkommando frysa konsolen på otestade system")),
         CatalogEntry(
             id: "ps3loadx", name: "PS3LoadX", summary: "Starta homebrew skickat över nätverket (för utvecklare)",
             category: .tools, installed: .paramSFO(titleID: "PSL145310"),
@@ -211,6 +227,11 @@ public enum Catalog {
         case 1: return .found(partial[0])
         default: return .ambiguous(partial)
         }
+    }
+
+    /// The entry a .pkg belongs to, from the title ID in its header.
+    public static func entry(titleID: String) -> CatalogEntry? {
+        entries.first { $0.titleID?.caseInsensitiveCompare(titleID) == .orderedSame }
     }
 
     public static func entry(named query: String) -> CatalogEntry? {

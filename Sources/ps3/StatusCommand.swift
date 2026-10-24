@@ -49,7 +49,7 @@ struct Status: AsyncParsableCommand {
 
     static func render(_ s: ConsoleSnapshot) {
         let chips = [s.firmware.map { "\($0) \(s.firmwareType ?? "")".trimmingCharacters(in: .whitespaces) },
-                     s.henVersion.map { "PS3HEN \($0)" },
+                     s.henVersion.map { "PS3HEN \($0)" } ?? s.payload,
                      s.webmanVersion.map { "webMAN \($0)" }].compactMap { $0 }
         UI.header("PS3", detail: chips.joined(separator: " · "))
 

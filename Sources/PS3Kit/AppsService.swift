@@ -22,6 +22,10 @@ public struct AppStatus: Codable, Sendable {
     public var canInstall: Bool
     /// True when `ps3 apps install <id>` can fetch and install it at all.
     public var installable: Bool
+    /// Whether it works on this console (HEN/CFW, CEX/DEX, firmware). A block clears both flags above.
+    public var compatibility: Compatibility = .compatible
+    /// Could be installed from the catalog, but the console does not meet its requirements.
+    public var blocked = false
 }
 
 public struct AppsService: Sendable {
@@ -56,7 +60,11 @@ public struct AppsService: Sendable {
                 }
             }
         }
-        let needsSnapshot = entries.contains { if case .webman = $0.installed { return true }; if case .hen = $0.installed { return true }; return false }
+        let needsSnapshot = entries.contains {
+            if case .webman = $0.installed { return true }
+            if case .hen = $0.installed { return true }
+            return !$0.requirements.isUnrestricted
+        }
         let console = needsSnapshot ? try await WebMAN(host: host).snapshot() : ConsoleSnapshot()
         let releases = await latest
 
@@ -67,6 +75,22 @@ public struct AppsService: Sendable {
 
     func status(for entry: CatalogEntry, installedFile: Data?, console: ConsoleSnapshot,
                 release: Result<LatestInfo, Error>?) -> AppStatus {
+        var status = versionStatus(for: entry, installedFile: installedFile, console: console, release: release)
+        let compatibility = Compatibility.check(entry.requirements, on: ConsoleProfile(snapshot: console))
+        status.compatibility = compatibility
+        guard compatibility.blocksInstall else { return status }
+        status.blocked = entry.isInstallable
+        status.canInstall = false
+        status.installable = false
+        var notifyOnly = false
+        if case .notifyOnly = entry.action { notifyOnly = true }
+        // HEN and plugins keep their own advice; for the rest the block is the news.
+        if status.state == .updateAvailable, !notifyOnly { status.note = compatibility.summary }
+        return status
+    }
+
+    private func versionStatus(for entry: CatalogEntry, installedFile: Data?, console: ConsoleSnapshot,
+                               release: Result<LatestInfo, Error>?) -> AppStatus {
         var status = AppStatus(id: entry.id, name: entry.name, summary: entry.summary, category: entry.category,
                                installed: nil, latest: nil, state: .notInstalled, note: nil, homepage: entry.homepage,
                                assetURL: nil, assetName: nil, canInstall: false, installable: false)
@@ -195,6 +219,22 @@ public struct AppsService: Sendable {
         Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
+    // MARK: Compatibility
+
+    /// Reads the console's firmware only when `entry` has requirements.
+    public func compatibility(of entry: CatalogEntry) async throws -> Compatibility {
+        guard !entry.requirements.isUnrestricted else { return .compatible }
+        let profile = ConsoleProfile(snapshot: try await WebMAN(host: host).snapshot())
+        return Compatibility.check(entry.requirements, on: profile)
+    }
+
+    /// The safety check for a user's own .pkg: if its title ID is in the catalog, the same
+    /// requirements apply as when installing it by name. Unknown packages pass.
+    public func checkPackage(_ file: URL) async throws -> (entry: CatalogEntry, compatibility: Compatibility)? {
+        guard let titleID = PKGInfo(url: file)?.titleID, let entry = Catalog.entry(titleID: titleID) else { return nil }
+        return (entry, try await compatibility(of: entry))
+    }
+
     // MARK: Icons
 
     /// XMB icons (ICON0.PNG) of installed apps, keyed by catalog id. Cached on disk, since they
@@ -225,11 +265,15 @@ public struct AppsService: Sendable {
 
     /// Fetches the release package for `entry`, archives it in _Installerat/Paket (older copies
     /// of the same app go to the Trash), installs it and remembers which tag is installed.
+    /// Refuses before downloading anything when the console does not meet the entry's requirements.
     public func install(_ entry: CatalogEntry, archive: URL, options: TransferOptions, events: TransferHandler) async throws {
         guard entry.isInstallable, case .github(let repo, let pattern, let tag) = entry.source else {
             if case .notifyOnly(let note) = entry.action { throw PS3Error.unsupportedFile("\(entry.name) installeras inte automatiskt. \(note)") }
             throw PS3Error.unsupportedFile("\(entry.name) kan inte installeras automatiskt. Se \(entry.homepage)")
         }
+        let compatibility = try await self.compatibility(of: entry)
+        try compatibility.enforce(entry.name)
+        if compatibility.verdict == .untested { events(.note("Obs: \(compatibility.summary).")) }
         let release = try await GitHub.release(repo: repo, tag: tag)
         guard let asset = release.asset(matching: pattern) else {
             throw PS3Error.github("Releasen \(release.tagName) av \(repo) saknar paketet för \(entry.name).")

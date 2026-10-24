@@ -26,3 +26,23 @@ jobs:
           make project
           xcodebuild -project App/PS3Center.xcodeproj -scheme PS3Center -derivedDataPath .build/xcode \
             -configuration Debug CODE_SIGNING_ALLOWED=NO build
+
+      # Every screen rendered from PS3Kit's Fixtures, so a design change can be reviewed without a PS3.
+      - name: Render screenshots
+        run: |
+          out="$PWD/.build/snapshots"
+          mkdir -p "$out"
+          PS3CENTER_FIXTURES=1 PS3CENTER_SNAPSHOT_DIR="$out" \
+            ".build/xcode/Build/Products/Debug/PS3 Center.app/Contents/MacOS/PS3 Center" &
+          pid=$!
+          for _ in $(seq 1 120); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          kill "$pid" 2>/dev/null || true
+          ls -l "$out"
+          test -f "$out/status.png" && test -f "$out/apps-detail.png"
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: .build/snapshots/*.png
+          if-no-files-found: error
