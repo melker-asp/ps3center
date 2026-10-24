@@ -209,6 +209,46 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(GameListing.isGame(titleID: "BLES01200"))
 }
 
+@Test func readsSonysUpdateList() {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <titlepatch status="alive" titleid="BCES00569">
+    <tag name="BCES00569_T5" popup="true" signoff="false">
+    <package version="02.16" size="212000000" sha1sum="0123456789abcdef0123456789abcdef01234567" url="http://b0.ww.np.dl.playstation.net/tppkg/np/BCES00569/BCES00569_T5/a/EP9000-BCES00569_00-GRANTURISMO5XXXX-A0216-V0100-PE.pkg" ps3_system_ver="04.0000"/>
+    <package version="02.17" size="215000000" sha1sum="89abcdef0123456789abcdef0123456789abcdef" url="http://b0.ww.np.dl.playstation.net/tppkg/np/BCES00569/BCES00569_T5/b/EP9000-BCES00569_00-GRANTURISMO5XXXX-A0217-V0100-PE.pkg" ps3_system_ver="04.2500"><paramsfo><TITLE>Gran Turismo 5</TITLE></paramsfo></package>
+    </tag>
+    </titlepatch>
+    """
+    let patches = GameUpdateService.parse(Data(xml.utf8))
+    #expect(patches.map(\.version) == ["02.16", "02.17"])
+    #expect(patches[1].titleID == "BCES00569")
+    #expect(patches[1].size == 215_000_000)
+    #expect(patches[1].systemVersion == "4.25")
+    #expect(GameUpdateService.newer(patches, than: "02.16").map(\.version) == ["02.17"])
+    #expect(GameUpdateService.newer(patches.reversed(), than: nil).map(\.version) == ["02.16", "02.17"])
+    #expect(GameUpdateService.newer(patches, than: "02.17").isEmpty)
+    #expect(GameUpdateService.firmware(fromSystemVersion: "03.5500") == "3.55")
+    #expect(GameUpdateService.parse(Data()).isEmpty)
+
+    let ps2 = Game(path: "/dev_hdd0/PS2ISO/x.iso", title: "X", titleID: "SLES-12345", platform: .ps2)
+    #expect(!GameUpdateService.canHaveUpdates(ps2))
+    #expect(GameUpdateService.canHaveUpdates(Fixtures.games[0]))
+}
+
+@Test func findsCoverSourcesByPlatform() {
+    let gt5 = Game(path: "/dev_hdd0/PS3ISO/GT5.iso", title: "Gran Turismo 5", titleID: "BCES00569", platform: .ps3)
+    #expect(CoverService.sources(for: gt5).map(\.absoluteString) == [
+        "https://raw.githubusercontent.com/aldostools/Resources/master/COV/BCES00569.JPG",
+        "https://art.gametdb.com/ps3/coverM/EN/BCES00569.jpg",
+        "https://art.gametdb.com/ps3/coverM/US/BCES00569.jpg",
+    ])
+    let sotc = Game(path: "/dev_hdd0/PS2ISO/SotC.iso", title: "Shadow of the Colossus", titleID: "SCES-53326", platform: .ps2)
+    #expect(CoverService.sources(for: sotc).first?.absoluteString == "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SCES-53326.jpg")
+    let unknown = Game(path: "/dev_hdd0/PS3ISO/X.iso", title: "X", platform: .ps3)
+    #expect(CoverService.sources(for: unknown).isEmpty)
+    #expect(CoverService.key(for: Game(path: "/dev_hdd0/game/NPEA00418", title: "Journey", titleID: "NPEA00418", platform: .psn)) == "ps3-NPEA00418")
+}
+
 @Test func looksUpGames() {
     let games = Fixtures.games
     guard case .found(let byID) = Game.lookup("bces00569", in: games) else { Issue.record("by title ID"); return }
@@ -428,6 +468,7 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
 
     let games = Fixtures.games
     #expect(games.contains { $0.path == snapshot.mountedGamePath })
-    #expect(games.first { $0.titleID == "BCES00569" }?.updateVersion == "02.17")
+    #expect(games.first { $0.titleID == "BCES00569" }?.updateVersion == "02.11")
+    #expect(Fixtures.patches.count == 2)
     #expect(games.map(\.platform.order) == games.map(\.platform.order).sorted())
 }

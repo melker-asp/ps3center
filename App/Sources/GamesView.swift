@@ -7,6 +7,8 @@ import SwiftUI
 struct GamesView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
+    /// Box art (Fodral) or XMB icons (Ikoner); remembered between launches.
+    @AppStorage("gamesShowCovers") private var showCovers = true
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views or text fields.
     var scrolls = true
 
@@ -67,13 +69,59 @@ struct GamesView: View {
             .help("Läs om spelen")
             .disabled(library.isLoading)
 
+            HStack(spacing: 2) {
+                modeButton(covers: true, symbol: "rectangle.portrait.fill", help: "Fodral")
+                modeButton(covers: false, symbol: "rectangle.fill", help: "XMB-ikoner")
+            }
+            .padding(3)
+            .background(Capsule().fill(Color.black.opacity(0.45)))
+
             Spacer()
+
+            updatesButton
 
             if let checked = library.lastChecked {
                 Text("Läst \(checked.formatted(date: .omitted, time: .shortened))")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.tertiaryText)
             }
+        }
+    }
+
+    private func modeButton(covers: Bool, symbol: String, help: String) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { showCovers = covers }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(showCovers == covers ? Theme.primaryText : Theme.tertiaryText)
+                .frame(width: 34, height: 28)
+                .background(Capsule().fill(showCovers == covers ? Color.white.opacity(0.14) : .clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    /// "Sök uppdateringar" until Sony has been asked; then how many games have newer patches.
+    @ViewBuilder private var updatesButton: some View {
+        if library.isCheckingUpdates {
+            HStack(spacing: 8) {
+                Spinner()
+                Text("Frågar Sony…").font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+            }
+        } else {
+            Button {
+                Task { await library.checkUpdates(refresh: library.updatesChecked != nil) }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.down.circle")
+                    Text(library.updatesChecked == nil ? "Sök uppdateringar" : library.updateCount == 0 ? "Inga uppdateringar" : "Uppdateringar")
+                    if library.updateCount > 0 { CountBadge(count: library.updateCount) }
+                }
+            }
+            .buttonStyle(PillButtonStyle(prominent: false))
+            .help("Officiella spelpatchar från Sonys uppdateringsserver. Systemprogramvaran rörs aldrig.")
         }
     }
 
@@ -121,8 +169,9 @@ struct GamesView: View {
                 let rows = visible.filter { $0.platform == platform }
                 if !rows.isEmpty {
                     SectionHeader(title: platform.label, count: rows.count)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 280), spacing: 16)], alignment: .leading, spacing: 16) {
-                        ForEach(rows) { GameTile(game: $0) }
+                    LazyVGrid(columns: [GridItem(showCovers ? .adaptive(minimum: 160, maximum: 210) : .adaptive(minimum: 200, maximum: 280), spacing: 16)],
+                              alignment: .leading, spacing: 16) {
+                        ForEach(rows) { GameTile(game: $0, showCover: showCovers) }
                     }
                     .padding(.horizontal, 14)
                 }
@@ -147,22 +196,30 @@ extension ConsoleStore {
     }
 }
 
-/// A tile in the grid: the XMB icon large, the title, platform and region, and a green
-/// "Spelar" while it runs.
+/// A tile in the grid: the box art or XMB icon large, the title, platform and region, and a
+/// green "Spelar" while it runs.
 struct GameTile: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
     let game: Game
+    var showCover = true
     @State private var hovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Color.clear
-                .aspectRatio(320.0 / 176.0, contentMode: .fit)
+                .aspectRatio(showCover ? 0.82 : 320.0 / 176.0, contentMode: .fit)
                 .overlay {
                     GeometryReader { proxy in
-                        GameArtwork(image: library.icons[game.id], game: game, size: proxy.size)
+                        if showCover {
+                            GameCover(cover: library.covers[game.id], icon: library.icons[game.id], game: game, size: proxy.size)
+                        } else {
+                            GameArtwork(image: library.icons[game.id], game: game, size: proxy.size)
+                        }
                     }
+                }
+                .overlay(alignment: .topLeading) {
+                    if game.isOnUSB { Chip(text: "USB").padding(8) }
                 }
             Text(game.title)
                 .font(.system(size: 14, weight: .semibold))
@@ -171,14 +228,16 @@ struct GameTile: View {
             HStack(spacing: 6) {
                 Chip(text: game.platform.label)
                 if let region = game.region { Chip(text: region.label) }
-                if game.isOnUSB { Chip(text: "USB") }
-                Spacer()
+                Spacer(minLength: 4)
                 if let state = console.playState(of: game) {
                     Chip(text: state.label, color: Theme.good)
+                } else if let latest = library.patches[game.id]?.last {
+                    Chip(text: "↑ \(latest.version)", color: Theme.accent)
                 } else if let size = game.size {
                     Text(Format.bytes(size))
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.tertiaryText)
+                        .lineLimit(1)
                 }
             }
         }
@@ -208,20 +267,11 @@ struct GameArtwork: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                ZStack(alignment: .bottomLeading) {
+                ZStack {
                     LinearGradient(colors: [tint.opacity(0.95), tint.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     Image(systemName: Self.symbol(for: game.platform))
-                        .font(.system(size: 20 * scale, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.2))
-                        .padding(4 * scale)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    if size.height >= 60 {
-                        Text(game.title)
-                            .font(.system(size: max(12, 4.6 * scale), weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.92))
-                            .lineLimit(2)
-                            .padding(4 * scale)
-                    }
+                        .font(.system(size: min(size.width, size.height) * 0.38, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.28))
                 }
             }
         }
@@ -279,5 +329,33 @@ struct SearchField: View {
         .padding(.vertical, 9)
         .frame(width: 240)
         .background(Capsule().fill(Color.black.opacity(0.45)))
+    }
+}
+
+/// Box art for the Fodral grid: the cover fitted on a dark plate, else the XMB icon, else the
+/// platform's placeholder.
+struct GameCover: View {
+    let cover: NSImage?
+    let icon: NSImage?
+    let game: Game
+    let size: CGSize
+
+    var body: some View {
+        Group {
+            if let picture = cover ?? icon {
+                ZStack {
+                    Color.black.opacity(0.35)
+                    Image(nsImage: picture)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(cover == nil ? 10 : 0)
+                }
+            } else {
+                GameArtwork(image: nil, game: game, size: size)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
     }
 }

@@ -23,8 +23,10 @@ make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar 
 Appen har tre flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
   löpande kurvor och historiken från `ps3 history`.
-- **Spel:** spelen på PS3:an som rutnät med XMB-ikoner, filter per plattform och sök. Klicka på ett
-  spel för title ID, region, storlek och version, och för att starta, montera eller ta bort det.
+- **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform och sök.
+  Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort
+  eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
+  banderoll för att byta omslag.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
@@ -45,6 +47,9 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 games play <namn>` | Startar spelet. Körs ett annat spel frågar den först om det ska avslutas (`-y`, `--dry-run`) |
 | `ps3 games mount\|unmount\|exit` | Monterar ett spel som skiva, avmonterar det eller avslutar spelet som körs |
 | `ps3 games delete <namn>` | Tar bort spelets filer från PS3:an efter en fråga (`--dry-run`, `-y`) |
+| `ps3 games covers` | Hämtar omslag till Macen; `--to-ps3` lägger PS3-omslagen där webMAN letar |
+| `ps3 games updates` | Officiella uppdateringar (patchar) från Sony för spelen |
+| `ps3 games update <namn>` | Hämtar, kontrollerar och installerar ett spels patchar (`--all`, `--dry-run`, `-y`). Aldrig systemprogramvara |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
 | `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |

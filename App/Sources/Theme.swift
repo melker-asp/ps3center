@@ -101,6 +101,8 @@ struct Chip: View {
         Text(text)
             .font(.system(size: 11, weight: .bold))
             .foregroundStyle(color)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.black.opacity(0.5)))

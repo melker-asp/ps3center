@@ -12,11 +12,15 @@ struct Games: AsyncParsableCommand {
         ps3 games play gran turismo  Starta ett spel (frågar först om ett annat spel körs)
         ps3 games exit               Avsluta spelet som körs
         ps3 games delete <namn>      Ta bort ett spel från PS3:an (frågar först)
+        ps3 games covers             Hämta omslag (--to-ps3 lägger dem även i webMAN)
+        ps3 games updates            Officiella uppdateringar från Sony för spelen
+        ps3 games update gran        Installera uppdateringarna för ett spel (eller --all)
         Namnet kan vara en del av titeln, ett title ID (BCES00569, SLES-12345) eller sökvägen.
         Spelen läses från PS3ISO, GAMES, GAMEZ, PS2ISO, PSXISO, PSPISO, BDISO och DVDISO på
         hårddisken och USB-diskar, och från spel som är installerade i /dev_hdd0/game.
         """,
-        subcommands: [List.self, Info.self, Play.self, Mount.self, Unmount.self, ExitGame.self, Delete.self],
+        subcommands: [List.self, Info.self, Play.self, Mount.self, Unmount.self, ExitGame.self, Delete.self,
+                      Covers.self, Updates.self, Update.self],
         defaultSubcommand: List.self
     )
 
@@ -247,7 +251,169 @@ struct Games: AsyncParsableCommand {
         }
     }
 
+    struct Covers: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Hämta omslag för spelen till Macen, och med --to-ps3 även till webMAN på PS3:an.",
+            discussion: """
+            PS3: aldostools/Resources (webMAN:s onlineomslag) och GameTDB. PS2 och PS1: xlenore/ps2-covers
+            och psx-covers. PSP-spel och filmer har inga omslag. Omslagen sparas i ~/Library/Caches/ps3center/covers.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Flag(name: .customLong("to-ps3"), help: "Lägg också PS3-omslagen i /dev_hdd0/tmp/wmtmp/covers, där webMAN letar.")
+        var toPS3 = false
+
+        @Flag(name: .long, help: "Fråga källorna igen, även för spel som saknade omslag förra gången.")
+        var refresh = false
+
+        @Flag(name: .long, help: "Visa vad som skulle skickas till PS3:an utan att göra det.")
+        var dryRun = false
+
+        func run() async throws {
+            let host = try await Console.host(global)
+            UI.progress("Läser spelen på PS3:an…")
+            let games = try await GameLibraryService(host: host).scan()
+            UI.progress("Hämtar omslag…")
+            let covers = await CoverService().covers(for: games, refresh: refresh)
+            UI.endProgress()
+            UI.ok("\(covers.count) av \(games.count) spel har omslag" + UI.paint("  ~/Library/Caches/ps3center/covers", .gray))
+            let missing = games.filter { covers[$0.id] == nil }
+            for game in missing.prefix(12) {
+                UI.skip("\(game.title): " + (game.titleID == nil ? "inget title ID" : game.platform == .psp || game.platform == .bluRay || game.platform == .dvd ? "inga omslag för \(game.platform.label)" : "inget omslag i källorna"))
+            }
+            if missing.count > 12 { UI.skip("… och \(missing.count - 12) till") }
+            guard toPS3 else { return }
+            print()
+            UI.header(dryRun ? "Förhandsvisning" : "Till PS3:an", detail: "/dev_hdd0/tmp/wmtmp/covers")
+            let printer = TransferPrinter(dryRun: dryRun)
+            let sent = try await CoverService().upload(covers, for: games, host: host, dryRun: dryRun) { printer.handle($0) }
+            if sent > 0 { print("\n  Kör " + UI.paint("ps3 refresh", .bold) + " så att webMAN läser in dem.") }
+        }
+    }
+
+    struct Updates: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Visa officiella uppdateringar (patchar) från Sony för spelen, eller för ett spel."
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Bara det här spelet (del av titeln eller title ID).")
+        var name: [String] = []
+
+        @Flag(name: .long, help: "Fråga Sony igen i stället för att använda dagens svar.")
+        var refresh = false
+
+        @Flag(name: .long, help: "Skriv ut JSON.")
+        var json = false
+
+        struct Row: Encodable {
+            let game: Game
+            let patches: [GamePatch]
+        }
+
+        func run() async throws {
+            let asJSON = json || !UI.isTTY
+            let host = try await Console.host(global, quiet: asJSON)
+            if !asJSON { UI.progress("Läser spelen på PS3:an…") }
+            let games = try await GameLibraryService(host: host).scan()
+            let targets = try name.isEmpty ? games : [Games.find(name, in: games)]
+            if !asJSON { UI.progress("Frågar Sonys uppdateringsserver…") }
+            let patches = await GameUpdateService(host: host).check(targets, refresh: refresh)
+            let rows = targets.compactMap { game in patches[game.id].map { Row(game: game, patches: $0) } }
+            if asJSON { UI.json(rows); return }
+            UI.endProgress()
+            guard !rows.isEmpty else {
+                UI.ok(name.isEmpty ? "Alla spel har den senaste uppdateringen." : "\(targets[0].title) har den senaste uppdateringen.")
+                return
+            }
+            UI.header("Uppdateringar", detail: "\(rows.count) spel")
+            for row in rows { Games.renderPatches(row.patches, for: row.game) }
+            print("\n  Installera med " + UI.paint("ps3 games update <namn>", .bold) + " eller " + UI.paint("ps3 games update --all", .bold) + ".")
+        }
+    }
+
+    struct Update: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Hämta och installera officiella uppdateringar för ett spel, eller alla med --all.",
+            discussion: """
+            Bara spelpatchar från Sonys uppdateringsserver, aldrig systemprogramvara. Paketen hämtas på
+            Macen, kontrolleras mot Sonys SHA-1 och installeras som vanliga paket; PS3:an går aldrig ut på
+            PSN. En patch som kräver nyare systemprogramvara än konsolens installeras inte.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Spelet (del av titeln eller title ID).")
+        var name: [String] = []
+
+        @Flag(name: .long, help: "Uppdatera alla spel som har nya patchar.")
+        var all = false
+
+        @Flag(name: [.short, .long], help: "Svara ja på alla frågor.")
+        var yes = false
+
+        @Flag(name: .long, help: "Visa vad som skulle installeras utan att göra det.")
+        var dryRun = false
+
+        @Flag(name: .long, help: "Installera även om ett spel körs.")
+        var force = false
+
+        func validate() throws {
+            guard all || !name.isEmpty else { throw ValidationError("Ange ett spel, eller --all för alla.") }
+        }
+
+        func run() async throws {
+            let host = try await Console.host(global)
+            UI.progress("Läser spelen på PS3:an…")
+            let games = try await GameLibraryService(host: host).scan()
+            let targets = try all ? games : [Games.find(name, in: games)]
+            UI.progress("Frågar Sonys uppdateringsserver…")
+            let patches = await GameUpdateService(host: host).check(targets)
+            UI.endProgress()
+            let rows = targets.compactMap { game in patches[game.id].map { (game: game, patches: $0) } }
+            guard !rows.isEmpty else {
+                UI.ok("Inget att uppdatera.")
+                return
+            }
+            UI.header(dryRun ? "Förhandsvisning" : "Uppdateringar", detail: "\(rows.count) spel")
+            var options = TransferOptions()
+            options.dryRun = dryRun
+            options.force = force
+            let printer = TransferPrinter(dryRun: dryRun)
+            var installed = 0
+            for row in rows {
+                Games.renderPatches(row.patches, for: row.game)
+                if !dryRun {
+                    let size = Format.bytes(row.patches.reduce(0) { $0 + $1.size })
+                    guard yes || UI.confirm("Installera \(row.patches.count) uppdatering\(row.patches.count == 1 ? "" : "ar") för \(row.game.title) (\(size))?", defaultYes: true) else {
+                        UI.skip("\(row.game.title) hoppades över")
+                        continue
+                    }
+                }
+                try await GameUpdateService(host: host).install(row.patches, for: row.game, options: options) { printer.handle($0) }
+                if !dryRun { UI.ok("\(row.game.title) är uppdaterat till \(row.patches.last?.version ?? "")") }
+                installed += 1
+            }
+            if !dryRun, installed > 0 {
+                try? await WebMAN(host: host).popup("\(installed) spel uppdaterade från Macen")
+            }
+        }
+    }
+
     // MARK: Shared
+
+    static func renderPatches(_ patches: [GamePatch], for game: Game) {
+        let size = Format.bytes(patches.reduce(0) { $0 + $1.size })
+        let from = GameUpdateService.currentVersion(of: game) ?? "?"
+        let to = patches.last?.version ?? "?"
+        let count = "\(patches.count) paket · \(size)"
+        print("  " + UI.paint("↑", .yellow) + " " + game.title.padding(toLength: 40, withPad: " ", startingAt: 0)
+              + "\(from) → " + UI.paint(to, .bold, .yellow) + UI.paint("  \(count)", .gray))
+    }
 
     static func requireName(_ name: [String]) throws {
         guard !name.isEmpty else { throw ValidationError("Ange ett spel, t.ex. en del av titeln eller ett title ID.") }
@@ -255,10 +421,14 @@ struct Games: AsyncParsableCommand {
 
     /// Reads the games and finds one by title ID, title or path.
     static func find(_ words: [String], host: String, quiet: Bool = false) async throws -> Game {
-        let query = words.joined(separator: " ")
         if !quiet { UI.progress("Läser spelen på PS3:an…") }
         let games = try await GameLibraryService(host: host).scan()
         if !quiet { UI.endProgress() }
+        return try find(words, in: games)
+    }
+
+    static func find(_ words: [String], in games: [Game]) throws -> Game {
+        let query = words.joined(separator: " ")
         switch Game.lookup(query, in: games) {
         case .found(let game):
             return game

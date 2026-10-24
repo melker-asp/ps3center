@@ -43,17 +43,22 @@ final class GamesStore {
 
     /// What is happening to a game right now, shown instead of its buttons.
     struct Busy: Equatable {
-        enum Kind { case starting, mounting, unmounting, exiting, deleting }
+        enum Kind { case starting, mounting, unmounting, exiting, deleting, updating }
         let id: String
         let kind: Kind
+        /// For updates: what is happening ("Hämtar 02.12") and how far it has come.
+        var step: String?
+        var progress: Double?
 
         var label: String {
+            if let step { return step }
             switch kind {
             case .starting: return "Startar…"
             case .mounting: return "Monterar…"
             case .unmounting: return "Avmonterar…"
             case .exiting: return "Avslutar spelet…"
             case .deleting: return "Tar bort…"
+            case .updating: return "Uppdaterar…"
             }
         }
     }
@@ -61,6 +66,12 @@ final class GamesStore {
     private(set) var phase: Phase = .idle
     private(set) var games: [Game] = []
     private(set) var icons: [String: NSImage] = [:]
+    /// Box art from CoverService, by game id.
+    private(set) var covers: [String: NSImage] = [:]
+    /// Official updates newer than what each game has, by game id (after "Sök uppdateringar").
+    private(set) var patches: [String: [GamePatch]] = [:]
+    private(set) var isCheckingUpdates = false
+    private(set) var updatesChecked: Date?
     /// XMB backgrounds (PIC1.PNG), fetched when a game's page opens.
     private(set) var backgrounds: [String: NSImage] = [:]
     private var backgroundsTried: Set<String> = []
@@ -107,6 +118,8 @@ final class GamesStore {
             lastChecked = Date()
             let data = await library.icons(for: next, refresh: refresh)
             icons = data.compactMapValues { NSImage(data: $0) }
+            let files = await CoverService().covers(for: next, refresh: refresh)
+            covers = files.compactMapValues { NSImage(contentsOf: $0) }
         } catch {
             phase = .failed(error.localizedDescription)
         }
@@ -117,6 +130,8 @@ final class GamesStore {
         self.games = games
         phase = .loaded
         lastChecked = Date()
+        patches = Fixtures.patches
+        updatesChecked = Date()
     }
 
     func loadBackground(for game: Game) async {
@@ -125,6 +140,72 @@ final class GamesStore {
         if let data = await GameLibraryService(host: host).background(for: game), let image = NSImage(data: data) {
             backgrounds[game.id] = image
         }
+    }
+
+    // MARK: Covers and updates
+
+    /// A picture dropped on a game's page becomes its cover.
+    func setCustomCover(from file: URL, for game: Game) {
+        guard let data = try? Data(contentsOf: file), let image = NSImage(data: data) else { return }
+        do {
+            try CoverService().setCustomCover(data, for: game)
+            covers[game.id] = image
+        } catch {
+            failures[game.id] = error.localizedDescription
+        }
+    }
+
+    /// Asks Sony's update server which PS3 and PSN games have newer patches.
+    func checkUpdates(refresh: Bool = false) async {
+        guard let host, !isCheckingUpdates else { return }
+        isCheckingUpdates = true
+        defer { isCheckingUpdates = false }
+        patches = await GameUpdateService(host: host).check(games, refresh: refresh)
+        updatesChecked = Date()
+    }
+
+    var updateCount: Int { patches.count }
+
+    func installUpdates(for game: Game) {
+        guard let host, busy == nil, let pending = patches[game.id], !pending.isEmpty else { return }
+        busy = Busy(id: game.id, kind: .updating)
+        failures[game.id] = nil
+        Task {
+            do {
+                try await GameUpdateService(host: host).install(pending, for: game, options: TransferOptions()) { event in
+                    Task { @MainActor [weak self] in self?.handleUpdate(event, for: game.id) }
+                }
+                self.patches[game.id] = nil
+                if let index = self.games.firstIndex(where: { $0.id == game.id }), let last = pending.last {
+                    self.games[index].updateVersion = last.version
+                }
+            } catch {
+                self.failures[game.id] = error.localizedDescription
+            }
+            self.busy = nil
+        }
+    }
+
+    private func handleUpdate(_ event: TransferEvent, for id: String) {
+        guard var current = busy, current.id == id else { return }
+        switch event {
+        case .started(let route, _):
+            current.step = route.remote.hasPrefix("http") ? "Hämtar från Sony…" : "Skickar till PS3:an…"
+            current.progress = 0
+        case .progress(let route, let sent, let total, _):
+            let fraction = total > 0 ? Double(sent) / Double(total) : 0
+            current.step = (route.remote.hasPrefix("http") ? "Hämtar " : "Skickar ") + "\(Int(fraction * 100)) %"
+            current.progress = fraction
+        case .waitingForGame:
+            current.step = "Väntar tills spelet avslutas…"
+            current.progress = nil
+        case .installing:
+            current.step = "Installerar…"
+            current.progress = nil
+        default:
+            return
+        }
+        busy = current
     }
 
     // MARK: Actions

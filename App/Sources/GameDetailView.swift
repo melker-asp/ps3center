@@ -66,6 +66,9 @@ struct GameDetailView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
             header
+            if let pending = library.patches[game.id], !pending.isEmpty {
+                UpdateBanner(game: game, patches: pending)
+            }
             cards
             if let failure = library.failures[game.id] {
                 NoteBanner(text: failure)
@@ -88,11 +91,18 @@ struct GameDetailView: View {
         .frame(height: 290)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.cardStroke))
+        // A picture dropped on the banner becomes the game's cover.
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let file = urls.first else { return false }
+            library.setCustomCover(from: file, for: game)
+            return true
+        }
+        .help(game.titleID == nil ? "" : "Dra en bild hit för att använda den som omslag")
     }
 
     private var headerContent: some View {
         HStack(alignment: .bottom, spacing: 22) {
-            GameArtwork(image: library.icons[game.id], game: game, size: CGSize(width: 160, height: 88))
+            artwork
                 .shadow(color: .black.opacity(0.4), radius: 10, y: 4)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
@@ -118,12 +128,26 @@ struct GameDetailView: View {
         }
     }
 
+    /// The box art when there is one, else the XMB icon.
+    @ViewBuilder private var artwork: some View {
+        if let cover = library.covers[game.id] {
+            GameCover(cover: cover, icon: nil, game: game, size: CGSize(width: 150, height: 180))
+        } else {
+            GameArtwork(image: library.icons[game.id], game: game, size: CGSize(width: 160, height: 88))
+        }
+    }
+
     @ViewBuilder private var actions: some View {
         if let busy = library.busy, busy.id == game.id {
-            Spinner()
+            if let progress = busy.progress {
+                PSProgressBar(fraction: progress).frame(width: 140)
+            } else {
+                Spinner()
+            }
             Text(busy.label)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.secondaryText)
+                .monospacedDigit()
         } else {
             let state = console.playState(of: game)
             if state == .playing {
@@ -190,13 +214,18 @@ struct GameDetailView: View {
                 Spacer(minLength: 0)
                 Footnote(text: sizeFootnote)
             }
-            Card(icon: "shippingbox.fill", title: "Version", chip: game.updateVersion == nil ? nil : "Uppdaterat") {
+            Card(icon: "shippingbox.fill", title: "Version", chip: versionChip) {
                 BigValue(value: game.updateVersion ?? game.version ?? "–")
                 Spacer(minLength: 0)
                 Footnote(text: versionFootnote)
             }
         }
         .frame(height: 170)
+    }
+
+    private var versionChip: String? {
+        if library.patches[game.id]?.isEmpty == false { return "Uppdatering finns" }
+        return game.updateVersion == nil ? nil : "Uppdaterat"
     }
 
     private var idFootnote: String {
@@ -223,5 +252,38 @@ struct GameDetailView: View {
         }
         if game.version != nil { return "Ingen uppdatering installerad" }
         return game.platform == .ps3 || game.platform == .psn ? "Versionen är inte läst än" : "Versioner finns bara för PS3-spel"
+    }
+}
+
+/// Sony has newer patches: from what is installed to the latest, how many packages and how
+/// much, and the white Installera button. Says plainly that system software is never touched.
+struct UpdateBanner: View {
+    @Environment(GamesStore.self) private var library
+    let game: Game
+    let patches: [GamePatch]
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Uppdatering \(GameUpdateService.currentVersion(of: game) ?? "?") → \(patches.last?.version ?? "?")")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                Text("\(patches.count) paket från Sony · \(Format.bytes(patches.reduce(0) { $0 + $1.size })). Bara spelet uppdateras, aldrig systemprogramvaran.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            Spacer()
+            if library.busy?.id != game.id {
+                Button("Installera") { library.installUpdates(for: game) }
+                    .buttonStyle(PillButtonStyle())
+                    .disabled(library.busy != nil)
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.accent.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.accent.opacity(0.25)))
     }
 }

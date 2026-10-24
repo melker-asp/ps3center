@@ -103,6 +103,16 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   startar, **`/play.ps3?<title ID>`** startar ett installerat spel från dess ikon, **`/xmb.ps3$exit`**
   avslutar spelet, **`/shutdown.ps3`** stänger av (webMAN:s wiki). RMD tar bort mappar rekursivt i
   bygget med filhanteraren (`COPY_PS3`).
+- **Omslag:** PS3 och PSN från `aldostools/Resources/COV/<ID>.JPG` (webMAN:s onlineomslag, 260×300)
+  och GameTDB `art.gametdb.com/ps3/coverM/<EN|US|JA>/<ID>.jpg` (350×408). PS2 och PS1 från
+  `xlenore/ps2-covers` och `psx-covers` (`covers/default/<SLES-12345>.jpg`), som deras README
+  föreslår för PCSX2:s omslagshämtare. Inga källor för PSP. Alla svarade 24 okt 2026.
+- **Speluppdateringar:** listan per spel är `https://a0.ww.np.dl.playstation.net/tpl/np/<ID>/<ID>-ver.xml`
+  (`<package version size sha1sum url ps3_system_ver>`), paketen ligger på `http://b0.ww.np…` och
+  servern svarar 403 på HTTP för listan. Servrarna har certifikat från Sonys egen CA ("SCEI"), som
+  macOS inte litar på, så `SonyTrust` godtar för just de värdarna en kedja från Sonys CA och sparar
+  dess fingeravtryck första gången. Varje paket kontrolleras mot SHA-1 i listan. Inte provat från
+  en Mac än; från molnsessionen gick servern inte att nå.
 - **Spellistan och cachen:** webMAN skriver XMB:ns spellista till
   `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
   `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i

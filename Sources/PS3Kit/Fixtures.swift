@@ -136,7 +136,7 @@ public enum Fixtures {
 
     /// The console's games as `GameLibraryService.scan` returns them: Test Drive Unlimited 2 is
     /// the one mounted in `snapshot`, Gran Turismo 5 and The Last of Us have updates installed.
-    public static let games: [Game] = GameListing.attach(["BCES00569": "02.17", "BCES01584": "01.11"], to: [
+    public static let games: [Game] = GameListing.attach(["BCES00569": "02.11", "BCES01584": "01.11"], to: [
         Game(path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", title: "Test Drive Unlimited 2",
              titleID: "BLES01200", platform: .ps3, size: 9_642_180_608, version: "01.00"),
         Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
@@ -161,4 +161,19 @@ public enum Fixtures {
         Game(path: "/dev_hdd0/PSPISO/Patapon (Europe).iso", title: "Patapon", titleID: "UCES-00995", platform: .psp,
              size: 312_475_648),
     ])
+
+    /// Sony's newer patches for Gran Turismo 5 (02.11 installed) and Red Dead Redemption, by game id.
+    public static var patches: [String: [GamePatch]] {
+        func patch(_ titleID: String, _ version: String, _ size: Int64, system: String) -> GamePatch {
+            let file = "EP9000-\(titleID)_00-GRANTURISMO5XXXX-A\(version.replacingOccurrences(of: ".", with: ""))-V0100-PE.pkg"
+            return GamePatch(titleID: titleID, version: version, size: size, sha1: "", systemVersion: system,
+                             url: URL(string: "http://b0.ww.np.dl.playstation.net/tppkg/np/\(titleID)/\(titleID)_T5/\(file)")!)
+        }
+        let gt5 = games.first { $0.titleID == "BCES00569" }!
+        let rdr = games.first { $0.titleID == "BLES00680" }!
+        return [
+            gt5.id: ["02.12", "02.13", "02.14", "02.15", "02.16", "02.17"].map { patch("BCES00569", $0, 212_000_000, system: "4.00") },
+            rdr.id: [patch("BLES00680", "01.09", 98_566_144, system: "3.41")],
+        ]
+    }
 }

@@ -158,6 +158,11 @@ Klart när: `ps3 games` visar samma spel som XMB:n, och ett spel kan startas fr�
 
 **Mål:** riktiga fodral i rutnätet, inte bara XMB-ikoner.
 
+**Läge 24 okt 2026:** byggt. `CoverService` (källorna nedan, egen bild genom att dra den till
+banderollen, `ps3 games covers --to-ps3`) och speluppdateringar från Sony (`GameUpdateService`,
+`ps3 games updates|update`, "Sök uppdateringar" och en ruta på spelets sida). Rutnätet visar
+fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att certifikatet godtas.
+
 - `CoverStore` i PS3Kit med källor per plattform, alla nycklade på title ID och sparade för gott i
   `~/Library/Caches/ps3center/covers/`:
   - PS3: spelets egen `ICON0`/`PIC1` (finns alltid), och fodral från GameTDB eller webMAN:s
