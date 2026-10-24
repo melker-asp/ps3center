@@ -533,7 +533,7 @@ public struct StorageAnalyzer: Sendable {
 
     /// A folder's size and counts, counted on the console. Reads only.
     public func size(of path: String) async throws -> (bytes: Int64, folders: Int, files: Int) {
-        let page = try await WebMAN(host: host).get("/stat.ps3" + path, timeout: 180)
+        let page = try await WebMAN(host: host).long("/stat.ps3" + path, timeout: 300)
         guard let parsed = Self.parseStat(page) else { throw PS3Error.invalidFile("webMAN:s /stat.ps3 gav inget svar för \(path)") }
         return parsed
     }
@@ -611,7 +611,10 @@ public struct DiscRipper: Sendable {
         request.setValue("close", forHTTPHeaderField: "Connection")
         let session = URLSession(configuration: .ephemeral)
         let copying = Task { _ = try? await session.data(for: request) }
+        // The console is busy copying; the app should not take slow answers for it being gone.
+        LongCommands.shared.begin()
         defer {
+            LongCommands.shared.end()
             copying.cancel()
             session.invalidateAndCancel()
         }

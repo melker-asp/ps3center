@@ -7,9 +7,13 @@ public struct WebMAN: Sendable {
     public var timeout: TimeInterval
 
     static let session = makeSession()
-    /// For commands that can block for a minute (installing a package), so they never hold up
-    /// the status polls queued on `session`.
+    /// For commands that can take minutes (installing a package, counting a folder), so they
+    /// never hold up the status polls queued on `session`.
     static let longSession = makeSession()
+
+    /// True while a long command runs, and a little after: the console can be slow to answer
+    /// anything else then, which is not the same as being gone.
+    public static var isBusy: Bool { LongCommands.shared.isBusy }
 
     static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -102,10 +106,19 @@ public struct WebMAN: Sendable {
         try await get("/refresh.ps3", timeout: 60)
     }
 
+    /// A command that can take minutes, on its own connection, with `isBusy` set while it runs.
+    @discardableResult
+    public func long(_ command: String, timeout: TimeInterval) async throws -> String {
+        LongCommands.shared.begin()
+        defer { LongCommands.shared.end() }
+        let data = try await fetch(encoded: Self.encodeCommand(command), timeout: timeout, session: Self.longSession)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// Asks the XMB to install a package already on the console. The answer can take until the
-    /// install is done, so it goes on its own connection; the package is not deleted afterwards.
+    /// install is done; the package is not deleted afterwards.
     public func installPackage(remotePath: String) async throws {
-        _ = try await fetch(encoded: Self.encodeCommand("/install.ps3" + remotePath), timeout: 60, session: Self.longSession)
+        try await long("/install.ps3" + remotePath, timeout: 60)
     }
 
     /// Runs a PS3MAPI command and returns the raw value of `"response"`.
@@ -182,6 +195,35 @@ public struct WebMAN: Sendable {
         guard !name.isEmpty, !name.lowercased().contains("vsh.self") else { return nil }
         if let range = name.range(of: "_main_") { return String(name[range.upperBound...]) }
         return name
+    }
+}
+
+/// Counts the long commands in flight (see `WebMAN.isBusy`).
+final class LongCommands: @unchecked Sendable {
+    static let shared = LongCommands()
+
+    private let lock = NSLock()
+    private var running = 0
+    private var lastEnded = Date.distantPast
+
+    func begin() {
+        lock.lock()
+        running += 1
+        lock.unlock()
+    }
+
+    func end() {
+        lock.lock()
+        running = max(0, running - 1)
+        lastEnded = Date()
+        lock.unlock()
+    }
+
+    /// Also for 20 seconds after one ends: the next one in a series (folder after folder) follows.
+    var isBusy: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return running > 0 || Date().timeIntervalSince(lastEnded) < 20
     }
 }
 

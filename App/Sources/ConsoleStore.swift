@@ -87,7 +87,9 @@ final class ConsoleStore {
                 if next.mountedGamePath != artPath { loadArt(for: next.mountedGamePath, host: host) }
             } catch {
                 missedPolls += 1
-                if connection != .online || missedPolls >= allowedMisses {
+                // While a long command runs (an install, counting storage, copying the disc) the
+                // console is slow, not gone; that command's own timeout ends the wait.
+                if connection != .online || (missedPolls >= allowedMisses && !WebMAN.isBusy) {
                     missedPolls = 0
                     connection = .offline(error.localizedDescription)
                     self.host = nil  // look again next round; the IP may have changed

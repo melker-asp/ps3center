@@ -56,8 +56,9 @@ xcodebuild den inte.
   till sist en nätverkssökning (`Discovery`). En ny adress sparas i `~/.config/ps3center/config.json`,
   samma fil som appen läser.
 - **webMAN:s egenheter** hanteras i `WebMAN.swift` och `FTPClient.swift`:
-  - varje HTTP-anrop skickar `Connection: close` och körs ett i taget, utom `/install.ps3` som har
-    en egen anslutning eftersom svaret kan dröja tills XMB:n installerat klart
+  - varje HTTP-anrop skickar `Connection: close` och körs ett i taget, utom kommandon som kan ta
+    minuter (`/install.ps3`, `/stat.ps3`): de går via `WebMAN.long` på en egen anslutning och
+    sätter `WebMAN.isBusy`, så att appen inte tar långsamma statussvar för att konsolen är borta
   - ENODATA på dataanslutningen betyder filslut
   - `APPE` fortsätter en avbruten uppladdning
 

@@ -168,7 +168,10 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   om att installera från XMB:n (ett avbrott fick appen att vänta på en installation som aldrig
   startade, 25 okt 2026).
 - **Appen tål några missade statusanrop:** webMAN är långsam ibland, så konsolen räknas som borta
-  först efter tre anrop i rad utan svar. Under tiden är pricken vid PS-loggan gul.
+  först efter tre anrop i rad utan svar. Under tiden är pricken vid PS-loggan gul. Medan ett långt
+  kommando går (en installation, `/stat.ps3` som räknar en stor mapp, kopiering av skivan) räknas
+  den inte som borta alls; det kommandots egen tidsgräns avgör (att räkna lagring tappade
+  kontakten, 25 okt 2026).
 - **`/refresh.ps3` och `/popup.ps3`** svarar OK direkt, även med åäö i texten (provat 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd mot automatiska anrop och kringgås inte.
   Program som bara finns där får en länk.
