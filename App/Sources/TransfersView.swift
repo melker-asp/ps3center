@@ -164,14 +164,21 @@ struct TransfersView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Hastighet").font(.system(size: 13)).foregroundStyle(Theme.primaryText)
                     Text(speedText).font(.system(size: 11)).foregroundStyle(Theme.tertiaryText)
+                    if let error = transfers.measureError {
+                        Text(error).font(.system(size: 11)).foregroundStyle(Theme.hot).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 Spacer()
                 if transfers.isMeasuring {
-                    Spinner()
+                    HStack(spacing: 8) {
+                        Spinner()
+                        Text(transfers.measureStep ?? "Mäter…").font(.system(size: 12)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                    }
                 } else {
                     Button("Mät hastigheten") { Task { await transfers.measureSpeed() } }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(transfers.isRunning)
+                        .help(transfers.isRunning ? "Pausa kön först; mätningen och kön delar på PS3:ans FTP" : "Skickar 64 MB till PS3:an och läser tillbaka dem")
                 }
             }
             if (transfers.lastSpeed?.network ?? console.snapshot?.network) == "Wi-Fi" {

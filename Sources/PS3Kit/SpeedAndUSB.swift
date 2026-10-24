@@ -35,8 +35,12 @@ public enum SpeedTest {
         return Double(bytes) / speed
     }
 
-    /// Sends `megabytes` to /dev_hdd0/tmp, reads it back and removes it.
+    /// Sends `megabytes` to /dev_hdd0/tmp, reads it back and removes it. Only the upload has to
+    /// work; the read-back is reported when it does. The console is marked busy meanwhile
+    /// (`WebMAN.isBusy`), since it answers slowly while it takes in data at full speed.
     public static func run(host: String, megabytes: Int = 256, events: TransferHandler) async throws -> SpeedResult {
+        LongCommands.shared.begin()
+        defer { LongCommands.shared.end() }
         let size = Int64(megabytes) << 20
         let local = FileManager.default.temporaryDirectory.appendingPathComponent("ps3center-speedtest.bin")
         FileManager.default.createFile(atPath: local.path, contents: nil)
@@ -62,7 +66,7 @@ public enum SpeedTest {
             events(.finished(route, seconds: upSeconds))
             events(.note("Läser tillbaka…"))
             let readStart = Date()
-            let data = try await ftp.download(remote, limit: Int(size) + 1)
+            let data = try? await ftp.download(remote, limit: Int(size) + 1)
             let downSeconds = max(Date().timeIntervalSince(readStart), 0.001)
             try? await ftp.delete(remote)
             return (Double(size) / upSeconds, Double(data?.count ?? 0) / downSeconds)

@@ -17,6 +17,9 @@ final class TransferStore {
     private(set) var rate: Double = 0
     private(set) var lastSpeed: SpeedResult? = SpeedTest.last()
     private(set) var isMeasuring = false
+    /// What the speed test is doing ("Skickar 45 % · 3,2 MB/s"), or why it failed.
+    private(set) var measureStep: String?
+    private(set) var measureError: String?
     /// What the queue is waiting for, or the last problem.
     private(set) var note: String?
     /// Paused because the Mac went to sleep; started again when it wakes.
@@ -119,14 +122,38 @@ final class TransferStore {
         if !isFixture { queue.save() }
     }
 
+    /// 64 MB each way: a minute over Wi-Fi, a few seconds with a cable.
     func measureSpeed() async {
-        guard let host, !isMeasuring, !isRunning else { return }
+        guard !isMeasuring, !isRunning else { return }
+        guard let host else {
+            measureError = "Ingen kontakt med PS3:an just nu."
+            return
+        }
         isMeasuring = true
-        defer { isMeasuring = false }
+        measureError = nil
+        measureStep = "Förbereder…"
+        defer {
+            isMeasuring = false
+            measureStep = nil
+        }
         do {
-            lastSpeed = try await SpeedTest.run(host: host, megabytes: 128) { _ in }
+            lastSpeed = try await SpeedTest.run(host: host, megabytes: 64) { event in
+                Task { @MainActor [weak self] in self?.measured(event) }
+            }
         } catch {
-            note = error.localizedDescription
+            measureError = "Mätningen misslyckades: \(error.localizedDescription)"
+        }
+    }
+
+    private func measured(_ event: TransferEvent) {
+        guard isMeasuring else { return }
+        switch event {
+        case .progress(_, let sent, let total, let bytesPerSecond):
+            measureStep = "Skickar \(total > 0 ? Int(Double(sent) / Double(total) * 100) : 0) % · \(Format.rate(bytesPerSecond))"
+        case .note(let text):
+            measureStep = text
+        default:
+            break
         }
     }
 
