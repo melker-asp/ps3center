@@ -90,6 +90,21 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   `vsh.self` = XMB). `GETALLPID` skickar trasig JSON.
 - **FTP:** `SIZE` fungerar. Avbrutna uppladdningar fortsätter med `APPE`. När PS3:an stänger en
   dataanslutning kommer det som ENODATA i stället för filslut.
+- **FTP enligt webMAN:s källkod** (`include/ftp.h`, läst 24 okt 2026, inte provat på konsolen än):
+  bryts dataanslutningen med ett fel, eller kommer inget data på 60 sekunder (eller den tidsgräns
+  som är inställd), räknas uppladdningen som misslyckad och filen tas bort. Bara en ren stängning
+  (FIN, som vid ctrl-C) lämnar den halvfärdiga filen kvar så att `APPE` kan fortsätta. Högst två
+  överföringar åt gången (`MAX_FTP_TRANSFERS`). `REST`, `RNFR`/`RNTO`, `MDTM`, `MFMT` och
+  `SITE SHUTDOWN` finns.
+- **Automatisk avstängning:** under en FTP-session, `/install.ps3` och `/download.ps3` stänger
+  webMAN tillfälligt av konsolens "Stäng av automatiskt" och slår på den igen efteråt
+  (`include/init/autopoweroff.h`).
+- **`/md5.ps3/<sökväg>`** visar en fils MD5 på konsolen. **`/play.ps3/<sökväg>`** monterar och
+  startar, **`/xmb.ps3$exit`** avslutar spelet, **`/shutdown.ps3`** stänger av (webMAN:s wiki).
+- **Spellistan och cachen:** webMAN skriver XMB:ns spellista till
+  `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
+  `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i
+  PLAN.md). För nätverksspel hämtar den `<namn>.SFO` bredvid ISO:n från ps3netsrv-servern.
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när
@@ -112,6 +127,8 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   `payload/main.c` (0x0360 → 3.6.0).
 
 ## Färdplan
+
+Planen framåt, fas för fas, finns i [PLAN.md](PLAN.md).
 
 - **CLI 0.1 (klart):** `status`, `send`, `apps` (list/available/update/install via namn eller
   fil), `popup`, `refresh`, `history`, `discover`, `config`. Katalogen har 19 program. Nya

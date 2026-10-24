@@ -10,7 +10,7 @@ dokumentation är på svenska. Kod, identifierare och kommentarer skrivs på eng
 
 Inspirationen är Mole (ett CLI med en separat Mac-app). Här delar CLI och app samma motor. Läs
 `DESIGN.md` innan du lägger till funktioner: den har principerna, flikarna och fakta om konsolen som
-koden bygger på.
+koden bygger på. `PLAN.md` har färdplanen fas för fas och vad som ska provas på konsolen.
 
 ```
 Sources/PS3Kit/   bibliotek med all logik (webMAN-HTTP, FTP, ISO/SFO/PKG, katalog, uppdateringar)
