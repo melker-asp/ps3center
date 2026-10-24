@@ -1,4 +1,5 @@
 import AppKit
+import PS3Kit
 import SwiftUI
 
 /// `PS3CENTER_SNAPSHOT_DIR=/some/dir open "PS3 Center.app"` renders each tab to PNG and quits.
@@ -22,6 +23,12 @@ enum Snapshot {
         render(.status, name: "status", console: console, apps: apps, into: directory) { StatusView(scrolls: false) }
         render(.apps, name: "apps-updates", console: console, apps: apps, into: directory) { AppsView(section: .updates, scrolls: false) }
         render(.apps, name: "apps-get", console: console, apps: apps, into: directory) { AppsView(section: .get, scrolls: false) }
+        if let entry = Catalog.entry(named: "apollo") {
+            apps.selectedID = entry.id
+            await apps.loadReadme(for: entry)
+            render(.apps, name: "apps-detail", console: console, apps: apps, into: directory) { AppsView(scrolls: false) }
+            apps.selectedID = nil
+        }
         NSApp.terminate(nil)
     }
 

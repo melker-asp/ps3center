@@ -22,14 +22,19 @@ struct AppsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            toolbar
+            if apps.selected == nil { toolbar }
             if let game = apps.waitingGame {
                 WaitingBanner(game: game) { apps.forceWaiting() }
             }
             if apps.archiveMissing {
                 MissingFolderBanner { apps.chooseMirrorFolder() }
             }
-            content
+            if let selected = apps.selected {
+                AppDetailView(status: selected, scrolls: scrolls)
+                    .transition(.opacity)
+            } else {
+                content
+            }
         }
         .task(id: console.host) {
             guard let host = console.host, apps.phase == .idle || apps.statuses.isEmpty else { return }
@@ -142,7 +147,7 @@ struct AppsView: View {
 
     @ViewBuilder private var getList: some View {
         ForEach(CatalogEntry.Category.allCases, id: \.self) { category in
-            let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil) }
+            let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil || $0.blocked) }
             if !rows.isEmpty {
                 SectionHeader(title: category.label, count: rows.count)
                 ForEach(rows, id: \.id) { AppRow(status: $0, mode: .get) }
@@ -193,16 +198,26 @@ struct AppRow: View {
                 HStack(spacing: 8) {
                     Text(status.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.primaryText)
                     Chip(text: sourceLabel)
+                    if let badge = status.compatibility.badge {
+                        Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
+                    }
                 }
                 subtitle
             }
             Spacer()
             trailing
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.tertiaryText.opacity(hovering ? 1 : 0.5))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(hovering ? 0.04 : 0)))
+        .contentShape(Rectangle())
+        // Buttons in the row keep their own action; the rest of the row opens the detail page.
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id } }
         .onHover { hovering = $0 }
+        .help("Visa mer om \(status.name)")
     }
 
     private var sourceLabel: String {
@@ -235,7 +250,8 @@ struct AppRow: View {
             Text([status.installed, status.note].compactMap { $0 }.joined(separator: "  ·  "))
                 .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         case .get:
-            Text(status.summary).font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
+            Text(status.blocked ? status.compatibility.summary : status.summary)
+                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         }
     }
 
@@ -257,7 +273,11 @@ struct AppRow: View {
             case .current:
                 EmptyView()
             case .get:
-                if let installed = status.installed {
+                if status.blocked {
+                    Label("Fungerar inte", systemImage: "nosign")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.hot)
+                } else if let installed = status.installed {
                     Label(installed, systemImage: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.good)
@@ -312,6 +332,10 @@ struct AppIcon: View {
     let name: String
     let category: CatalogEntry.Category
     var symbol: String?
+    // ICON0.PNG is 320×176, so a wide tile shows it without cropping too much.
+    var size = CGSize(width: 64, height: 36)
+
+    private var scale: CGFloat { size.height / 36 }
 
     var body: some View {
         Group {
@@ -324,20 +348,19 @@ struct AppIcon: View {
                     LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     if let symbol {
                         Image(systemName: symbol)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16 * scale, weight: .semibold))
                             .foregroundStyle(Color.white.opacity(0.9))
                     } else {
                         Text(String(name.prefix(1)))
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(size: 18 * scale, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.white.opacity(0.9))
                     }
                 }
             }
         }
-        // ICON0.PNG is 320×176, so a wide tile shows it without cropping too much.
-        .frame(width: 64, height: 36)
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
     }
 
     private var tint: Color {

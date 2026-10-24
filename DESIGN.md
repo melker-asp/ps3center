@@ -27,6 +27,13 @@ läsa samma data utan appen.
 | JSON automatiskt när utdata skickas vidare | Samma sak för `status`, `apps` och `history` |
 | ➤ rubriker, ✓ ◎ → markörer, hälsopoäng 0–100 | Samma stil |
 
+Egen regel: **säkerhetsspärren**. Varje program i katalogen kan ha krav (`Requirements`: HEN
+eller CFW, CEX eller DEX, lägsta och högsta firmware). Innan något installeras läses konsolens
+firmware och program som inte fungerar blockeras, i appen, i `apps install` och `apps update`,
+och för egna .pkg-filer vars title ID finns i katalogen. Kan firmwaren inte läsas blockeras
+program som har krav; program utan krav påverkas aldrig. "Otestad" (t.ex. PS3 Health på CFW)
+varnar men blockerar inte. Kraven skrivs in från programmets README eller releaseanteckningar.
+
 Egen regel: **"varna och vänta"**. Det som påverkar konsolen (installera, uppdatera spellistan)
 väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör ändå.
 
@@ -36,7 +43,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
 | **Spel** | `ps3 send` (+ senare `games`) | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
-| **Appar** | `ps3 apps`, `apps available`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg |
+| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
 | **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka fil, Uppdatera spellista, Stäng av) |
@@ -70,6 +77,15 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 - **`/refresh.ps3` och `/popup.ps3`** svarar OK direkt, även med åäö i texten (provat 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd mot automatiska anrop och kringgås inte.
   Program som bara finns där får en länk.
+- **Firmwareraden** i PS3MAPI `PS3 GETSYSINFO` kommer från webMAN:s `get_cobra_version`
+  (`include/cpursx.h`): `Firmware : 4.93 CEX PS3HEN 3.5.0` på HEN och `4.92 CEX Cobra 8.4`,
+  `4.92 DEX Mamba 8.4` eller `qCFW` på CFW. Typen är `CEX`, `DEX` eller `DECR`; på Evilnats
+  PEX/D-PEX byts första bokstaven mot P, så `PEX` kan vara båda. Saknas `PS3HEN` är det CFW,
+  eftersom webMAN bara körs på HEN eller CFW.
+- **README** hämtas med GitHubs `/repos/<repo>/readme` (base64). Relativa bilder pekas om till
+  `raw.githubusercontent.com`, badges (SVG, shields.io) tas bort och den HTML som många
+  PS3-repon skrivs i (`<p align="center"><img …>`, `<h1>`, `<br>`) görs om till Markdown.
+  IRISMAN:s README är Latin-1.
 - **PS3HEN** har inga GitHub-releaser. Senaste versionen läses från `HEN_REV` i
   `payload/main.c` (0x0360 → 3.6.0).
 

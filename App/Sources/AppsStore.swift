@@ -12,6 +12,10 @@ final class AppsStore {
         case idle, loading, loaded, failed(String)
     }
 
+    enum ReadmeState {
+        case loading, loaded(Readme), failed(String)
+    }
+
     struct Operation: Equatable {
         enum Stage: Equatable {
             case queued, downloading, uploading(Double), waitingForGame(String), installing, done, failed(String)
@@ -24,6 +28,10 @@ final class AppsStore {
     private(set) var icons: [String: NSImage] = [:]
     private(set) var operations: [String: Operation] = [:]
     private(set) var lastChecked: Date?
+    /// READMEs by repo, fetched when a program's detail page opens.
+    private(set) var readmes: [String: ReadmeState] = [:]
+    /// The program whose detail page is open in the Apps tab.
+    var selectedID: String?
     var archiveMissing = false
 
     private var queue: [String] = []
@@ -45,6 +53,11 @@ final class AppsStore {
 
     var isBusy: Bool { runner != nil }
 
+    var selected: AppStatus? {
+        guard let selectedID else { return nil }
+        return statuses.first { $0.id == selectedID }
+    }
+
     static func entry(for status: AppStatus) -> CatalogEntry? {
         Catalog.entries.first { $0.id == status.id }
     }
@@ -62,6 +75,20 @@ final class AppsStore {
             icons = data.compactMapValues { NSImage(data: $0) }
         } catch {
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    func loadReadme(for entry: CatalogEntry) async {
+        guard let repo = entry.repository else { return }
+        switch readmes[repo] {
+        case .some(.loading), .some(.loaded): return
+        case .some(.failed), nil: break
+        }
+        readmes[repo] = .loading
+        do {
+            readmes[repo] = .loaded(try await GitHub.readme(repo: repo))
+        } catch {
+            readmes[repo] = .failed(error.localizedDescription)
         }
     }
 

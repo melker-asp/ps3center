@@ -24,7 +24,8 @@ Version 0.1 har två flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
   löpande kurvor och historiken från `ps3 history`.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
-  Ikonerna är programmens egna XMB-ikoner från konsolen.
+  Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
+  detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 
 `make snapshot DIR=/tmp/shots` renderar flikarna till PNG utan att något fönster öppnas.
 
@@ -35,7 +36,8 @@ Version 0.1 har två flikar i Mole-stil:
 | `ps3 status` | Hälsa, temperaturer, fläkt, ledigt utrymme och vad som körs. `--watch` uppdaterar löpande, `--json` ger JSON |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
-| `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑) och vad som kan installeras (↓) |
+| `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |
+| `ps3 apps info <namn>` | Version, om programmet fungerar på din PS3 och README från GitHub (`--no-readme`, `--json`) |
 | `ps3 apps install <namn…>` | Hämtar senaste versionen från GitHub och installerar, t.ex. `ps3 apps install ezremote` (`--reinstall`, `--dry-run`) |
 | `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket` |
 | `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
@@ -50,6 +52,9 @@ Version 0.1 har två flikar i Mole-stil:
 - **Medan ett spel körs** börjar uppladdningar direkt, men installation och uppdatering av
   spellistan väntar tills du har avslutat spelet (`--force` kör ändå).
 - **HEN och ds45pad uppdateras aldrig automatiskt.** De visas bara med råd.
+- **Säkerhetsspärr:** innan något installeras läser verktyget konsolens firmware (HEN eller CFW,
+  CEX eller DEX, version). Program som inte fungerar på den blockeras, både via namn och som egen
+  .pkg-fil med ett känt title ID. Går firmwaren inte att läsa blockeras program som har krav.
 
 ## Felsökning
 
@@ -66,6 +71,10 @@ Lägg till en `CatalogEntry` i `Sources/PS3Kit/Catalog.swift` med:
 - hur taggarna skrivs (`VersionStyle`)
 
 Paket som följer med någon annans release får `tracksUpdates: false`.
+
+Om programmet bara fungerar på vissa konsoler får det `requirements`, t.ex. `.cfwOnly`,
+`.dexOnly`, `Requirements(minFirmware: "4.80")` eller `Requirements(untestedOn: [.cfw])` (varnar
+men blockerar inte). Skriv in vad README:n eller releaseanteckningarna säger, inte gissningar.
 
 När PS3 Center installerar ett program sparas kopplingen mellan tagg och `APP_VER` i
 `~/.config/ps3center/installed.json`. Därefter jämförs taggarna direkt, så `VersionStyle`

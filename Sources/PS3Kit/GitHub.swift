@@ -48,12 +48,47 @@ public enum GitHub {
         let path = tag.map { "tags/" + ($0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? $0) } ?? "latest"
         let url = URL(string: "https://api.github.com/repos/\(repo)/releases/\(path)")!
         let (data, response) = try await URLSession.shared.data(for: request(url))
+        try validate(response, repo: repo)
+        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+    }
+
+    static func validate(_ response: URLResponse, repo: String, notFound: String? = nil) throws {
         guard let http = response as? HTTPURLResponse else { throw PS3Error.github("Inget svar från GitHub.") }
         if http.statusCode == 403 || http.statusCode == 429 {
             throw PS3Error.github("GitHub begränsar antalet anrop just nu. Vänta en stund eller sätt GITHUB_TOKEN.")
         }
+        if http.statusCode == 404, let notFound { throw PS3Error.github(notFound) }
         guard http.statusCode == 200 else { throw PS3Error.github("GitHub svarade \(http.statusCode) för \(repo).") }
-        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+    }
+
+    /// The repo's README, parsed. Relative image paths resolve against the raw file's folder
+    /// and relative links against the file's page on github.com.
+    public static func readme(repo: String) async throws -> Readme {
+        struct Payload: Decodable {
+            let content: String
+            let encoding: String
+            let downloadURL: URL?
+            let htmlURL: URL?
+
+            enum CodingKeys: String, CodingKey {
+                case content, encoding
+                case downloadURL = "download_url"
+                case htmlURL = "html_url"
+            }
+        }
+        let url = URL(string: "https://api.github.com/repos/\(repo)/readme")!
+        let (data, response) = try await URLSession.shared.data(for: request(url))
+        try validate(response, repo: repo, notFound: "\(repo) har ingen README.")
+        let payload = try JSONDecoder().decode(Payload.self, from: data)
+        guard payload.encoding == "base64",
+              let decoded = Data(base64Encoded: payload.content, options: .ignoreUnknownCharacters) else {
+            throw PS3Error.github("Kunde inte läsa README för \(repo).")
+        }
+        // A few older READMEs (IRISMAN's) are Latin-1.
+        let markdown = String(data: decoded, encoding: .utf8) ?? String(String.UnicodeScalarView(decoded.map { Unicode.Scalar($0) }))
+        return Readme(markdown: markdown, repo: repo,
+                      rawBase: payload.downloadURL?.deletingLastPathComponent(),
+                      htmlBase: payload.htmlURL?.deletingLastPathComponent(), htmlURL: payload.htmlURL)
     }
 
     /// Latest PS3HEN version from HEN_REV (e.g. 0x0360 -> "3.6.0") in the payload source.

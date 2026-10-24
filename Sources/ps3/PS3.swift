@@ -12,6 +12,7 @@ struct PS3: AsyncParsableCommand {
           ps3 status                   Temperatur, fläkt, utrymme och vad som körs
           ps3 send Spel.dec.iso        Ladda upp ett spel, uppdatera spellistan, visa popup
           ps3 apps                     Installerade program och tillgängliga uppdateringar
+          ps3 apps info apollo         Version, om det fungerar på din PS3, README
           ps3 apps update              Granska och installera uppdateringar
           ps3 apps install X.pkg       Installera ett paket utan USB-sticka
         """,

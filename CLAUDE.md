@@ -66,6 +66,14 @@ xcodebuild den inte.
   0x30. `AppsService` jämför installerad `APP_VER` med GitHub-releasen. Har PS3 Center själv
   installerat programmet används kopplingen tagg ↔ `APP_VER` i `installed.json` i stället för
   `VersionStyle`.
+- **Säkerhetsspärren** (`Compatibility.swift`): `ConsoleProfile` läses ur snapshoten (HEN/CFW,
+  CEX/DEX, firmware) och jämförs med `CatalogEntry.requirements`. `AppsService.status` sätter
+  `compatibility`/`blocked` och nollar `canInstall`/`installable`; `AppsService.install` och CLI:ts
+  `apps install` (även egna .pkg via title ID) stoppar före nedladdning. Okänd firmware blockerar
+  program med krav.
+- **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
+  `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
+  Samma data visar `ps3 apps info`.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -74,6 +82,8 @@ xcodebuild den inte.
 
 ## Regler
 
+- **Krav i katalogen ska ha en källa** (README, releaseanteckningar). Gissa inte att något kräver
+  CFW; ett felaktigt krav blockerar ett program som fungerar.
 - **HEN och plugins (ds45pad) installeras aldrig automatiskt.** De får bara `notifyOnly` med råd.
   En trasig sprx kan få konsolen att frysa vid start.
 - **Spara eller visa aldrig PSID/IDPS.** `/cpursx.ps3` innehåller dem.
