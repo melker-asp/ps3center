@@ -36,8 +36,8 @@ struct GameDetailView: View {
             }
             Button("Avbryt", role: .cancel) {}
         }
-        .confirmationDialog("Ta bort \(game.title)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Ta bort", role: .destructive) { library.delete(game) }
+        .confirmationDialog(game.isInstalled ? "Avinstallera \(game.title)?" : "Ta bort \(game.title)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button(game.isInstalled ? "Avinstallera" : "Ta bort", role: .destructive) { library.delete(game) }
             Button("Avbryt", role: .cancel) {}
         } message: {
             Text(deleteMessage)
@@ -74,7 +74,7 @@ struct GameDetailView: View {
                 NoteBanner(text: failure)
             }
             if game.isInstalled {
-                NoteBanner(text: "Spelet är installerat i XMB:n. Det startas från sin ikon och tas bort i XMB:n (markera det, tryck △ och välj Ta bort).")
+                NoteBanner(text: "Spelet är installerat i XMB:n och startas från sin ikon. Avinstallera tar bort det från hårddisken; sparfilerna ligger kvar.")
             }
         }
         .padding(.bottom, 16)
@@ -168,8 +168,8 @@ struct GameDetailView: View {
                     }
                 }
             }
-            if !game.isInstalled, state != .playing {
-                Button("Ta bort") { confirmingDelete = true }
+            if state != .playing {
+                Button(game.isInstalled ? "Avinstallera" : "Ta bort") { confirmingDelete = true }
                     .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
@@ -194,6 +194,9 @@ struct GameDetailView: View {
 
     private var deleteMessage: String {
         let freed = game.size.map { "\(Format.bytes($0)) frigörs på PS3:an. " } ?? ""
+        if game.isInstalled {
+            return freed + "Spelet tas bort från hårddisken, men sparfilerna ligger kvar. Ikonen kan synas i XMB:n tills PS3:an startats om."
+        }
         return freed + "Det går inte att ångra, men har du spelet kvar på Macen kan du skicka det igen."
     }
 

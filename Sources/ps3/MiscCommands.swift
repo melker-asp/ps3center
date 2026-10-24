@@ -103,10 +103,12 @@ struct Config: ParsableCommand {
             discussion: """
             ps3 config folder add PS3ISO ~/Spel/PS3
             ps3 config folder remove PS3ISO ~/Spel/PS3
+            ps3 config folder watch ~/Spel/PS3      Skicka nya spel i mappen av sig själva
+            ps3 config folder unwatch ~/Spel/PS3
             Spegelmappens dev_hdd0/<TYP> räknas med automatiskt. Spelen i mapparna visas med
             `ps3 games mac` och skickas med `ps3 queue add`.
             """,
-            subcommands: [List.self, Add.self, Remove.self],
+            subcommands: [List.self, Add.self, Remove.self, Watch.self, Unwatch.self],
             defaultSubcommand: List.self
         )
 
@@ -125,7 +127,10 @@ struct Config: ParsableCommand {
                 let linked = GameFolders.linked()
                 for kind in GameFolders.kinds {
                     let folders = linked.filter { $0.kind == kind }
-                    let paths = folders.map { $0.url.path + (FileManager.default.fileExists(atPath: $0.url.path) ? "" : UI.paint("  (inte ansluten)", .yellow)) }
+                    let paths = folders.map {
+                        $0.url.path + (FileManager.default.fileExists(atPath: $0.url.path) ? "" : UI.paint("  (inte ansluten)", .yellow))
+                            + (FolderWatch.isWatched($0.url) ? UI.paint("  bevakas", .green) : "")
+                    }
                     UI.row(kind.name, paths.isEmpty ? UI.paint("–", .gray) : paths.joined(separator: "\n" + String(repeating: " ", count: 14)))
                 }
             }
@@ -149,6 +154,38 @@ struct Config: ParsableCommand {
                 }
                 try GameFolders.add(url, as: kind)
                 UI.ok("\(url.path) är kopplad som \(kind.label)")
+            }
+        }
+
+        struct Watch: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Bevaka en kopplad mapp: nya spel i den läggs i kön när de har slutat växa.",
+                discussion: "Det som redan finns i mappen räknas inte som nytt. Appen bevakar medan den är öppen; utan appen gör `ps3 watch` samma sak."
+            )
+
+            @Argument(help: "En kopplad mapp på Macen.", completion: .directory)
+            var path: String
+
+            func run() throws {
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+                guard GameFolders.linked().contains(where: { $0.url.path == url.path }) else {
+                    throw ValidationError("\(url.path) är inte kopplad. Koppla den först med `ps3 config folder add <typ> \(path)`.")
+                }
+                try FolderWatch.setWatched(url, true)
+                UI.ok("\(url.path) bevakas")
+            }
+        }
+
+        struct Unwatch: ParsableCommand {
+            static let configuration = CommandConfiguration(abstract: "Sluta bevaka en mapp.")
+
+            @Argument(help: "Mappen på Macen.", completion: .directory)
+            var path: String
+
+            func run() throws {
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+                try FolderWatch.setWatched(url, false)
+                UI.ok("\(url.path) bevakas inte längre")
             }
         }
 

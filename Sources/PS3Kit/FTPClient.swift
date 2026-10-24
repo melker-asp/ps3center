@@ -205,22 +205,53 @@ public final class FTPClient {
     /// cleanly: a speed test that takes the same time on Wi-Fi and with a cable. Returns the bytes
     /// sent.
     func uploadZeros(to remotePath: String, seconds: TimeInterval, limit: Int64, progress: (Int64) -> Void) async throws -> Int64 {
+        let tuning = Tuning.current
         let data = try await openDataConnection()
         defer { data.cancel() }
         _ = try await command("STOR \(remotePath)", expect: [125, 150])
-        let block = Data(count: 256 * 1024)
+        let block = Data(count: tuning.chunk)
         let start = Date()
         var sent: Int64 = 0
-        while sent < limit, Date().timeIntervalSince(start) < seconds {
-            try Task.checkCancellation()
-            try await data.send(block)
-            sent += Int64(block.count)
+        try await pump(data, window: tuning.window, next: {
+            sent < limit && Date().timeIntervalSince(start) < seconds ? block : nil
+        }, handed: { piece in
+            sent += Int64(piece.count)
             progress(sent)
-        }
+        })
         try await data.finish()
         data.cancel()
         _ = try await readReply(expect: [226, 250], timeout: 60)
         return sent
+    }
+
+    /// How uploads are cut up and kept flowing: pieces of `chunk` bytes, up to `window` of them
+    /// handed to the network at once, so reading the next piece from disk overlaps with sending
+    /// the last. config.json (`ftpChunkKB`, `ftpWindow`) or PS3_FTP_CHUNK_KB / PS3_FTP_WINDOW
+    /// change it, to compare with the speed test.
+    struct Tuning {
+        var chunk: Int
+        var window: Int
+
+        static var current: Tuning {
+            let config = ConfigStore.load()
+            let environment = ProcessInfo.processInfo.environment
+            let chunkKB = environment["PS3_FTP_CHUNK_KB"].flatMap { Int($0) } ?? config.ftpChunkKB ?? 1024
+            let window = environment["PS3_FTP_WINDOW"].flatMap { Int($0) } ?? config.ftpWindow ?? 2
+            return Tuning(chunk: min(max(chunkKB, 64), 8192) << 10, window: min(max(window, 1), 8))
+        }
+    }
+
+    /// Hands what `next` returns to the data connection in order, keeping up to `window` pieces
+    /// in flight, until `next` returns nil. `handed` sees each piece once it is on its way.
+    private func pump(_ data: LineConnection, window: Int, next: () throws -> Data?, handed: (Data) -> Void) async throws {
+        var inFlight: [LineConnection.Pending] = []
+        while let piece = try next(), !piece.isEmpty {
+            try Task.checkCancellation()
+            if inFlight.count >= window { try await inFlight.removeFirst().wait() }
+            inFlight.append(data.sendQueued(piece))
+            handed(piece)
+        }
+        for pending in inFlight { try await pending.wait() }
     }
 
     /// Uploads `file`. With `offset > 0` the rest of the file is appended (APPE),
@@ -238,16 +269,14 @@ public final class FTPClient {
         let verb = offset > 0 ? "APPE" : "STOR"
         _ = try await command("\(verb) \(remotePath)", expect: [125, 150])
 
+        let tuning = Tuning.current
         var sent = offset
         progress(sent)
-        while true {
-            try Task.checkCancellation()
-            guard let piece = try handle.read(upToCount: 256 * 1024), !piece.isEmpty else { break }
-            try await data.send(piece)
+        try await pump(data, window: tuning.window, next: { try handle.read(upToCount: tuning.chunk) }, handed: { piece in
             chunk(piece)
             sent += Int64(piece.count)
             progress(sent)
-        }
+        })
         try await data.finish()
         data.cancel()
         _ = try await readReply(expect: [226, 250], timeout: 300)
@@ -305,6 +334,47 @@ final class LineConnection {
         }
     }
 
+    /// A piece handed to the network; `wait()` returns once the connection has taken it.
+    final class Pending: @unchecked Sendable {
+        private let lock = NSLock()
+        private var result: Result<Void, Error>?
+        private var waiter: CheckedContinuation<Void, Error>?
+
+        func complete(_ error: Error?) {
+            let outcome: Result<Void, Error> = error.map { .failure($0) } ?? .success(())
+            lock.lock()
+            if let waiter {
+                self.waiter = nil
+                lock.unlock()
+                waiter.resume(with: outcome)
+            } else {
+                result = outcome
+                lock.unlock()
+            }
+        }
+
+        func wait() async throws {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(with: result)
+                } else {
+                    waiter = continuation
+                    lock.unlock()
+                }
+            }
+        }
+    }
+
+    /// Sends now, in call order, without waiting; wait on the result to keep a bound on what is
+    /// in flight.
+    func sendQueued(_ data: Data) -> Pending {
+        let pending = Pending()
+        connection.send(content: data, completion: .contentProcessed { pending.complete($0) })
+        return pending
+    }
+
     /// Sends FIN so the server sees the end of an upload.
     func finish() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -324,7 +394,7 @@ final class LineConnection {
         defer { watchdog.cancel() }
         do {
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
-                connection.receive(minimumIncompleteLength: 1, maximumLength: 256 * 1024) { data, _, isComplete, error in
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) { data, _, isComplete, error in
                     if let data, !data.isEmpty { continuation.resume(returning: data) }
                     // webMAN closing a data connection surfaces as ENODATA rather than isComplete.
                     else if case .posix(.ENODATA)? = error { continuation.resume(returning: nil) }

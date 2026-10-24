@@ -217,12 +217,6 @@ final class ConsoleStore {
         try? await WebMAN(host: host).padOff()
     }
 
-    /// What the TV shows, or nil (during a game, or when the console does not answer).
-    func screenshot() async -> NSImage? {
-        guard let host, let data = try? await WebMAN(host: host).screenshot() else { return nil }
-        return NSImage(data: data)
-    }
-
     private func act(_ done: String, _ work: @escaping @Sendable (WebMAN) async throws -> Void) {
         guard let host, !isActing, !Snapshot.usesFixtures else { return }
         isActing = true

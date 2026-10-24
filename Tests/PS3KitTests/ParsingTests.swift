@@ -812,3 +812,52 @@ private final class NetClient {
     let lostTwo = "u0=1&autop=%2Fdev_hdd0%2FPS3ISO%2FAUTOBOOT.ISO&ic=0&neth0=10.0.1.43&netp0=38008&l=0"
     #expect(WebMANSettings.differences(sent: sent, saved: lostTwo) == ["ic", "nd0"])
 }
+
+// MARK: Watching, retries and uninstalling
+
+@Test func queuesNewGamesOnceTheyStopGrowing() throws {
+    let fm = FileManager.default
+    let base = fm.temporaryDirectory.appendingPathComponent("ps3center-watch-\(UUID().uuidString)")
+    let folder = base.appendingPathComponent("PS2")
+    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: base) }
+    try Data(count: 10).write(to: folder.appendingPathComponent("Old.iso"))
+    let kind = try #require(GameFolders.kind(named: "PS2ISO"))
+    var watch = FolderWatch(file: base.appendingPathComponent("watch.json"))
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+
+    // The first look takes what is there as handled.
+    #expect(watch.poll([(kind, folder)], now: start).isEmpty)
+    try Data(count: 100).write(to: folder.appendingPathComponent("New.iso"))
+    try Data(count: 5).write(to: folder.appendingPathComponent("Half.iso.part"))
+    #expect(watch.poll([(kind, folder)], now: start.addingTimeInterval(10)).isEmpty)  // first seen
+    try Data(count: 200).write(to: folder.appendingPathComponent("New.iso"))
+    #expect(watch.poll([(kind, folder)], now: start.addingTimeInterval(20)).isEmpty)  // still growing
+    #expect(watch.poll([(kind, folder)], now: start.addingTimeInterval(50)).isEmpty)  // same size, not long enough
+    let ready = watch.poll([(kind, folder)], now: start.addingTimeInterval(90))
+    #expect(ready.map(\.entry.lastPathComponent) == ["New.iso"])
+    #expect(watch.poll([(kind, folder)], now: start.addingTimeInterval(200)).isEmpty)  // only once
+
+    // What it has seen survives a restart.
+    var again = FolderWatch(file: base.appendingPathComponent("watch.json"))
+    #expect(again.poll([(kind, folder)], now: start.addingTimeInterval(300)).isEmpty)
+}
+
+@Test func retriesOnlyNetworkFailures() {
+    #expect(RetryPolicy.isTransient(PS3Error.unreachable(host: "10.0.1.35")))
+    #expect(RetryPolicy.isTransient(PS3Error.timeout("väntar på svar från PS3:an")))
+    #expect(RetryPolicy.isTransient(PS3Error.ftp(code: 426, message: "Connection closed; transfer aborted")))
+    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("storleken på /dev_hdd0/PS3ISO/A.iso.part stämmer inte efter uppladdningen")))
+    #expect(!RetryPolicy.isTransient(PS3Error.notEnoughSpace(needed: 10, free: 1)))
+    #expect(!RetryPolicy.isTransient(PS3Error.ftp(code: 550, message: "Permission denied")))
+    #expect(!RetryPolicy.isTransient(CancellationError()))
+}
+
+@Test func neverUninstallsWhatHENNeeds() {
+    #expect(UninstallGuard.refusal(titleID: "NP0APOLLO", title: "Apollo Save Tool", path: "/dev_hdd0/game/NP0APOLLO") == nil)
+    #expect(UninstallGuard.refusal(titleID: "PS3XPLOIT", title: "PS3 Toolset", path: "/dev_hdd0/game/PS3XPLOIT") != nil)
+    #expect(UninstallGuard.refusal(titleID: "HENTOOL01", title: "Enable HEN", path: "/dev_hdd0/game/HENTOOL01") != nil)
+    #expect(UninstallGuard.refusal(titleID: nil, title: "Henrik's Game", path: "/dev_hdd0/game/ABCD12345") == nil)
+    #expect(UninstallGuard.refusal(titleID: nil, title: "Root", path: "/dev_hdd0/game") != nil)
+    #expect(UninstallGuard.refusal(titleID: nil, title: "Deep", path: "/dev_hdd0/game/ABC/USRDIR") != nil)
+}

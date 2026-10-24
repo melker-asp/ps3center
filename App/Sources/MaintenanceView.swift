@@ -272,40 +272,37 @@ struct StorageBar: View {
 struct SavesView: View {
     @Environment(MaintenanceStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var onConsole = true
     @State private var restoring: SaveGame?
+    @State private var deleting: SaveGame?
+    /// False when rendered for a snapshot.
+    var live = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Sparfiler")
-                .font(.system(size: 30, weight: .light))
-                .foregroundStyle(Theme.primaryText)
-            Text("Säkerhetskopian på Macen. Det som ligger på PS3:an sparas först när du lägger tillbaka en sparfil, och det går inte medan ett spel körs.")
+            HStack(alignment: .firstTextBaseline) {
+                Text("Sparfiler")
+                    .font(.system(size: 30, weight: .light))
+                    .foregroundStyle(Theme.primaryText)
+                Spacer()
+                HStack(spacing: 6) {
+                    sourcePill("På PS3:an", selected: onConsole) { onConsole = true }
+                    sourcePill("På Macen", selected: !onConsole) { onConsole = false }
+                }
+            }
+            Text(onConsole
+                 ? "Sparfilerna på PS3:an. En sparfil som tas bort kopieras till Macen först, så den går att lägga tillbaka."
+                 : "Säkerhetskopian på Macen. Det som ligger på PS3:an sparas först när du lägger tillbaka en sparfil, och det går inte medan ett spel körs.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
                 .padding(.bottom, 14)
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(store.localSaves) { save in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(save.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.primaryText)
-                                Text([save.subtitle, save.folder, save.modified.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Theme.secondaryText)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(Format.bytes(save.size)).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
-                            Button("Lägg tillbaka") { restoring = save }
-                                .buttonStyle(PillButtonStyle(prominent: false))
-                                .disabled(store.busy != nil)
-                        }
-                        .padding(.vertical, 10)
-                        Divider().overlay(Theme.cardStroke)
-                    }
-                }
+            if live {
+                ScrollView { list }
+            } else {
+                list
+                Spacer(minLength: 0)
             }
             HStack {
                 Button { dismiss() } label: { Image(systemName: "chevron.left") }
@@ -313,18 +310,85 @@ struct SavesView: View {
                     .keyboardShortcut(.cancelAction)
                     .help("Tillbaka")
                 Spacer()
-                if let busy = store.busy { Text(busy).font(.system(size: 12)).foregroundStyle(Theme.secondaryText) }
+                if let busy = store.busy {
+                    Text(busy).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                } else if let note = store.note {
+                    Text(note).font(.system(size: 12)).foregroundStyle(Theme.secondaryText).lineLimit(2)
+                }
             }
             .padding(.top, 16)
         }
         .padding(32)
         .frame(width: 640, height: 640, alignment: .topLeading)
         .background(Theme.base)
+        .task {
+            guard live, store.consoleSaves == nil else { return }
+            store.loadConsoleSaves()
+        }
         .confirmationDialog("Lägga tillbaka \(restoring?.title ?? "")?", isPresented: Binding(get: { restoring != nil }, set: { if !$0 { restoring = nil } }),
                             presenting: restoring) { save in
             Button("Skriv över på PS3:an", role: .destructive) { store.restore(save) }
         } message: { save in
             Text("Sparfilen i \(save.folder) på PS3:an ersätts med kopian från \(save.modified.map(Format.day) ?? "säkerhetskopian").")
         }
+        .confirmationDialog("Ta bort \(deleting?.title ?? "") från PS3:an?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            presenting: deleting) { save in
+            Button("Ta bort", role: .destructive) { store.deleteSave(save) }
+        } message: { save in
+            Text("\(save.folder) tas bort från PS3:an. En kopia sparas på Macen först, så du kan lägga tillbaka den under På Macen.")
+        }
+    }
+
+    @ViewBuilder private var list: some View {
+        let saves = onConsole ? (store.consoleSaves ?? []) : store.localSaves
+        VStack(spacing: 0) {
+            if onConsole, store.consoleSaves == nil {
+                Text(store.busy ?? "Sparfilerna på PS3:an har inte lästs än.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.vertical, 10)
+            } else if saves.isEmpty {
+                Text(onConsole ? "Inga sparfiler på PS3:an." : "Ingen säkerhetskopia än.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.vertical, 10)
+            }
+            ForEach(saves) { save in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(save.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                        Text([save.subtitle, save.folder, save.modified.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Text(Format.bytes(save.size)).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                    if onConsole {
+                        Button("Ta bort") { deleting = save }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                            .disabled(store.busy != nil)
+                    } else {
+                        Button("Lägg tillbaka") { restoring = save }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                            .disabled(store.busy != nil)
+                    }
+                }
+                .padding(.vertical, 10)
+                Divider().overlay(Theme.cardStroke)
+            }
+        }
+    }
+
+    private func sourcePill(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(selected ? Color.black : Theme.primaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(selected ? Color.white : Color.white.opacity(0.1)))
+        }
+        .buttonStyle(.plain)
     }
 }

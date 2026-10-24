@@ -58,6 +58,7 @@ enum Snapshot {
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
+        write(SavesView(live: false).environment(maintenance), name: "saves", into: directory)
         write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),
               name: "menubar", into: directory)
         render(.maintenance, name: "maintenance", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) {

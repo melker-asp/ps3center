@@ -18,9 +18,14 @@ final class AppsStore {
 
     struct Operation: Equatable {
         enum Stage: Equatable {
-            case queued, downloading, uploading(Double), waitingForGame(String), installing, done, failed(String)
+            case queued, downloading, uploading(Double), waitingForGame(String), installing, uninstalling, done, failed(String)
         }
         var stage: Stage
+
+        var isFailed: Bool {
+            if case .failed = stage { return true }
+            return false
+        }
     }
 
     private(set) var phase: Phase = .idle
@@ -133,6 +138,22 @@ final class AppsStore {
         operations[status.id] = Operation(stage: .queued)
         queue.append(status.id)
         startRunner()
+    }
+
+    /// Removes an installed app (its folder in /dev_hdd0/game), then reads the list again.
+    func uninstall(_ status: AppStatus) {
+        guard let host, let entry = Self.entry(for: status) else { return }
+        if let op = operations[status.id], op.stage != .done, !op.isFailed { return }
+        operations[status.id] = Operation(stage: .uninstalling)
+        Task {
+            do {
+                try await AppsService(host: host).uninstall(entry, options: TransferOptions()) { _ in }
+                operations[status.id] = nil
+                await load(host: host)
+            } catch {
+                operations[status.id] = Operation(stage: .failed(error.localizedDescription))
+            }
+        }
     }
 
     func updateAll() {

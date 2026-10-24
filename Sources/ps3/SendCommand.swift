@@ -61,7 +61,10 @@ struct Send: AsyncParsableCommand {
         // Macen hålls vaken medan filerna går; en avbruten fil fortsätter nästa gång.
         let awake = KeepAwake(reason: "Skickar till PS3:an")
         defer { withExtendedLifetime(awake) {} }
-        try await TransferService(host: host).send(routes, options: options) { printer.handle($0) }
+        // Network failures get new tries, like the queue (RetryPolicy).
+        try await RetryPolicy.run(events: { printer.handle($0) }) {
+            try await TransferService(host: host).send(routes, options: options) { printer.handle($0) }
+        }
         if dryRun {
             UI.skip("Inget skickades (--dry-run).")
         } else if shutdownWhenDone {

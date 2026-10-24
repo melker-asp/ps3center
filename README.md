@@ -22,12 +22,12 @@ make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar 
 
 Appen har fyra flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
-  löpande kurvor och historiken från `ps3 history`. Under korten: Fjärrkontroll (XMB:n som bild,
-  styrkors och knappar, piltangenter och Retur/Esc), Avsluta spelet, Mata ut skivan, Starta om och
+  löpande kurvor och historiken från `ps3 history`. Under korten: Fjärrkontroll (styrkors och
+  knappar, piltangenter och Retur/Esc; titta på TV:n), Avsluta spelet, Mata ut skivan, Starta om och
   Stäng av. I dynamiskt fläktläge flyttar − och + webMAN:s måltemperatur (60–75 °C).
 - **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform och sök.
-  Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort
-  eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
+  Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort,
+  avinstallera (installerade spel; sparfilerna ligger kvar) eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
   banderoll för att byta omslag. Under **Macen** visas spelen i dina kopplade spelmappar, med vad
   som redan finns på PS3:an; markera spel och tryck Skicka. Filer som dras till fönstret går samma väg.
   **Spelservern** (under Macen) låter PS3:an spela ISO:erna direkt från Macen utan att kopiera dem.
@@ -35,12 +35,15 @@ Appen har fyra flikar i Mole-stil:
   inställningarna som de var (en kopia av dem sparas först).
 - **Överföringar** (pilarna uppe till höger): kön med förlopp, Starta/Pausa, "När kön är klar"
   (popup eller stäng av PS3:an), MD5-kontroll och hastighetsmätning. Macen hålls vaken medan kön går,
-  och kön pausas rent när Macen somnar och fortsätter när den vaknar.
+  och kön pausas rent när Macen somnar och fortsätter när den vaknar. Bryts anslutningen försöker
+  kön igen (efter 15 s, 30 s, 1, 2 och 4 minuter) och fortsätter där filen slutade. I Spelmappar
+  kan en mapp **bevakas**: nya spel i den läggs i kön och skickas när de har kopierats klart.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
+  Ett installerat program kan avinstalleras från sin sida.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 - **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
-  kan läggas tillbaka; systemfilerna kopieras på begäran; Städning hittar kvarglömda paket,
+  kan läggas tillbaka, och en sparfil kan tas bort från PS3:an (en kopia sparas först); systemfilerna kopieras på begäran; Städning hittar kvarglömda paket,
   avbrutna överföringar, dubbletter, en stor cache och saknade plugins och tar bort det som går;
   Lagring visar vad som tar plats; Skivan kopierar PS3-skivan i spelaren till hårddisken.
 
@@ -67,12 +70,13 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 games info <namn>` | Allt om ett spel. Namnet kan vara en del av titeln, ett title ID eller sökvägen |
 | `ps3 games play <namn>` | Startar spelet. Körs ett annat spel frågar den först om det ska avslutas (`-y`, `--dry-run`) |
 | `ps3 games mount\|unmount\|exit` | Monterar ett spel som skiva, avmonterar det eller avslutar spelet som körs |
-| `ps3 games delete <namn>` | Tar bort spelets filer från PS3:an efter en fråga (`--dry-run`, `-y`) |
+| `ps3 games delete <namn>` | Tar bort spelets filer från PS3:an efter en fråga, eller avinstallerar ett installerat spel (`--dry-run`, `-y`) |
 | `ps3 games covers` | Hämtar omslag till Macen; `--to-ps3` lägger PS3-omslagen där webMAN letar |
 | `ps3 games updates` | Officiella uppdateringar (patchar) från Sony för spelen |
 | `ps3 games update <namn>` | Hämtar, kontrollerar och installerar ett spels patchar (`--all`, `--dry-run`, `-y`). Aldrig systemprogramvara |
 | `ps3 games mac` | Spelen i Macens spelmappar och om de redan finns på PS3:an (`--missing`) |
 | `ps3 config folder add PS3ISO ~/Spel/PS3` | Kopplar en spelmapp på Macen per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) |
+| `ps3 config folder watch ~/Spel/PS3` | Bevakar en kopplad mapp; `ps3 watch` (eller appen) lägger nya spel i kön (`--send` skickar direkt) |
 | `ps3 queue add <filer eller spel>` | Lägger spel i kön som appen också använder; `ps3 queue start` skickar ett i taget (`--when-done shutdown`, `--verify`) |
 | `ps3 serve` | Spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN:s `/net0` (port 38008, bara läsning, bara PS3:an släpps in) |
 | `ps3 speedtest` | Mäter hur fort det går till och från PS3:an; ger tidsberäkningar i kön |
@@ -84,6 +88,7 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 screenshot [fil]` | Sparar en bild av XMB:n på Macen |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp via `.part`-filer, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup. Håller Macen vaken; `--verify` jämför MD5, `--shutdown-when-done` stänger av PS3:an efteråt |
 | `ps3 saves [backup\|local\|restore <namn>]` | Sparfilerna på PS3:an, kopiera dem till Macen, lägg tillbaka en (inte under spel; det som låg där sparas först) |
+| `ps3 saves delete <namn>` | Tar bort en sparfil från PS3:an efter att den kopierats till Macen (`--dry-run`, `-y`) |
 | `ps3 backup` | Sparfiler och systemfiler (xRegistry.sys, webMAN:s inställningar, boot_plugins) till Macen; läser bara konsolen |
 | `ps3 maintain [--fix]` | Kvarglömda paket, avbrutna överföringar, dubbletter, cache, saknade plugins; `--fix` tar bort paket och `.part`-filer |
 | `ps3 analyze` | Vad som tar plats på `/dev_hdd0`, räknat på konsolen |
@@ -93,6 +98,7 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps info <namn>` | Version, om programmet fungerar på din PS3 och README från GitHub (`--no-readme`, `--json`) |
 | `ps3 apps install <namn…>` | Hämtar senaste versionen från GitHub och installerar, t.ex. `ps3 apps install ezremote` (`--reinstall`, `--dry-run`) |
 | `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket` |
+| `ps3 apps uninstall <namn>` | Avinstallerar ett program (mappen i /dev_hdd0/game); inte HEN, webMAN eller plugins (`--dry-run`, `-y`) |
 | `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |
 | `ps3 refresh` | Uppdaterar spellistan (som SELECT + L3) |

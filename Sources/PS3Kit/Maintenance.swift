@@ -190,6 +190,24 @@ public struct SaveBackupService: Sendable {
         return try? JSONDecoder().decode(Date.self, from: data)
     }
 
+    /// Removes a save from the console, after copying it to the backup so it can be put back.
+    /// Not while a game runs. Logged.
+    public func delete(_ save: SaveGame, events: @Sendable (String) -> Void = { _ in }) async throws {
+        guard try await WebMAN(host: host).runningProcess() == nil else { throw PS3Error.gameRunning }
+        try await TransferService(host: host).withFTP { ftp in
+            let remote = Self.remoteFolder(save)
+            let files = try await ftp.list(remote).filter { !$0.isDirectory }
+            guard !files.isEmpty else { throw PS3Error.refused("\(save.title) finns inte på PS3:an.") }
+            events("Sparar en kopia på Macen")
+            let folder = Self.localFolder(save)
+            try await copy(save, files: files, from: ftp, into: folder)
+            try Self.write(Manifest(save: save, files: Self.signature(files), backedUpAt: Date()), in: folder)
+            OperationLog.record("delete-save", "\(save.title) (\(save.user)/\(save.folder))")
+            events("Tar bort sparfilen")
+            try await ftp.removeTree(remote)
+        }
+    }
+
     /// Puts a save from the backup back on the console, for the same user. Not while a game
     /// runs. What is on the console now is copied to .innan-aterstallning first. Logged.
     public func restore(_ save: SaveGame, events: @Sendable (String) -> Void = { _ in }) async throws {

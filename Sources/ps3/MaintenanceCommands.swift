@@ -10,9 +10,10 @@ struct Saves: AsyncParsableCommand {
         ps3 saves backup             Kopiera det som ändrats till Macen (läser bara konsolen)
         ps3 saves local              Vad som finns i säkerhetskopian
         ps3 saves restore gran       Lägg tillbaka en sparfil från säkerhetskopian
+        ps3 saves delete gran        Ta bort en sparfil från PS3:an (kopieras till Macen först)
         Säkerhetskopian ligger i ~/Library/Application Support/ps3center/Sparfiler.
         """,
-        subcommands: [List.self, Backup.self, Local.self, Restore.self],
+        subcommands: [List.self, Backup.self, Local.self, Restore.self, Delete.self],
         defaultSubcommand: List.self
     )
 
@@ -98,6 +99,48 @@ struct Saves: AsyncParsableCommand {
             guard yes || UI.confirm("Skriva över sparfilen på PS3:an med den här? Den som ligger där nu sparas först.") else { return }
             try await SaveBackupService(host: host).restore(save) { UI.step($0) }
             UI.ok("Sparfilen är tillbaka på PS3:an")
+        }
+    }
+
+    struct Delete: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Ta bort en sparfil från PS3:an. Den kopieras till Macen först, så den går att lägga tillbaka."
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Del av titeln, ett title ID eller mappens namn.")
+        var name: [String] = []
+
+        @Flag(name: [.short, .long], help: "Fråga inte.")
+        var yes = false
+
+        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        var dryRun = false
+
+        func validate() throws {
+            guard !name.isEmpty else { throw ValidationError("Ange vilken sparfil, t.ex. `ps3 saves delete gran`.") }
+        }
+
+        func run() async throws {
+            let query = name.joined(separator: " ")
+            let host = try await Console.host(global)
+            let matches = try await SaveBackupService(host: host).list().filter {
+                $0.title.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                    || $0.folder.range(of: query, options: .caseInsensitive) != nil
+            }
+            guard let save = matches.first else { throw PS3Error.refused("Ingen sparfil på PS3:an passar \"\(query)\".") }
+            guard matches.count == 1 else {
+                Saves.render(matches, header: "Flera sparfiler passar")
+                throw PS3Error.refused("Skriv mappens namn för att välja en.")
+            }
+            UI.header(save.title, detail: save.subtitle ?? save.folder)
+            UI.row("Mapp", "/dev_hdd0/home/\(save.user)/savedata/\(save.folder)")
+            UI.row("Storlek", Format.bytes(save.size))
+            if dryRun { UI.step("Skulle kopiera sparfilen till Macen och ta bort den från PS3:an"); return }
+            guard yes || UI.confirm("Ta bort sparfilen från PS3:an? En kopia sparas på Macen först.") else { return }
+            try await SaveBackupService(host: host).delete(save) { UI.step($0) }
+            UI.ok("Sparfilen är borttagen. `ps3 saves restore \(save.folder)` lägger tillbaka den.")
         }
     }
 

@@ -49,15 +49,18 @@ public enum PadButton: String, CaseIterable, Sendable {
 }
 
 extension WebMAN {
+    /// Presses go on a connection of their own, so they never wait behind the status polls.
+    static let padSession = makeSession()
+
     /// Presses and releases one button, as on a controller. Not logged: nothing on the console is
     /// stored by it, and a log line per press would bury the rest.
     public func press(_ button: PadButton) async throws {
-        try await get("/pad.ps3?" + button.rawValue, timeout: 5)
+        _ = try await fetch(encoded: Self.encodeCommand("/pad.ps3?" + button.rawValue), timeout: 5, session: Self.padSession)
     }
 
     /// Disconnects the virtual pad, so it does not stay connected as a second controller.
     public func padOff() async throws {
-        try await get("/pad.ps3?off", timeout: 5)
+        _ = try await fetch(encoded: Self.encodeCommand("/pad.ps3?off"), timeout: 5, session: Self.padSession)
     }
 
     public func ejectDisc() async throws {

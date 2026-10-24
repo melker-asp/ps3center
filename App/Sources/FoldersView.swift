@@ -11,13 +11,14 @@ struct FoldersView: View {
     let onChange: () -> Void
     @State private var linked: [(kind: GameFolders.Kind, url: URL)] = GameFolders.linked()
     @State private var configured: [String: [String]] = ConfigStore.load().folders ?? [:]
+    @State private var watched: Set<String> = Set(ConfigStore.load().watchedFolders ?? [])
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Spelmappar")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Koppla mapparna där du har dina spel. Spelen visas under Macen i Spel-fliken, och PS3 Center lägger dem i rätt mapp på PS3:an.")
+            Text("Koppla mapparna där du har dina spel. Spelen visas under Macen i Spel-fliken, och PS3 Center lägger dem i rätt mapp på PS3:an. Bevakar du en mapp skickas nya spel i den av sig själva när de har kopierats klart.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -68,6 +69,13 @@ struct FoldersView: View {
                             Chip(text: "Inte ansluten", color: Theme.warm)
                         }
                         Spacer(minLength: 4)
+                        HStack(spacing: 4) {
+                            Text("Bevaka").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
+                            PillToggle(isOn: watched.contains(url.path)) { setWatched(url, $0) }
+                                .scaleEffect(0.7)
+                                .frame(width: 34)
+                        }
+                        .help("Nya spel i mappen läggs i kön och skickas när de har slutat växa. Det som redan finns i mappen räknas inte som nytt.")
                         if isConfigured(url, kind) {
                             Button { remove(url, kind) } label: { Image(systemName: "minus.circle") }
                                 .buttonStyle(.plain)
@@ -108,6 +116,11 @@ struct FoldersView: View {
     private func remove(_ url: URL, _ kind: GameFolders.Kind) {
         try? GameFolders.remove(url, from: kind)
         reload()
+    }
+
+    private func setWatched(_ url: URL, _ on: Bool) {
+        try? FolderWatch.setWatched(url, on)
+        watched = Set(ConfigStore.load().watchedFolders ?? [])
     }
 
     private func reload() {

@@ -182,7 +182,8 @@ fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att c
 
 **Läge 24 okt 2026:** byggt: `GameFolders`, `LocalLibrary` (läser PARAM.SFO, SYSTEM.CNF och ICON0 ur
 ISO:er och råa .bin-avbilder), `LibraryMatch`, läget Macen i Spel-fliken med urval, granskningsvy,
-Spelmappar och dra-och-släpp; `ps3 config folder` och `ps3 games mac`. Bevakade mappar återstår.
+Spelmappar och dra-och-släpp; `ps3 config folder` och `ps3 games mac`. Bevakade mappar är byggda
+(25 okt): `FolderWatch`, reglaget Bevaka i Spelmappar, `ps3 config folder watch` och `ps3 watch`.
 
 - `config.json` får `folders`, en lista med mappar per typ:
   `{"PS3ISO": ["~/Spel/PS3"], "PS2ISO": ["/Volumes/Extern/PS2"], …}`. Spegelmappens
@@ -208,7 +209,8 @@ Spelmappar och dra-och-släpp; `ps3 config folder` och `ps3 games mac`. Bevakade
 
 **Läge 24 okt 2026:** byggt: `TransferQueue` med lås, `.part` + `RNTO`, ren stängning vid paus och
 viloläge, `KeepAwake`, MD5 via `/md5.ps3`, "När kön är klar" och notiser; `ps3 queue` och
-Överföringar i appen. Automatiska nya försök efter nätverksfel återstår (kön fortsätter vid nästa start).
+Överföringar i appen. Nya försök efter nätverksfel är byggda (25 okt): `RetryPolicy` väntar 15 s,
+30 s, 1, 2 och 4 minuter och fortsätter från `.part`-filen; har webMAN tagit bort den sägs det.
 
 - `TransferQueue` i PS3Kit, sparad i `~/Library/Application Support/ps3center/queue.json`: lägg
   till, pausa, fortsätt, ändra ordning, ta bort. En överföring åt gången. Ett lås ser till att
@@ -232,7 +234,9 @@ viloläge, `KeepAwake`, MD5 via `/md5.ps3`, "När kön är klar" och notiser; `p
 ### Fas 5 – Snabbare: mät, finjustera och USB
 
 **Läge 24 okt 2026:** `ps3 speedtest` (och knappen i Överföringar) och `ps3 usb prepare` är byggda.
-Finjusteringen av klienten väntar på mätningar från din PS3 (test 4 och 5).
+Finjusteringen är byggd (25 okt): 1 MB-bitar och två i luften, inställbart med `ftpChunkKB` och
+`ftpWindow` i config.json för att jämföra med hastighetstestet (test 13). Två filer samtidigt är
+inte byggt.
 
 - `ps3 speedtest` (och en knapp i Överföringar): skickar 256 MB från minnet till `/dev_hdd0/tmp`,
   hämtar tillbaka och tar bort filen. Visar MB/s åt båda hållen och om det är Wi-Fi eller kabel.
@@ -380,8 +384,8 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     ställ in nätverksserver 1 själv i `http://$PS3/setup.ps3` med Macens adress och port 38008
     och kör `ps3 serve`). Kolla efteråt i webMAN:s inställningar att inget annat ändrats. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
     en stund, gärna både över Wi-Fi och med kabel. Säg vad `ps3 serve` skrev och om något hackade.
-11. Fas 7 i appen: Fjärrkontroll i Status-fliken (syns XMB:n, och följer bilden med när du trycker
-    på piltangenterna?), − och + på fläktkortet (bara om webMAN kör dynamiskt läge), menyraden
+11. Fas 7 i appen: Fjärrkontroll i Status-fliken (rör sig XMB:n på TV:n när du trycker på
+    piltangenterna?), − och + på fläktkortet (bara om webMAN kör dynamiskt läge), menyraden
     med fönstret stängt, "Skicka till PS3" i Finder (högerklick → Snabbåtgärder eller Tjänster;
     kan kräva att appen ligger i Program och har startats en gång) och Genvägar → PS3-status.
     Stäng av HEN genom en omstart och se om appen säger "HEN är inte aktiverat".
@@ -389,6 +393,11 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     en sparfil du har en kopia av på annat håll. `ps3 maintain` och `ps3 analyze` (hur lång tid tog
     det?). Om du har en PS3-skiva: `ps3 rip` och se om mappen i GAMES startar. Kolla också vad
     `curl "http://$PS3/stat.ps3/dev_hdd0/game"` skriver, så att tolkningen stämmer.
+13. Det sista: bevaka en mapp i Spelmappar och kopiera in ett spel (kommer det i kön en minut efter
+    att kopieringen är klar?), dra ur nätverkskabeln mitt i en överföring och sätt i den igen
+    (fortsätter kön själv?), avinstallera ett program du kan installera igen, ta bort en sparfil
+    och lägg tillbaka den. Kör hastighetstestet med `"ftpWindow": 1` och sedan `4` i
+    config.json och säg vilket som gick fortast.
 
 ## Beslut (24 okt 2026)
 

@@ -10,6 +10,7 @@ struct AppDetailView: View {
     @Environment(\.openURL) private var openURL
     let status: AppStatus
     var scrolls = true
+    @State private var confirmingUninstall = false
 
     private var entry: CatalogEntry? { AppsStore.entry(for: status) }
 
@@ -109,8 +110,18 @@ struct AppDetailView: View {
                         Button(entry?.repository == nil ? "Öppna sidan" : "Öppna på GitHub") { openURL(url) }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     }
+                    if canUninstall {
+                        Button("Avinstallera") { confirmingUninstall = true }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                    }
                 }
                 .padding(.top, 4)
+                .confirmationDialog("Avinstallera \(status.name)?", isPresented: $confirmingUninstall, titleVisibility: .visible) {
+                    Button("Avinstallera", role: .destructive) { apps.uninstall(status) }
+                    Button("Avbryt", role: .cancel) {}
+                } message: {
+                    Text("Programmet tas bort från PS3:ans hårddisk (/dev_hdd0/game/\(entry?.titleID ?? "")). Dess sparfiler ligger kvar, och det går att installera igen härifrån. Ikonen kan synas i XMB:n tills PS3:an startats om.")
+                }
             }
             Spacer()
         }
@@ -134,6 +145,13 @@ struct AppDetailView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.good)
         }
+    }
+
+    /// Apps installed from a package; HEN, webMAN and plugins are not removed from here.
+    private var canUninstall: Bool {
+        guard status.installed != nil, status.category != .system, entry?.titleID != nil else { return false }
+        if let op = apps.operations[status.id], !op.isFailed { return false }
+        return true
     }
 
     private var sourceURL: URL? {

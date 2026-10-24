@@ -24,6 +24,6 @@ struct PS3: AsyncParsableCommand {
         """,
         version: "0.1.0",
         subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Serve.self,
-                      Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
+                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }

@@ -16,6 +16,12 @@ public struct PS3Config: Codable, Equatable, Sendable {
     public var netServer: Bool?
     /// Which of webMAN's network servers points at the game server: 0 for /net0 … 4 for /net4.
     public var netServerSlot: Int?
+    /// Linked folders whose new games are queued by themselves (`FolderWatch`), as full paths.
+    public var watchedFolders: [String]?
+    /// FTP uploads: piece size in KB and pieces in flight (`FTPClient.Tuning`), to compare with
+    /// the speed test. Defaults 1024 and 2.
+    public var ftpChunkKB: Int?
+    public var ftpWindow: Int?
 
     public init(host: String? = nil, root: String? = nil, theme: String? = nil, folders: [String: [String]]? = nil) {
         self.host = host

@@ -172,16 +172,20 @@ public struct GameLibraryService: Sendable {
     // MARK: Delete
 
     /// Removes a game's files (an ISO with its split parts or tracks, or a game folder), then
-    /// refreshes the game list. Installed games are removed in the XMB instead, and a game that
-    /// is running is never touched.
+    /// refreshes the game list. An installed game is uninstalled: its folder in /dev_hdd0/game
+    /// goes, its saves stay. A game that is running is never touched, and nothing HEN needs.
     public func delete(_ game: Game, options: TransferOptions, events: TransferHandler) async throws {
-        guard !game.isInstalled else {
-            throw PS3Error.refused("\(game.title) är installerat i XMB:n. Ta bort det där: markera spelet, tryck △ och välj Ta bort.")
+        if game.isInstalled, let refusal = UninstallGuard.refusal(titleID: game.titleID, title: game.title, path: game.path) {
+            throw PS3Error.refused(refusal)
         }
         let snapshot = try await webman.snapshot()
         let mounted = snapshot.mountedGamePath == game.path
         if mounted, snapshot.isGameRunning {
             throw PS3Error.refused("\(game.title) körs. Avsluta spelet först.")
+        }
+        // An installed game runs from its folder without being mounted, so nothing may run.
+        if game.isInstalled, snapshot.isGameRunning {
+            throw PS3Error.refused("Ett spel körs. Avsluta det först, så att \(game.title) inte används medan det tas bort.")
         }
         let files = game.isFolder ? [game.path] : [game.path] + game.companions
         if options.dryRun {
@@ -196,12 +200,31 @@ public struct GameLibraryService: Sendable {
                 for file in files { try await ftp.delete(file) }
             }
         }
-        OperationLog.record("delete", game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
-        events(.note("\(game.title) är borttaget från PS3:an"))
+        OperationLog.record(game.isInstalled ? "uninstall" : "delete", game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
+        events(.note(game.isInstalled
+            ? "\(game.title) är avinstallerat. Sparfilerna ligger kvar, och ikonen kan synas i XMB:n tills PS3:an startats om."
+            : "\(game.title) är borttaget från PS3:an"))
         guard options.refresh else { return }
         try await TransferService(host: host).waitUntilIdle(force: options.force, events: events)
         try await webman.refreshGames()
         events(.refreshed)
+    }
+}
+
+/// What PS3 Center will not uninstall: anything but a folder directly in /dev_hdd0/game, and
+/// what HEN needs to be enabled (without HEN, webMAN does not start and PS3 Center cannot reach
+/// the console).
+public enum UninstallGuard {
+    public static func refusal(titleID: String?, title: String, path: String) -> String? {
+        let parts = path.split(separator: "/")
+        guard parts.count == 3, parts[0] == "dev_hdd0", parts[1] == "game" else {
+            return "\(title) ligger inte direkt i /dev_hdd0/game och avinstalleras inte härifrån."
+        }
+        let name = title.uppercased()
+        if name.contains("PS3HEN") || name.range(of: #"\bHEN\b"#, options: .regularExpression) != nil || titleID == "PS3XPLOIT" {
+            return "\(title) behövs för att aktivera HEN, och utan HEN startar inte webMAN. PS3 Center tar inte bort det."
+        }
+        return nil
     }
 }
 

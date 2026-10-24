@@ -24,7 +24,20 @@ final class TransferStore {
     private(set) var note: String?
     /// Paused because the Mac went to sleep; started again when it wakes.
     private(set) var pausedForSleep = false
-    var host: String?
+    var host: String? {
+        didSet {
+            // Games from a watched folder that arrived while the console was away.
+            if host != nil, startWhenOnline {
+                startWhenOnline = false
+                start()
+            }
+        }
+    }
+
+    /// New games in watched folders (`FolderWatch`), looked for every 20 seconds.
+    private var watch = FolderWatch()
+    private var watcher: Task<Void, Never>?
+    private var startWhenOnline = false
 
     private var runner: Task<Void, Never>?
     private var lock: QueueLock?
@@ -60,6 +73,36 @@ final class TransferStore {
         isRunning = current != nil
         rate = 3_250_000
         lastSpeed = Fixtures.speed
+    }
+
+    // MARK: Watched folders
+
+    func startWatching() {
+        guard watcher == nil, !isFixture else { return }
+        watcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                await self?.lookInWatchedFolders()
+            }
+        }
+    }
+
+    private func lookInWatchedFolders() async {
+        let folders = FolderWatch.watched()
+        guard !folders.isEmpty else { return }
+        let before = watch
+        // Reading the folders (and new games' sizes) stays off the main thread.
+        let (after, games) = await Task.detached { () -> (FolderWatch, [(title: String, routes: [Route])]) in
+            var watch = before
+            let arrivals = watch.poll(folders)
+            return (watch, arrivals.isEmpty ? [] : FolderWatch.routes(for: arrivals))
+        }.value
+        watch = after
+        for game in games {
+            if host == nil { startWhenOnline = true }
+            add(game.routes)
+            Notifier.post(title: "Nytt spel i kön", body: "\(game.title) skickas till PS3:an.")
+        }
     }
 
     // MARK: Queue
@@ -232,6 +275,8 @@ final class TransferStore {
             note = "Spellistan är uppdaterad"
         case .note(let text):
             note = text
+        case .started:
+            note = nil  // going again after a retry
         default:
             return
         }

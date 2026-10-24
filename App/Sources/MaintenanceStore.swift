@@ -10,6 +10,8 @@ final class MaintenanceStore {
     var host: String?
 
     private(set) var localSaves = SaveBackupService.local()
+    /// The saves on the console, read when the Sparfiler sheet asks.
+    private(set) var consoleSaves: [SaveGame]?
     private(set) var lastSaveBackup = SaveBackupService.lastBackup()
     private(set) var systemBackups = SystemFiles.backups().compactMap(MaintenanceStore.date(of:))
     private(set) var report: MaintenanceReport?
@@ -37,6 +39,7 @@ final class MaintenanceStore {
     func loadFixture() {
         isFixture = true
         localSaves = Fixtures.saves
+        consoleSaves = Fixtures.saves
         lastSaveBackup = Date(timeIntervalSince1970: 1_792_670_400)
         systemBackups = [Date(timeIntervalSince1970: 1_792_670_400), Date(timeIntervalSince1970: 1_791_000_000)]
         report = Fixtures.maintenanceReport
@@ -70,6 +73,26 @@ final class MaintenanceStore {
             let result = try await SystemFiles.backup(host: host)
             await MainActor.run { self.systemBackups = SystemFiles.backups().compactMap(MaintenanceStore.date(of:)) }
             return "Systemfiler: \(result.saved.count) filer kopierade"
+        }
+    }
+
+    func loadConsoleSaves() {
+        run("Läser sparfilerna på PS3:an") { host in
+            let saves = try await SaveBackupService(host: host).list()
+            await MainActor.run { self.consoleSaves = saves }
+            return "\(saves.count) sparfiler på PS3:an"
+        }
+    }
+
+    /// Removes a save from the console; a copy goes to the backup first, so it can be put back.
+    func deleteSave(_ save: SaveGame) {
+        run("Tar bort \(save.title)") { host in
+            try await SaveBackupService(host: host).delete(save)
+            await MainActor.run {
+                self.consoleSaves?.removeAll { $0.id == save.id }
+                self.localSaves = SaveBackupService.local()
+            }
+            return "\(save.title) är borttagen från PS3:an. En kopia finns under På Macen."
         }
     }
 

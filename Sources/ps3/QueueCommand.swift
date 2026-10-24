@@ -408,3 +408,51 @@ struct Serve: AsyncParsableCommand {
         }
     }
 }
+
+struct WatchFolders: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "watch",
+        abstract: "Bevaka mapparna och lägg nya spel i kön när de har slutat växa. Ctrl-C slutar.",
+        discussion: """
+        Vilka mappar som bevakas väljs med `ps3 config folder watch <mapp>` eller i appens
+        Spelmappar. Appen bevakar själv medan den är öppen. Med --send skickas kön direkt.
+        """
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @Flag(name: .long, help: "Skicka kön när något nytt har lagts till.")
+    var send = false
+
+    func run() async throws {
+        let folders = FolderWatch.watched()
+        guard !folders.isEmpty else {
+            throw PS3Error.refused("Inga mappar bevakas. Slå på det med `ps3 config folder watch <mapp>`.")
+        }
+        UI.header("Bevakar", detail: "\(folders.count) mappar")
+        for (kind, url) in folders { UI.row(kind.name, url.path) }
+        print("\n  Nya spel läggs i kön när de har slutat växa i en minut. Ctrl-C slutar.")
+        var watch = FolderWatch()
+        while true {
+            let games = FolderWatch.routes(for: watch.poll(FolderWatch.watched()))
+            if !games.isEmpty {
+                var queue = TransferQueue.load()
+                for game in games {
+                    _ = queue.add(game.routes)
+                    UI.ok("\(game.title) ligger i kön")
+                }
+                queue.save()
+                if send {
+                    // The app or another `ps3 queue start` may already be sending; keep watching.
+                    do {
+                        let start = try Queue.Start.parse(global.host.map { ["--host", $0] } ?? [])
+                        try await start.run()
+                    } catch {
+                        UI.warn(error.localizedDescription)
+                    }
+                }
+            }
+            try await Task.sleep(nanoseconds: 20_000_000_000)
+        }
+    }
+}

@@ -35,6 +35,7 @@ struct PS3CenterApp: App {
                     } else {
                         console.start()
                         netServer.start()
+                        transfers.startWatching()
                     }
                     if let directory = Snapshot.directory {
                         await Snapshot.run(console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory)

@@ -212,8 +212,8 @@ struct Games: AsyncParsableCommand {
 
     struct Delete: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Ta bort ett spel från PS3:an. Frågar först om inte --yes anges.",
-            discussion: "Spel som är installerade i XMB:n (PSN, PS1/PS2 Classics) tas bort i XMB:n i stället."
+            abstract: "Ta bort eller avinstallera ett spel från PS3:an. Frågar först om inte --yes anges.",
+            discussion: "Ett spel som är installerat i XMB:n (PSN, PS1/PS2 Classics) avinstalleras: mappen i /dev_hdd0/game tas bort, sparfilerna ligger kvar. Det som HEN behöver tas aldrig bort."
         )
 
         @OptionGroup var global: GlobalOptions
@@ -241,7 +241,10 @@ struct Games: AsyncParsableCommand {
             let size = game.size.map(Format.bytes) ?? "mapp"
             UI.header(dryRun ? "Förhandsvisning" : "Ta bort", detail: "\(game.title) · \(size)")
             if !dryRun {
-                guard yes || UI.confirm("Ta bort \(game.title) (\(size)) från PS3:an? Det går inte att ångra.") else {
+                let question = game.isInstalled
+                    ? "Avinstallera \(game.title) (\(game.path))? Sparfilerna ligger kvar."
+                    : "Ta bort \(game.title) (\(size)) från PS3:an? Det går inte att ångra."
+                guard yes || UI.confirm(question) else {
                     UI.skip("Inget togs bort.")
                     return
                 }

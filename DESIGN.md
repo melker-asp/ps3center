@@ -164,6 +164,13 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   Safari skulle skicka. Först sparas en kopia av inställningarna (Systemfiler), och efteråt läses
   sidan igen och jämförs fält för fält. Nätverksservrarna heter `nd<n>`, `neth<n>` och `netp<n>`
   (n = 0–4, `/net0`–`/net4`).
+- **Uppladdningar (25 okt):** filen skickas i bitar om 1 MB, och nästa bit lämnas till
+  nätverket innan den förra är skickad (två i luften), i samma ordning. Bryts anslutningen
+  försöker kön igen med paus emellan och fortsätter från `.part`-filens storlek. Har webMAN tagit
+  bort filen (anslutningen bröts med ett fel) börjar den om och säger det.
+- **Avinstallera:** ett installerat spel eller program är en mapp i `/dev_hdd0/game/<title ID>`
+  som tas bort med FTP (RMD är rekursiv i webMAN). Sparfiler och troféer rörs inte. XMB:n kan visa
+  ikonen tills konsolen startats om.
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när

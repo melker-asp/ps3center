@@ -86,13 +86,16 @@ xcodebuild den inte.
   GAMES, PS2ISO …) på hdd0 och USB plus `/dev_hdd0/game`. Titel och title ID kommer ur PARAM.SFO,
   för ISO:er webMAN:s kopia i `/dev_hdd0/tmp/wmtmp`, och cachas i `~/Library/Caches/ps3center/`.
   `GameListing` är den nätverksfria delen som testerna matar med listningar. Installerade spel i
-  `/dev_hdd0/game` startas via title ID och tas aldrig bort av PS3 Center. `GamesStore` och
-  `GamesView` är Spel-fliken.
+  `/dev_hdd0/game` startas via title ID och avinstalleras bara på begäran (`delete`, efter en
+  fråga; `UninstallGuard` skyddar det HEN behöver). `GamesStore` och `GamesView` är Spel-fliken.
 - **Macens spel och kön:** `GameFolders` (mappar per typ i config.json plus spegelmappen),
   `LocalLibrary` (samma `GameListing`-regler som konsolen, metadata ur avbilderna) och
   `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`;
   `QueueLock` ser till att bara en process skickar. Allt skickas via `TransferService.send`, som
-  laddar upp till `.part` och döper om.
+  laddar upp till `.part` och döper om. `QueueRunner.send` och `ps3 send` försöker igen efter
+  nätverksfel (`RetryPolicy`). `FolderWatch` (watch.json) hittar nya spel i bevakade mappar;
+  appens `TransferStore` och `ps3 watch` lägger dem i kön. `FTPClient.Tuning` styr bitstorlek och
+  antal bitar i luften (config.json `ftpChunkKB`/`ftpWindow`).
 - **Spelservern** (`NetServer.swift`): en egen ps3netsrv som bara läser. Roten är de kopplade
   mapparna ihopslagna per typ (`/PS3ISO` …); `<namn>.SFO`/`.PNG` bredvid en PS3-ISO läses ur
   avbilden. Skrivande kommandon stänger anslutningen och bara konsolens adress släpps in. Ett
@@ -132,6 +135,9 @@ xcodebuild den inte.
 - **boot_plugins.txt ändras aldrig av PS3 Center;** saknade plugins rapporteras bara.
 - **Fläkten ändras bara som mål i webMAN:s dynamiska läge, 60–75 °C,** aldrig som fast hastighet.
 - **Ingen fri text till `/pad.ps3`:** "cross=" byter OK-knapp och startar om konsolen.
+- **Avinstallation och radering:** bara en mapp direkt i `/dev_hdd0/game`, aldrig det HEN behöver
+  (`UninstallGuard`), aldrig medan ett spel körs, alltid efter en fråga. En sparfil kopieras till
+  Macen innan den tas bort från konsolen.
 - **webMAN:s inställningar ändras bara via `WebMANSetup`:** hela formuläret som Safari skulle
   skicka, en kopia av inställningarna först och en kontroll efteråt. Ett ofullständigt anrop till
   `/setup.ps3` nollställer alla andra inställningar.

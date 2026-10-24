@@ -2,15 +2,13 @@ import AppKit
 import PS3Kit
 import SwiftUI
 
-/// Fjärrkontroll: webMAN's virtual pad, with a picture of the XMB fetched every few seconds.
-/// The keyboard works too: arrows, Return for OK and Esc for back.
+/// Fjärrkontroll: webMAN's virtual pad, with the keyboard too: arrows, Return for OK and Esc for
+/// back. Watch the TV; a picture of the XMB fetched from the console lagged behind the presses.
 struct RemoteView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(\.dismiss) private var dismiss
-    /// False when rendered for a snapshot: no polling and no pad.
+    /// False when rendered for a snapshot: no pad.
     var live = true
-    @State private var image: NSImage?
-    @State private var note: String?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -24,21 +22,15 @@ struct RemoteView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.tertiaryText)
             }
-            screen.padding(.top, 16)
-            pad.padding(.top, 22)
+            pad.padding(.top, 28)
             Spacer(minLength: 12)
-            HStack {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut("w")
-                    .help("Stäng (⌘W)")
-                Spacer()
-                Button { Task { await refresh() } } label: { Label("Uppdatera bilden", systemImage: "arrow.clockwise") }
-                    .buttonStyle(PillButtonStyle(prominent: false))
-            }
+            Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
+                .keyboardShortcut("w")
+                .help("Stäng (⌘W)")
         }
         .padding(32)
-        .frame(width: 720, height: 780, alignment: .topLeading)
+        .frame(width: 720, height: 420, alignment: .topLeading)
         .background(Theme.base)
         .focusable()
         .focused($focused)
@@ -53,51 +45,11 @@ struct RemoteView: View {
         .task {
             guard live else { return }
             focused = true
-            while !Task.isCancelled {
-                await refresh()
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-            }
         }
         .onDisappear {
             // Not left connected as a second controller.
             guard live else { return }
             Task { await console.padOff() }
-        }
-    }
-
-    // MARK: The TV
-
-    private var screen: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.black)
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "playstation.logo")
-                        .font(.system(size: 54))
-                        .foregroundStyle(Color.white.opacity(0.25))
-                    Text(note ?? "Hämtar bilden av XMB:n…")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.secondaryText)
-                }
-            }
-        }
-        .aspectRatio(16 / 9, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.cardStroke))
-        .overlay(alignment: .bottomLeading) {
-            if image != nil, let note {
-                Text(note)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.primaryText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.black.opacity(0.6)))
-                    .padding(10)
-            }
         }
     }
 
@@ -170,25 +122,6 @@ struct RemoteView: View {
 
     private func tap(_ button: PadButton) {
         guard live else { return }
-        Task {
-            await console.press(button)
-            // The XMB needs a moment to move before the picture shows it.
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            await refresh()
-        }
-    }
-
-    private func refresh() async {
-        guard live else { return }
-        if console.snapshot?.isGameRunning == true {
-            note = "Bilden av TV:n går bara att ta i XMB:n, inte under ett spel."
-            return
-        }
-        if let next = await console.screenshot() {
-            image = next
-            note = nil
-        } else {
-            note = "Ingen bild från PS3:an just nu."
-        }
+        Task { await console.press(button) }
     }
 }

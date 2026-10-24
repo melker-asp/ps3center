@@ -149,13 +149,30 @@ public struct QueueRunner: Sendable {
 
     public init(host: String) { self.host = host }
 
-    /// Sends one item. The game list is refreshed once, by `finish`, not after every item.
-    public func send(_ item: TransferQueue.Item, verify: Bool, events: TransferHandler) async throws {
+    /// Sends one item, trying again after network failures (`RetryPolicy`). The game list is
+    /// refreshed once, by `finish`, not after every item.
+    public func send(_ item: TransferQueue.Item, verify: Bool, events: @escaping TransferHandler) async throws {
         var options = TransferOptions()
         options.refresh = false
         options.popup = false
         options.verify = verify
-        try await TransferService(host: host).send(item.routes, options: options, events: events)
+        let memory = SentMemory()
+        let watched: TransferHandler = { event in
+            events(event)
+            switch event {
+            case .progress(let route, let sent, _, _):
+                memory.note(route.remote, sent)
+            case .started(let route, let offset) where offset == 0 && memory.bytes(route.remote) > 0:
+                // webMAN removes a partial file when the data connection breaks with an error.
+                events(.note("PS3:an tog bort den halvfärdiga filen när anslutningen bröts, så \(route.local.lastPathComponent) börjar om från början."))
+            default:
+                break
+            }
+        }
+        let service = TransferService(host: host)
+        try await RetryPolicy.run(events: events) {
+            try await service.send(item.routes, options: options, events: watched)
+        }
     }
 
     /// After the queue: refreshes the game list when games arrived (once no game runs), then
