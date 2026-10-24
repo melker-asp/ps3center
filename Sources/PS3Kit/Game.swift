@@ -19,6 +19,14 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
 
         /// The order games are listed in: PS3 first, films last.
         public var order: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+
+        /// PS3 and PSN games are the same family when matching the Mac's games with the console's.
+        var family: Platform { self == .psn ? .ps3 : self }
+    }
+
+    /// Where the game is: on the console, or in one of the Mac's game folders.
+    public enum Source: String, Codable, Sendable {
+        case console, mac
     }
 
     /// Where it is on the console: an ISO, a .cue, a game folder or /dev_hdd0/game/<titleID>.
@@ -40,10 +48,13 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     public var backgroundPath: String?
     /// Files that belong to the game besides `path`: split ISO parts (.iso.1 …) and .bin tracks.
     public var companions: [String]
+    public var source: Source
+    /// For a game on the Mac: where it goes on the console ("/dev_hdd0/PS3ISO/Game.iso").
+    public var remotePath: String?
 
     init(path: String, title: String, titleID: String? = nil, platform: Platform, size: Int64? = nil,
          isFolder: Bool = false, version: String? = nil, iconPath: String? = nil, backgroundPath: String? = nil,
-         companions: [String] = []) {
+         companions: [String] = [], source: Source = .console, remotePath: String? = nil) {
         self.path = path
         self.title = title
         self.titleID = titleID
@@ -54,6 +65,8 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
         self.iconPath = iconPath
         self.backgroundPath = backgroundPath
         self.companions = companions
+        self.source = source
+        self.remotePath = remotePath
     }
 
     public var id: String { path }
@@ -62,9 +75,11 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
 
     /// Installed in the XMB (PSN games, PS1/PS2 Classics, minis): started from its icon by title
     /// ID and removed in the XMB, never mounted or deleted by PS3 Center.
-    public var isInstalled: Bool { path.hasPrefix("/dev_hdd0/game/") }
+    public var isInstalled: Bool { source == .console && path.hasPrefix("/dev_hdd0/game/") }
 
-    public var isOnUSB: Bool { path.hasPrefix("/dev_usb") }
+    public var isOnUSB: Bool { source == .console && path.hasPrefix("/dev_usb") }
+
+    public var isOnMac: Bool { source == .mac }
 }
 
 public enum Region: String, Codable, Sendable {

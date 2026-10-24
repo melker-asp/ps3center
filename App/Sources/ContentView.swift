@@ -17,8 +17,11 @@ enum MainTab: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(TransferStore.self) private var transfers
     @State private var tab: MainTab = .status
     @State private var showsAppearance = false
+    @State private var showsTransfers = false
+    @State private var dropped: SendReview?
 
     var body: some View {
         ZStack {
@@ -35,7 +38,7 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.5), value: console.connection == .online)
 
             VStack(spacing: 0) {
-                TopBar(selection: $tab) { showsAppearance = true }
+                TopBar(selection: $tab, openTransfers: { showsTransfers = true }) { showsAppearance = true }
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -57,21 +60,45 @@ struct ContentView: View {
             .padding(.bottom, 20)
         }
         .sheet(isPresented: $showsAppearance) { AppearanceView() }
+        .sheet(isPresented: $showsTransfers) { TransfersView() }
+        .sheet(item: $dropped) { SendReviewView(review: $0) }
+        .task(id: console.host) { transfers.host = console.host }
+        // Files dragged onto the window go to the review, then the queue.
+        .dropDestination(for: URL.self) { urls, _ in
+            guard console.connection == .online,
+                  let routes = try? FileRouter.routes(for: urls, mirrorRoot: MirrorRoot.resolve()), !routes.isEmpty else { return false }
+            dropped = SendReview(routes: routes)
+            return true
+        }
     }
 }
 
-/// The tabs centred, the settings button on the right.
+/// The tabs centred; the transfers and settings buttons on the right.
 struct TopBar: View {
+    @Environment(TransferStore.self) private var transfers
     @Binding var selection: MainTab
+    var openTransfers: () -> Void = {}
     let openAppearance: () -> Void
 
     var body: some View {
         TabBar(selection: $selection)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .trailing) {
-                Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
+                HStack(spacing: 10) {
+                    Button(action: openTransfers) {
+                        Image(systemName: transfers.isRunning ? "arrow.up.circle" : "arrow.up.arrow.down")
+                    }
                     .buttonStyle(CircleIconButtonStyle())
-                    .help("Utseende")
+                    .overlay(alignment: .topTrailing) {
+                        if !transfers.pending.isEmpty {
+                            CountBadge(count: transfers.pending.count).offset(x: 6, y: -6)
+                        }
+                    }
+                    .help("Överföringar")
+                    Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
+                        .buttonStyle(CircleIconButtonStyle())
+                        .help("Utseende")
+                }
             }
     }
 }

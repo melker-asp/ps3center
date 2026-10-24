@@ -180,6 +180,10 @@ fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att c
 
 **Mål:** koppla mappar per typ och skicka spel med ett klick eller genom att dra dem till fönstret.
 
+**Läge 24 okt 2026:** byggt: `GameFolders`, `LocalLibrary` (läser PARAM.SFO, SYSTEM.CNF och ICON0 ur
+ISO:er och råa .bin-avbilder), `LibraryMatch`, läget Macen i Spel-fliken med urval, granskningsvy,
+Spelmappar och dra-och-släpp; `ps3 config folder` och `ps3 games mac`. Bevakade mappar återstår.
+
 - `config.json` får `folders`, en lista med mappar per typ:
   `{"PS3ISO": ["~/Spel/PS3"], "PS2ISO": ["/Volumes/Extern/PS2"], …}`. Spegelmappens
   `dev_hdd0/PS3ISO` osv. räknas med automatiskt, så den som redan har en spegelmapp behöver inte
@@ -202,6 +206,10 @@ fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att c
 
 **Mål:** inget går förlorat när Macen somnar eller nätet hackar, och kön sköter sig själv.
 
+**Läge 24 okt 2026:** byggt: `TransferQueue` med lås, `.part` + `RNTO`, ren stängning vid paus och
+viloläge, `KeepAwake`, MD5 via `/md5.ps3`, "När kön är klar" och notiser; `ps3 queue` och
+Överföringar i appen. Automatiska nya försök efter nätverksfel återstår (kön fortsätter vid nästa start).
+
 - `TransferQueue` i PS3Kit, sparad i `~/Library/Application Support/ps3center/queue.json`: lägg
   till, pausa, fortsätt, ändra ordning, ta bort. En överföring åt gången. Ett lås ser till att
   appen och CLI:t aldrig skickar samtidigt. CLI: `ps3 queue` (`list`, `start`, `pause`, `clear`).
@@ -222,6 +230,9 @@ fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att c
   en notis på Macen. CLI: `ps3 send … --shutdown-when-done`.
 
 ### Fas 5 – Snabbare: mät, finjustera och USB
+
+**Läge 24 okt 2026:** `ps3 speedtest` (och knappen i Överföringar) och `ps3 usb prepare` är byggda.
+Finjusteringen av klienten väntar på mätningar från din PS3 (test 4 och 5).
 
 - `ps3 speedtest` (och en knapp i Överföringar): skickar 256 MB från minnet till `/dev_hdd0/tmp`,
   hämtar tillbaka och tar bort filen. Visar MB/s åt båda hållen och om det är Wi-Fi eller kabel.

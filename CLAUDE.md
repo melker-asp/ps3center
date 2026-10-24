@@ -84,6 +84,11 @@ xcodebuild den inte.
   `GameListing` är den nätverksfria delen som testerna matar med listningar. Installerade spel i
   `/dev_hdd0/game` startas via title ID och tas aldrig bort av PS3 Center. `GamesStore` och
   `GamesView` är Spel-fliken.
+- **Macens spel och kön:** `GameFolders` (mappar per typ i config.json plus spegelmappen),
+  `LocalLibrary` (samma `GameListing`-regler som konsolen, metadata ur avbilderna) och
+  `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`;
+  `QueueLock` ser till att bara en process skickar. Allt skickas via `TransferService.send`, som
+  laddar upp till `.part` och döper om.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar

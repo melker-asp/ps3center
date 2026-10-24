@@ -162,6 +162,43 @@ public enum Fixtures {
              size: 312_475_648),
     ])
 
+    /// Games in the Mac's game folders: Gran Turismo 5 is on the console too, the others are not.
+    public static let macGames: [Game] = GameListing.attach([:], to: [
+        Game(path: "/Users/melker/Spel/PS3/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
+             platform: .ps3, size: 13_481_082_880, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso"),
+        Game(path: "/Users/melker/Spel/PS3/Uncharted 2 - Among Thieves (Europe).iso", title: "Uncharted 2: Among Thieves",
+             titleID: "BCES00757", platform: .ps3, size: 24_830_115_840, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso"),
+        Game(path: "/Users/melker/Spel/PS3/LittleBigPlanet 2 (Europe).iso", title: "LittleBigPlanet 2", titleID: "BCES00850",
+             platform: .ps3, size: 6_754_975_744, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/LittleBigPlanet 2 (Europe).iso"),
+        Game(path: "/Users/melker/Spel/PS2/God of War [SCES-53133].iso", title: "God of War", titleID: "SCES-53133",
+             platform: .ps2, size: 4_389_634_048, source: .mac, remotePath: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso"),
+        Game(path: "/Users/melker/Spel/PS1/Spyro the Dragon (Europe).cue", title: "Spyro the Dragon", titleID: "SCES-01438",
+             platform: .ps1, size: 621_455_088, companions: ["/Users/melker/Spel/PS1/Spyro the Dragon (Europe).bin"],
+             source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue"),
+    ])
+
+    /// The send queue halfway through Uncharted 2, set to shut the console down when done.
+    public static var queue: TransferQueue {
+        var queue = TransferQueue()
+        func item(_ game: Game, _ state: TransferQueue.Item.State, sent fraction: Double) -> TransferQueue.Item {
+            let size = game.size ?? 0
+            let file = TransferQueue.File(local: game.path, remote: game.remotePath ?? "", kind: .ps3ISO, size: size)
+            return TransferQueue.Item(id: UUID(), title: game.title, files: [file], state: state, sent: Int64(Double(size) * fraction),
+                                      message: nil, addedAt: Date(), finishedAt: state == .done ? Date() : nil)
+        }
+        let uncharted = macGames.first { $0.titleID == "BCES00757" }!
+        let lbp = macGames.first { $0.titleID == "BCES00850" }!
+        let gow = macGames.first { $0.titleID == "SCES-53133" }!
+        queue.items = [item(gow, .done, sent: 1), item(uncharted, .sending, sent: 0.42), item(lbp, .waiting, sent: 0)]
+        queue.whenDone = .shutdown
+        return queue
+    }
+
+    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: "Wi-Fi", measuredAt: Date())
+
     /// Sony's newer patches for Gran Turismo 5 (02.11 installed) and Red Dead Redemption, by game id.
     public static var patches: [String: [GamePatch]] {
         func patch(_ titleID: String, _ version: String, _ size: Int64, system: String) -> GamePatch {

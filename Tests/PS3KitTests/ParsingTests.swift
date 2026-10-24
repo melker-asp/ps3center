@@ -472,3 +472,93 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(Fixtures.patches.count == 2)
     #expect(games.map(\.platform.order) == games.map(\.platform.order).sorted())
 }
+
+// MARK: The Mac's games and the queue
+
+/// A minimal ISO 9660 image with SYSTEM.CNF in the root, as 2048-byte blocks.
+private func makeISO(systemCNF: String) -> Data {
+    func block(_ bytes: [UInt8]) -> [UInt8] { bytes + [UInt8](repeating: 0, count: 2048 - bytes.count) }
+    func le32(_ v: Int) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24 & 0xFF)] }
+    func be32(_ v: Int) -> [UInt8] { le32(v).reversed() }
+    func record(_ name: [UInt8], extent: Int, size: Int, directory: Bool) -> [UInt8] {
+        var r: [UInt8] = [0, 0] + le32(extent) + be32(extent) + le32(size) + be32(size)
+        r += [UInt8](repeating: 0, count: 7) + [directory ? 2 : 0, 0, 0] + [1, 0, 0, 1] + [UInt8(name.count)] + name
+        if r.count % 2 == 1 { r.append(0) }
+        r[0] = UInt8(r.count)
+        return r
+    }
+    let cnf = [UInt8](systemCNF.utf8)
+    var pvd: [UInt8] = [1] + [UInt8]("CD001".utf8) + [1, 0]
+    pvd += [UInt8]("PLAYSTATION".padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
+    pvd += [UInt8]("TEST".padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
+    pvd += [UInt8](repeating: 0, count: 156 - pvd.count) + record([0], extent: 20, size: 2048, directory: true)
+    let root = record([0], extent: 20, size: 2048, directory: true) + record([1], extent: 20, size: 2048, directory: true)
+        + record([UInt8]("SYSTEM.CNF;1".utf8), extent: 21, size: cnf.count, directory: false)
+    var image = [UInt8](repeating: 0, count: 16 * 2048)
+    image += block(pvd) + block([255] + [UInt8]("CD001".utf8)) + [UInt8](repeating: 0, count: 2 * 2048)
+    image += block(root) + block(cnf)
+    return Data(image)
+}
+
+/// The same image as a raw CD image: 2352-byte MODE2 sectors, 24 bytes of header first.
+private func rawCD(_ iso: Data) -> Data {
+    var raw = Data()
+    let sync: [UInt8] = [0x00] + [UInt8](repeating: 0xFF, count: 10) + [0x00]
+    for start in stride(from: 0, to: iso.count, by: 2048) {
+        raw += sync + [0, 2, 0, 2] + [UInt8](repeating: 0, count: 8)
+        raw += iso[start..<(start + 2048)]
+        raw += Data(count: 280)
+    }
+    return raw
+}
+
+@Test func readsSerialsFromPlainAndRawImages() throws {
+    let fm = FileManager.default
+    let folder = fm.temporaryDirectory.appendingPathComponent("ps3center-iso-\(UUID().uuidString)")
+    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: folder) }
+    let iso = makeISO(systemCNF: "BOOT2 = cdrom0:\\SLES_533.26;1\r\nVER = 1.00\r\n")
+    let plain = folder.appendingPathComponent("Shadow of the Colossus.iso")
+    try iso.write(to: plain)
+    let raw = folder.appendingPathComponent("Spyro.bin")
+    try rawCD(makeISO(systemCNF: "BOOT = cdrom:\\SCES_014.38;1\r\n")).write(to: raw)
+    let cue = folder.appendingPathComponent("Spyro.cue")
+    try Data("FILE \"Spyro.bin\" BINARY\n  TRACK 01 MODE2/2352\n".utf8).write(to: cue)
+
+    #expect(try FileRouter.classify(plain).0 == .ps2ISO)
+    #expect(try ISOImage(url: raw).readFile("SYSTEM.CNF").map { String(decoding: $0, as: UTF8.self) }?.contains("SCES_014.38") == true)
+    let ps2 = Game(path: plain.path, title: "x", platform: .ps2, source: .mac)
+    #expect(LocalGameReader.read(ps2).titleID == "SLES-53326")
+    let ps1 = Game(path: cue.path, title: "x", platform: .ps1, source: .mac)
+    #expect(LocalGameReader.read(ps1).titleID == "SCES-01438")
+    #expect(LocalGameReader.serial(from: "ULES00995") == "ULES-00995")
+}
+
+@Test func matchesMacGamesWithTheConsole() {
+    let states = LibraryMatch.states(mac: Fixtures.macGames, console: Fixtures.games)
+    func state(_ title: String) -> MacGameState? {
+        Fixtures.macGames.first { $0.title == title }.flatMap { states[$0.id] }
+    }
+    #expect(state("Gran Turismo 5") == .onConsole)
+    #expect(state("Uncharted 2: Among Thieves") == .notOnConsole)
+    let partial = Game(path: "/Users/x/PS3/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", title: "TDU2",
+                       platform: .ps3, size: 20_000_000_000, source: .mac)
+    #expect(LibraryMatch.states(mac: [partial], console: Fixtures.games)[partial.id] == .partial)
+}
+
+@Test func queuesOneItemPerGame() {
+    let cue = Route(local: URL(fileURLWithPath: "/m/FF7.cue"), remote: "/dev_hdd0/PSXISO/FF7.cue", kind: .psxISO, size: 100, title: "Final Fantasy VII")
+    let bin = Route(local: URL(fileURLWithPath: "/m/FF7.bin"), remote: "/dev_hdd0/PSXISO/FF7.bin", kind: .psxISO, size: 700, title: "Final Fantasy VII")
+    let iso = Route(local: URL(fileURLWithPath: "/m/GT5.iso"), remote: "/dev_hdd0/PS3ISO/GT5.iso", kind: .ps3ISO, size: 13, title: nil)
+    var queue = TransferQueue()
+    let added = queue.add([cue, bin, iso])
+    #expect(added.map(\.title) == ["Final Fantasy VII", "GT5"])
+    #expect(added[0].total == 800)
+    #expect(queue.add([cue, bin]).isEmpty)  // already waiting
+    #expect(queue.pending.count == 2)
+    #expect(queue.remainingBytes == 813)
+    queue.update(added[0].id) { $0.state = .done }
+    queue.removeFinished()
+    #expect(queue.items.map(\.title) == ["GT5"])
+    #expect(Fixtures.queue.items.contains { $0.state == .sending })
+}

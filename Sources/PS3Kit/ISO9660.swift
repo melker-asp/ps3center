@@ -2,6 +2,7 @@ import Foundation
 
 /// Just enough ISO 9660 to identify a disc image and read small files from it.
 /// (macOS's bsdtar misreads some PS3 ISOs because of the region table in sector 0.)
+/// Also reads raw CD images (.bin with 2352-byte sectors, as PS1 and some PS2 games come).
 public final class ISOImage {
     public struct Entry: Sendable {
         public let name: String
@@ -10,17 +11,30 @@ public final class ISOImage {
         public let isDirectory: Bool
     }
 
-    static let sectorSize: UInt64 = 2048
+    /// The logical block: what ISO 9660 counts in, whatever the image stores per sector.
+    static let blockSize: UInt64 = 2048
 
     public let systemID: String
     public let volumeID: String
     private let handle: FileHandle
     private let root: Entry
+    /// 2048 for plain images; 2352 for raw CD images, whose 2048 data bytes start at `dataOffset`.
+    private let sectorSize: UInt64
+    private let dataOffset: UInt64
 
     public init(url: URL) throws {
         handle = try FileHandle(forReadingFrom: url)
-        try handle.seek(toOffset: 16 * Self.sectorSize)
-        guard let pvd = try handle.read(upToCount: Int(Self.sectorSize)), pvd.count == Int(Self.sectorSize) else {
+        let head = try handle.read(upToCount: 16) ?? Data()
+        let sync = Data([0x00] + Array(repeating: UInt8(0xFF), count: 10) + [0x00])
+        if head.count == 16, head.prefix(12) == sync {
+            sectorSize = 2352
+            dataOffset = head[head.startIndex + 15] == 2 ? 24 : 16  // MODE2 form 1 or MODE1
+        } else {
+            sectorSize = 2048
+            dataOffset = 0
+        }
+        let pvd = try Self.read(handle, block: 16, count: Int(Self.blockSize), sectorSize: sectorSize, dataOffset: dataOffset)
+        guard pvd.count == Int(Self.blockSize) else {
             throw PS3Error.invalidFile("\(url.lastPathComponent) är för liten för att vara en ISO.")
         }
         let b = [UInt8](pvd)
@@ -36,6 +50,23 @@ public final class ISOImage {
     }
 
     deinit { try? handle.close() }
+
+    /// `count` bytes from logical block `block` on, skipping the headers of raw sectors.
+    static func read(_ handle: FileHandle, block: UInt64, count: Int, sectorSize: UInt64, dataOffset: UInt64) throws -> Data {
+        if sectorSize == blockSize {
+            try handle.seek(toOffset: block * blockSize)
+            return try handle.read(upToCount: count) ?? Data()
+        }
+        var result = Data()
+        var current = block
+        while result.count < count {
+            try handle.seek(toOffset: current * sectorSize + dataOffset)
+            guard let chunk = try handle.read(upToCount: min(Int(blockSize), count - result.count)), !chunk.isEmpty else { break }
+            result.append(chunk)
+            current += 1
+        }
+        return result
+    }
 
     static func le32(_ b: [UInt8], _ o: Int) -> UInt64 {
         UInt64(b[o]) | UInt64(b[o + 1]) << 8 | UInt64(b[o + 2]) << 16 | UInt64(b[o + 3]) << 24
@@ -60,8 +91,8 @@ public final class ISOImage {
         while offset < b.count {
             let length = Int(b[offset])
             if length == 0 {
-                // Records never cross sectors; skip padding to the next one.
-                offset = (offset / Int(Self.sectorSize) + 1) * Int(Self.sectorSize)
+                // Records never cross blocks; skip padding to the next one.
+                offset = (offset / Int(Self.blockSize) + 1) * Int(Self.blockSize)
                 continue
             }
             guard offset + length <= b.count else { break }
@@ -87,8 +118,7 @@ public final class ISOImage {
     }
 
     public func read(_ entry: Entry, limit: UInt64 = 4 << 20) throws -> Data {
-        try handle.seek(toOffset: entry.extent * Self.sectorSize)
-        return try handle.read(upToCount: Int(min(entry.size, limit))) ?? Data()
+        try Self.read(handle, block: entry.extent, count: Int(min(entry.size, limit)), sectorSize: sectorSize, dataOffset: dataOffset)
     }
 
     public func readFile(_ path: String) throws -> Data? {

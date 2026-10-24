@@ -33,6 +33,12 @@ struct Send: AsyncParsableCommand {
     @Flag(name: .long, help: "Visa ingen popup på TV:n.")
     var noPopup = false
 
+    @Flag(name: .long, help: "Jämför MD5 på PS3:an med Macens efter varje stor fil (tar några minuter per spel).")
+    var verify = false
+
+    @Flag(name: .long, help: "Stäng av PS3:an när allt är skickat (väntar tills inget spel körs).")
+    var shutdownWhenDone = false
+
     func run() async throws {
         let root = MirrorRoot.resolve()
         let inputs = paths.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
@@ -50,10 +56,18 @@ struct Send: AsyncParsableCommand {
         options.refresh = !noRefresh
         options.popup = !noPopup
         options.dryRun = dryRun
+        options.verify = verify
         let printer = TransferPrinter(dryRun: dryRun)
+        // Macen hålls vaken medan filerna går; en avbruten fil fortsätter nästa gång.
+        let awake = KeepAwake(reason: "Skickar till PS3:an")
+        defer { withExtendedLifetime(awake) {} }
         try await TransferService(host: host).send(routes, options: options) { printer.handle($0) }
         if dryRun {
             UI.skip("Inget skickades (--dry-run).")
+        } else if shutdownWhenDone {
+            try await TransferService(host: host).waitUntilIdle(force: false) { printer.handle($0) }
+            try await WebMAN(host: host).shutdown()
+            UI.ok("PS3:an stängs av")
         }
     }
 }

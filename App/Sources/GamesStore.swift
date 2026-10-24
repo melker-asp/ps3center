@@ -86,10 +86,48 @@ final class GamesStore {
     var selectedID: String?
     private var host: String?
 
-    /// The games the pills and the search let through.
+    // MARK: The Mac's games
+
+    /// Which library the tab shows: the console's games or the Mac's game folders.
+    var source: Game.Source = .console
+    private(set) var macGames: [Game] = []
+    /// Whether each Mac game is on the console, by game id.
+    private(set) var macStates: [String: MacGameState] = [:]
+    private(set) var isLoadingMac = false
+    private(set) var macLoaded = false
+    /// Mac games picked for sending, by id.
+    var selection: Set<String> = []
+
+    var selectedMacGames: [Game] { macGames.filter { selection.contains($0.id) } }
+    var selectedSize: Int64 { selectedMacGames.compactMap(\.size).reduce(0, +) }
+
+    func loadMac() async {
+        isLoadingMac = true
+        defer { isLoadingMac = false }
+        let scanned = await Task.detached { LocalLibrary().scan() }.value
+        macGames = scanned
+        macLoaded = true
+        macStates = LibraryMatch.states(mac: scanned, console: games)
+        selection = selection.filter { id in scanned.contains { $0.id == id } }
+        for game in scanned {
+            if let path = game.iconPath, let image = NSImage(contentsOfFile: path) { icons[game.id] = image }
+        }
+        let files = await CoverService().covers(for: scanned)
+        for (id, file) in files {
+            if let image = NSImage(contentsOf: file) { covers[id] = image }
+        }
+    }
+
+    func toggleSelection(_ game: Game) {
+        if selection.contains(game.id) { selection.remove(game.id) } else { selection.insert(game.id) }
+    }
+
+    /// The games the pills and the search let through, from the library being shown.
+    var shown: [Game] { source == .console ? games : macGames }
+
     var visible: [Game] {
         let query = search.trimmingCharacters(in: .whitespaces)
-        return games.filter { game in
+        return shown.filter { game in
             filter.matches(game) && (query.isEmpty
                 || game.title.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
                 || game.titleID?.range(of: query, options: .caseInsensitive) != nil)
@@ -102,7 +140,7 @@ final class GamesStore {
     }
 
     func count(_ filter: Filter) -> Int {
-        games.filter(filter.matches).count
+        shown.filter(filter.matches).count
     }
 
     func load(host: String, refresh: Bool = false) async {
@@ -116,6 +154,7 @@ final class GamesStore {
             games = next
             phase = .loaded
             lastChecked = Date()
+            if macLoaded { macStates = LibraryMatch.states(mac: macGames, console: next) }
             let data = await library.icons(for: next, refresh: refresh)
             icons = data.compactMapValues { NSImage(data: $0) }
             let files = await CoverService().covers(for: next, refresh: refresh)
@@ -132,6 +171,9 @@ final class GamesStore {
         lastChecked = Date()
         patches = Fixtures.patches
         updatesChecked = Date()
+        macGames = Fixtures.macGames
+        macStates = LibraryMatch.states(mac: macGames, console: games)
+        macLoaded = true
     }
 
     func loadBackground(for game: Game) async {

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Progress events for uploads and installs. The CLI prints them; the app will bind to them.
@@ -22,7 +23,21 @@ public struct TransferOptions: Sendable {
     public var refresh = true
     public var popup = true
     public var dryRun = false
+    /// Compare the console's MD5 of each large file with the Mac's after sending.
+    public var verify = false
     public init() {}
+}
+
+/// Keeps the Mac from idle sleep while transfers run, like `caffeinate -i`; the display may
+/// still sleep. A Mac on battery with its lid closed sleeps anyway.
+public final class KeepAwake: @unchecked Sendable {
+    private let activity: NSObjectProtocol
+
+    public init(reason: String) {
+        activity = ProcessInfo.processInfo.beginActivity(options: .userInitiated, reason: reason)
+    }
+
+    deinit { ProcessInfo.processInfo.endActivity(activity) }
 }
 
 /// Uploads files over FTP and runs the follow-up web commands.
@@ -35,13 +50,35 @@ public struct TransferService: Sendable {
     // MARK: Send
 
     /// Uploads `routes`; afterwards refreshes the game list and shows a popup on the TV.
-    /// Already complete files are skipped, partial ones are resumed.
+    /// Already complete files are skipped, partial ones are resumed. Files go to <name>.part and
+    /// are renamed when complete, so webMAN never lists half a game.
     public func send(_ routes: [Route], options: TransferOptions, events: TransferHandler) async throws {
-        try await withFTP { ftp in try await send(routes, ftp: ftp, options: options, events: events) }
+        let sent = try await withFTP { ftp in try await upload(routes, ftp: ftp, options: options, events: events) }
+        guard !options.dryRun, !sent.isEmpty else { return }
+        // The FTP session is closed first: webMAN drops one that stays idle for a minute, and
+        // both the MD5 check and waiting for a game can take longer.
+        if options.verify { try await verify(sent, events: events) }
+        guard options.refresh, sent.contains(where: \.refreshesGameList) else { return }
+        try await waitUntilIdle(force: options.force, events: events)
+        try await webman.refreshGames()
+        events(.refreshed)
+        if options.popup {
+            let titles = Array(Set(sent.filter(\.refreshesGameList).map { $0.title ?? GameName.clean($0.local.lastPathComponent) })).sorted()
+            let message = titles.count == 1 ? "\(titles[0]) finns nu under Spel" : "\(titles.count) nya spel finns under Spel"
+            try? await webman.popup(message)
+        }
     }
 
-    private func send(_ routes: [Route], ftp: FTPClient, options: TransferOptions, events: TransferHandler) async throws {
-        var pending: [(Route, Int64)] = []
+    struct PendingUpload {
+        let route: Route
+        /// The .part file, or the real name for an upload interrupted before .part files.
+        let path: String
+        let offset: Int64
+    }
+
+    /// Uploads what is missing of `routes` and returns the routes that were sent.
+    private func upload(_ routes: [Route], ftp: FTPClient, options: TransferOptions, events: TransferHandler) async throws -> [Route] {
+        var pending: [PendingUpload] = []
         routeLoop: for route in routes {
             events(.checking(route.remote))
             // A game may already be on the console at another depth (flat in PS3ISO/ vs one
@@ -50,42 +87,51 @@ public struct TransferService: Sendable {
                 events(.skipped(route, reason: "finns redan på PS3:an (\(alternative))"))
                 continue routeLoop
             }
-            let remoteSize = try await ftp.size(route.remote) ?? 0
-            if remoteSize == route.size {
+            switch try await remoteState(of: route, ftp: ftp) {
+            case .complete:
                 events(.skipped(route, reason: "finns redan på PS3:an"))
-            } else if remoteSize > route.size {
+            case .larger:
                 events(.skipped(route, reason: "en större fil med samma namn finns redan på PS3:an"))
-            } else {
-                pending.append((route, remoteSize))
+            case .resume(let path, let offset):
+                pending.append(PendingUpload(route: route, path: path, offset: offset))
             }
         }
 
-        let needed = pending.reduce(Int64(0)) { $0 + $1.0.size - $1.1 }
+        let needed = pending.reduce(Int64(0)) { $0 + $1.route.size - $1.offset }
         if needed > 0, !options.force, let free = try? await webman.snapshot().freeBytes, needed + 1_000_000_000 > free {
             throw PS3Error.notEnoughSpace(needed: needed, free: free)
         }
         if options.dryRun {
-            for (route, offset) in pending { events(.started(route, resumingFrom: offset)) }
-            return
+            for item in pending { events(.started(item.route, resumingFrom: item.offset)) }
+            return []
         }
+        for item in pending {
+            try await upload(item.route, to: item.path, offset: item.offset, ftp: ftp, events: events)
+            OperationLog.record("send", "\(item.route.remote) (\(Format.bytes(item.route.size)))")
+        }
+        return pending.map(\.route)
+    }
 
-        var sentAny = false
-        for (route, offset) in pending {
-            try await upload(route, offset: offset, ftp: ftp, events: events)
-            OperationLog.record("send", "\(route.remote) (\(Format.bytes(route.size)))")
-            sentAny = true
-        }
+    /// Where an upload stands on the console.
+    enum RemoteState: Equatable {
+        case complete
+        /// A bigger file has the name: not ours to overwrite.
+        case larger
+        /// Continue in `path` at `offset` (0 starts over).
+        case resume(path: String, offset: Int64)
+    }
 
-        let needsRefresh = routes.contains { $0.refreshesGameList }
-        guard sentAny, options.refresh, needsRefresh else { return }
-        try await waitUntilIdle(force: options.force, events: events)
-        try await webman.refreshGames()
-        events(.refreshed)
-        if options.popup {
-            let titles = Array(Set(pending.map { $0.0 }.filter { $0.refreshesGameList }.map { $0.title ?? GameName.clean($0.local.lastPathComponent) })).sorted()
-            let message = titles.count == 1 ? "\(titles[0]) finns nu under Spel" : "\(titles.count) nya spel finns under Spel"
-            try? await webman.popup(message)
+    static func partPath(_ remote: String) -> String { remote + ".part" }
+
+    func remoteState(of route: Route, ftp: FTPClient) async throws -> RemoteState {
+        if let size = try await ftp.size(route.remote) {
+            if size == route.size { return .complete }
+            if size > route.size { return .larger }
+            return .resume(path: route.remote, offset: size)  // interrupted before .part files existed
         }
+        let part = Self.partPath(route.remote)
+        if let size = try await ftp.size(part), size <= route.size { return .resume(path: part, offset: size) }
+        return .resume(path: part, offset: 0)
     }
 
     /// Other places webMAN would find the same game: flat in its folder, or in a folder named after it.
@@ -97,50 +143,89 @@ public struct TransferService: Sendable {
     }
 
     func upload(_ route: Route, offset: Int64, ftp: FTPClient, events: TransferHandler) async throws {
+        try await upload(route, to: route.remote, offset: offset, ftp: ftp, events: events)
+    }
+
+    /// Uploads `route` into `path` from `offset`, then renames a .part to the real name.
+    func upload(_ route: Route, to path: String, offset: Int64, ftp: FTPClient, events: TransferHandler) async throws {
         events(.started(route, resumingFrom: offset))
         let directory = (route.remote as NSString).deletingLastPathComponent
         try await ftp.makeDirectories(directory)
         let start = Date()
         var lastReport = Date.distantPast
-        try await ftp.upload(file: route.local, to: route.remote, offset: offset) { sent in
-            let now = Date()
-            guard now.timeIntervalSince(lastReport) >= 0.25 || sent == route.size else { return }
-            lastReport = now
-            let elapsed = max(now.timeIntervalSince(start), 0.001)
-            events(.progress(route, sent: sent, total: route.size, bytesPerSecond: Double(sent - offset) / elapsed))
+        if offset < route.size || offset == 0 {
+            try await ftp.upload(file: route.local, to: path, offset: offset) { sent in
+                let now = Date()
+                guard now.timeIntervalSince(lastReport) >= 0.25 || sent == route.size else { return }
+                lastReport = now
+                let elapsed = max(now.timeIntervalSince(start), 0.001)
+                events(.progress(route, sent: sent, total: route.size, bytesPerSecond: Double(sent - offset) / elapsed))
+            }
         }
-        guard let size = try await ftp.size(route.remote), size == route.size else {
-            throw PS3Error.ftpProtocol("storleken på \(route.remote) stämmer inte efter uppladdningen")
+        guard let size = try await ftp.size(path), size == route.size else {
+            throw PS3Error.ftpProtocol("storleken på \(path) stämmer inte efter uppladdningen")
         }
+        if path != route.remote { try await ftp.rename(path, to: route.remote) }
         events(.finished(route, seconds: Date().timeIntervalSince(start)))
+    }
+
+    // MARK: Verify
+
+    /// Compares the console's MD5 (webMAN's /md5.ps3) of each sent file of 64 MB or more with
+    /// the Mac's. A file that differs is removed from the console, so the next try sends it again.
+    public func verify(_ routes: [Route], events: TransferHandler) async throws {
+        for route in routes where route.size >= 64 << 20 {
+            events(.note("Kontrollerar \(route.local.lastPathComponent) med MD5 (det tar en stund på PS3:an)…"))
+            let local = try Self.md5(of: route.local)
+            let page = try await webman.get("/md5.ps3" + route.remote, timeout: 1800)
+            guard let remote = ConsoleSnapshot.firstMatch("([0-9a-fA-F]{32})", in: page)?[1].lowercased() else {
+                throw PS3Error.ftpProtocol("webMAN gav ingen MD5 för \(route.remote).")
+            }
+            guard remote == local else {
+                try? await withFTP { ftp in try await ftp.delete(route.remote) }
+                throw PS3Error.invalidFile("\(route.local.lastPathComponent) blev fel på vägen (MD5 stämmer inte) och togs bort från PS3:an. Skicka den igen.")
+            }
+            events(.note("\(route.local.lastPathComponent): MD5 stämmer"))
+        }
+    }
+
+    static func md5(of file: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        var hasher = Insecure.MD5()
+        while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: Install
 
-    /// Uploads a .pkg to /dev_hdd0/packages and installs it through webMAN.
-    /// webMAN deletes the package when it is done, which is how completion is detected.
+    /// Uploads a .pkg to /dev_hdd0/packages and installs it through webMAN, after any running
+    /// game has ended. The FTP session is closed while waiting, since webMAN drops idle ones.
     public func installPackage(_ local: URL, options: TransferOptions, events: TransferHandler) async throws {
-        let name = local.lastPathComponent
-        let route = Route(local: local, remote: "/dev_hdd0/packages/" + name, kind: .package,
+        let route = Route(local: local, remote: "/dev_hdd0/packages/" + local.lastPathComponent, kind: .package,
                           size: FileRouter.fileSize(local), title: nil)
-        try await withFTP { ftp in try await installPackage(route, ftp: ftp, options: options, events: events) }
+        let uploaded = try await withFTP { ftp -> Bool in
+            let remoteSize = try await ftp.size(route.remote) ?? 0
+            if options.dryRun {
+                events(.started(route, resumingFrom: remoteSize))
+                return false
+            }
+            if remoteSize != route.size {
+                try await upload(route, offset: remoteSize < route.size ? remoteSize : 0, ftp: ftp, events: events)
+            } else {
+                events(.skipped(route, reason: "ligger redan i /dev_hdd0/packages"))
+            }
+            return true
+        }
+        guard uploaded else { return }
+        try await waitUntilIdle(force: options.force, events: events)
+        try await withFTP { ftp in try await install(route, ftp: ftp, events: events) }
     }
 
-    private func installPackage(_ route: Route, ftp: FTPClient, options: TransferOptions, events: TransferHandler) async throws {
+    private func install(_ route: Route, ftp: FTPClient, events: TransferHandler) async throws {
         let name = route.local.lastPathComponent
-        let remoteSize = try await ftp.size(route.remote) ?? 0
-        if options.dryRun {
-            events(.started(route, resumingFrom: remoteSize))
-            return
-        }
-        if remoteSize != route.size {
-            try await upload(route, offset: remoteSize < route.size ? remoteSize : 0, ftp: ftp, events: events)
-        } else {
-            events(.skipped(route, reason: "ligger redan i /dev_hdd0/packages"))
-        }
-
-        try await waitUntilIdle(force: options.force, events: events)
-
         // webMAN's docs say /install.ps3 deletes the package afterwards, but on this console it
         // does not. Completion is therefore read from the installed app's folder: PARAM.SFO gets
         // a new timestamp, then the folder stops changing.

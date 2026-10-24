@@ -15,12 +15,13 @@ struct Games: AsyncParsableCommand {
         ps3 games covers             Hämta omslag (--to-ps3 lägger dem även i webMAN)
         ps3 games updates            Officiella uppdateringar från Sony för spelen
         ps3 games update gran        Installera uppdateringarna för ett spel (eller --all)
+        ps3 games mac                Spelen i Macens spelmappar och om de finns på PS3:an
         Namnet kan vara en del av titeln, ett title ID (BCES00569, SLES-12345) eller sökvägen.
         Spelen läses från PS3ISO, GAMES, GAMEZ, PS2ISO, PSXISO, PSPISO, BDISO och DVDISO på
         hårddisken och USB-diskar, och från spel som är installerade i /dev_hdd0/game.
         """,
         subcommands: [List.self, Info.self, Play.self, Mount.self, Unmount.self, ExitGame.self, Delete.self,
-                      Covers.self, Updates.self, Update.self],
+                      Covers.self, Updates.self, Update.self, Mac.self],
         defaultSubcommand: List.self
     )
 
@@ -401,6 +402,75 @@ struct Games: AsyncParsableCommand {
             if !dryRun, installed > 0 {
                 try? await WebMAN(host: host).popup("\(installed) spel uppdaterade från Macen")
             }
+        }
+    }
+
+    struct Mac: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "mac",
+            abstract: "Spelen i Macens spelmappar (ps3 config folder) och om de redan finns på PS3:an."
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Flag(name: .long, help: "Bara spel som inte finns på PS3:an.")
+        var missing = false
+
+        @Flag(name: .long, help: "Fråga inte PS3:an.")
+        var offline = false
+
+        @Flag(name: .long, help: "Skriv ut JSON.")
+        var json = false
+
+        struct Row: Encodable {
+            let game: Game
+            let state: MacGameState?
+        }
+
+        func run() async throws {
+            let asJSON = json || !UI.isTTY
+            if !asJSON { UI.progress("Läser Macens spelmappar…") }
+            let library = LocalLibrary().scan()
+            guard !library.isEmpty else {
+                UI.endProgress()
+                UI.skip("Inga spel i Macens spelmappar. Koppla en mapp med `ps3 config folder add PS3ISO ~/Spel/PS3`.")
+                return
+            }
+            var states: [String: MacGameState] = [:]
+            if !offline {
+                do {
+                    let host = try await Console.host(global, quiet: true)
+                    if !asJSON { UI.progress("Jämför med PS3:an…") }
+                    states = LibraryMatch.states(mac: library, console: try await GameLibraryService(host: host).scan())
+                } catch {
+                    if !asJSON { UI.endProgress(); UI.warn("PS3:an svarar inte, så det syns inte vad som redan finns där.") }
+                }
+            }
+            var rows = library.map { Row(game: $0, state: states[$0.id]) }
+            if missing { rows = rows.filter { $0.state != .onConsole } }
+            if asJSON { UI.json(rows); return }
+            UI.endProgress()
+            for platform in Game.Platform.allCases {
+                let group = rows.filter { $0.game.platform == platform }
+                guard !group.isEmpty else { continue }
+                UI.header(platform.label, detail: "\(group.count) st · \(Format.bytes(group.compactMap(\.game.size).reduce(0, +)))")
+                for row in group {
+                    let marker: String
+                    switch row.state {
+                    case .onConsole?: marker = UI.paint("✓", .green)
+                    case .partial?: marker = UI.paint("◐", .yellow)
+                    case .notOnConsole?: marker = UI.paint("↑", .cyan)
+                    case nil: marker = " "
+                    }
+                    let title = row.game.title.count > 44 ? String(row.game.title.prefix(43)) + "…" : row.game.title
+                    print("  \(marker) \(title.padding(toLength: 46, withPad: " ", startingAt: 0))"
+                          + UI.paint((row.game.titleID ?? "").padding(toLength: 12, withPad: " ", startingAt: 0), .gray)
+                          + (row.game.size.map(Format.bytes) ?? "mapp").padding(toLength: 12, withPad: " ", startingAt: 0)
+                          + UI.paint(row.state?.label ?? "", .gray))
+                }
+                print()
+            }
+            print("  Skicka med " + UI.paint("ps3 queue add <namn>", .bold) + " och " + UI.paint("ps3 queue start", .bold) + ".")
         }
     }
 

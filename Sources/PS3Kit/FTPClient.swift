@@ -182,10 +182,18 @@ public final class FTPClient {
         _ = try await command("RMD \(path)", expect: [250])
     }
 
+    /// Renames (or moves) a file on the console.
+    public func rename(_ path: String, to newPath: String) async throws {
+        _ = try await command("RNFR \(path)", expect: [350])
+        _ = try await command("RNTO \(newPath)", expect: [250])
+    }
+
     /// Uploads `file`. With `offset > 0` the rest of the file is appended (APPE),
-    /// which is how webMAN resumes an interrupted upload.
+    /// which is how webMAN resumes an interrupted upload. Cancelling the task closes the data
+    /// connection cleanly (FIN), so webMAN keeps what it got and a later APPE continues;
+    /// `chunk` sees every piece sent (for a checksum).
     public func upload(file: URL, to remotePath: String, offset: Int64 = 0,
-                       progress: (Int64) -> Void) async throws {
+                       chunk: (Data) -> Void = { _ in }, progress: (Int64) -> Void) async throws {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
         try handle.seek(toOffset: UInt64(offset))
@@ -199,9 +207,10 @@ public final class FTPClient {
         progress(sent)
         while true {
             try Task.checkCancellation()
-            guard let chunk = try handle.read(upToCount: 256 * 1024), !chunk.isEmpty else { break }
-            try await data.send(chunk)
-            sent += Int64(chunk.count)
+            guard let piece = try handle.read(upToCount: 256 * 1024), !piece.isEmpty else { break }
+            try await data.send(piece)
+            chunk(piece)
+            sent += Int64(piece.count)
             progress(sent)
         }
         try await data.finish()

@@ -113,6 +113,12 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   macOS inte litar på, så `SonyTrust` godtar för just de värdarna en kedja från Sonys CA och sparar
   dess fingeravtryck första gången. Varje paket kontrolleras mot SHA-1 i listan. Inte provat från
   en Mac än; från molnsessionen gick servern inte att nå.
+- **Överföringar (PS3 Center):** filer laddas upp till `<namn>.part` och döps om med `RNFR`/`RNTO`
+  när storleken stämmer, så webMAN aldrig listar ett halvt spel. En fil med det riktiga namnet som är
+  mindre (från före `.part`) fortsätter med `APPE` som förut. Paus och viloläge stänger
+  dataanslutningen med FIN (`NWConnection.cancel()`), som webMAN behandlar som ett rent slut och
+  behåller filen. FTP-sessionen stängs innan något långt väntande (ett spel som körs, MD5), eftersom
+  webMAN släpper en session som är tyst i en minut.
 - **Spellistan och cachen:** webMAN skriver XMB:ns spellista till
   `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
   `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i
