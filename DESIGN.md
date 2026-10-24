@@ -48,12 +48,27 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka fil, Uppdatera spellista, Stäng av) |
 
-## Utseende (från Moles skärmbilder)
+## Utseende (Moles struktur, PS-appens färger)
 
-- Flikar som piller centrerade högst upp, med logotyp till vänster.
-- Mörk, varm bakgrund med en färgton som byter per flik eller tillstånd.
-- Kort: liten versal rubrik med ikon, chip i hörnet (t.ex. "Wi-Fi", "Normal"), stort tal med
+Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. Alla värden finns i
+`Theme.swift`.
+
+- **Bas:** blåsvart som PS-appens mörka läge, med startskärmens snedställda ljusytor
+  (`FacetBackground`). Varje flik tonas med ett av PS-appens teman: Status Starlight Blue,
+  Appar Galactic Purple, och senare Spel Nova Pink och Underhåll Cosmic Red.
+- **Färger:** PlayStation-blått för det man kan agera på (ikoner, länkar, förlopp), PS-appens
+  gröna för närvaro, badges och "bra", gult och rött för varningar.
+- **Flikar** som piller centrerade högst upp, som PS-appens segmentkontroll: mörk kapsel, ljusare
+  vald kapsel, gröna sifferbadges. Logotypen på en PS-blå skiva med grön prick när konsolen svarar.
+- **Knappar:** vit med svart text för huvudåtgärden ("Installera", som "Köp nu"), kontur för
+  sekundära, runda konturknappar för ikoner.
+- **Etiketter** som PS-appens "PS5": fet text på en liten svart platta.
+- **Typsnitt:** stora tal, sidrubriker och programnamn i tunn vikt (PS-appens SST finns inte på
+  Macen, så det är SF Pro).
+- **Kort:** liten versal rubrik med ikon, chip i hörnet (t.ex. "Wi-Fi", "Normal"), stort tal med
   enhet, en sparkline eller stapel och en grå fotnot.
+- **Laddning och förlopp:** tunn ring (`Spinner`) och PS-appens lagringsstapel (`PSProgressBar`),
+  inte `ProgressView`, som inte går att rendera till skärmbilder.
 - Hjältebild som speglar hälsan. Mole använder en planet; här kan det vara konsolen eller en
   skiva som lyser i hälsofärgen.
 - Granskningsvy före ändringar: grupper med kryssrutor och storlek, och en vit huvudknapp som

@@ -137,6 +137,7 @@ struct AppDetailView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 Footnote(text: profile.label)
             }
@@ -149,7 +150,7 @@ struct AppDetailView: View {
                 Footnote(text: sourceFootnote)
             }
         }
-        .frame(height: 176)
+        .frame(height: 192)
     }
 
     private var stateLabel: String {
