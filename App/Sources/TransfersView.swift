@@ -178,7 +178,7 @@ struct TransfersView: View {
                     Button("Mät hastigheten") { Task { await transfers.measureSpeed() } }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(transfers.isRunning)
-                        .help(transfers.isRunning ? "Pausa kön först; mätningen och kön delar på PS3:ans FTP" : "Skickar 64 MB till PS3:an och läser tillbaka dem")
+                        .help(transfers.isRunning ? "Pausa kön först; mätningen och kön delar på PS3:ans FTP" : "Skickar till PS3:an i fem sekunder och läser tillbaka det som kom fram")
                 }
             }
             if (transfers.lastSpeed?.network ?? console.snapshot?.network) == "Wi-Fi" {

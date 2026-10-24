@@ -201,6 +201,28 @@ public final class FTPClient {
         _ = try await command("RNTO \(newPath)", expect: [250])
     }
 
+    /// Sends zeros to `remotePath` for `seconds` (at most `limit` bytes) and closes the file
+    /// cleanly: a speed test that takes the same time on Wi-Fi and with a cable. Returns the bytes
+    /// sent.
+    func uploadZeros(to remotePath: String, seconds: TimeInterval, limit: Int64, progress: (Int64) -> Void) async throws -> Int64 {
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        _ = try await command("STOR \(remotePath)", expect: [125, 150])
+        let block = Data(count: 256 * 1024)
+        let start = Date()
+        var sent: Int64 = 0
+        while sent < limit, Date().timeIntervalSince(start) < seconds {
+            try Task.checkCancellation()
+            try await data.send(block)
+            sent += Int64(block.count)
+            progress(sent)
+        }
+        try await data.finish()
+        data.cancel()
+        _ = try await readReply(expect: [226, 250], timeout: 60)
+        return sent
+    }
+
     /// Uploads `file`. With `offset > 0` the rest of the file is appended (APPE),
     /// which is how webMAN resumes an interrupted upload. Cancelling the task closes the data
     /// connection cleanly (FIN), so webMAN keeps what it got and a later APPE continues;

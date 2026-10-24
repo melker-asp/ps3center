@@ -35,41 +35,37 @@ public enum SpeedTest {
         return Double(bytes) / speed
     }
 
-    /// Sends `megabytes` to /dev_hdd0/tmp, reads it back and removes it. Only the upload has to
-    /// work; the read-back is reported when it does. The console is marked busy meanwhile
-    /// (`WebMAN.isBusy`), since it answers slowly while it takes in data at full speed.
-    public static func run(host: String, megabytes: Int = 256, events: TransferHandler) async throws -> SpeedResult {
+    /// Sends data to /dev_hdd0/tmp for `seconds` (at most `megabytes`), reads back what arrived
+    /// and removes it, so the test takes about the same short time on Wi-Fi and with a cable.
+    /// Only the upload has to work; the read-back is reported when it does. The console is
+    /// marked busy meanwhile (`WebMAN.isBusy`), since it answers slowly while it takes in data
+    /// at full speed.
+    public static func run(host: String, seconds: TimeInterval = 5, megabytes: Int = 256, events: TransferHandler) async throws -> SpeedResult {
         LongCommands.shared.begin()
         defer { LongCommands.shared.end() }
-        let size = Int64(megabytes) << 20
-        let local = FileManager.default.temporaryDirectory.appendingPathComponent("ps3center-speedtest.bin")
-        FileManager.default.createFile(atPath: local.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: local)
-        let block = Data(count: 1 << 20)
-        for _ in 0..<megabytes { handle.write(block) }
-        try handle.close()
-        defer { try? FileManager.default.removeItem(at: local) }
-
-        let route = Route(local: local, remote: remote, kind: .other, size: size, title: "Hastighetstest")
+        let limit = Int64(megabytes) << 20
+        let route = Route(local: URL(fileURLWithPath: "/dev/zero"), remote: remote, kind: .other, size: limit, title: "Hastighetstest")
         let transfer = TransferService(host: host)
         let (up, down) = try await transfer.withFTP { ftp -> (Double, Double) in
             events(.started(route, resumingFrom: 0))
             let start = Date()
             var lastReport = Date.distantPast
-            try await ftp.upload(file: local, to: remote) { sent in
+            let sent = try await ftp.uploadZeros(to: remote, seconds: seconds, limit: limit) { sent in
                 let now = Date()
                 guard now.timeIntervalSince(lastReport) >= 0.25 else { return }
                 lastReport = now
-                events(.progress(route, sent: sent, total: size, bytesPerSecond: Double(sent) / max(now.timeIntervalSince(start), 0.001)))
+                let elapsed = max(now.timeIntervalSince(start), 0.001)
+                // The time, not the size, sets how far along it is.
+                events(.progress(route, sent: Int64(min(elapsed / seconds, 1) * 1000), total: 1000, bytesPerSecond: Double(sent) / elapsed))
             }
             let upSeconds = max(Date().timeIntervalSince(start), 0.001)
             events(.finished(route, seconds: upSeconds))
             events(.note("Läser tillbaka…"))
             let readStart = Date()
-            let data = try? await ftp.download(remote, limit: Int(size) + 1)
+            let data = try? await ftp.download(remote, limit: Int(sent) + 1)
             let downSeconds = max(Date().timeIntervalSince(readStart), 0.001)
             try? await ftp.delete(remote)
-            return (Double(size) / upSeconds, Double(data?.count ?? 0) / downSeconds)
+            return (Double(sent) / upSeconds, Double(data?.count ?? 0) / downSeconds)
         }
         let network = try? await WebMAN(host: host).snapshot().network
         let result = SpeedResult(upload: up, download: down > 0 ? down : nil, network: network, measuredAt: Date())

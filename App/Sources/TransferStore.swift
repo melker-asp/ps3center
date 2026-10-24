@@ -122,7 +122,7 @@ final class TransferStore {
         if !isFixture { queue.save() }
     }
 
-    /// 64 MB each way: a minute over Wi-Fi, a few seconds with a cable.
+    /// Five seconds of sending, then reading back what arrived: 10–15 seconds in all.
     func measureSpeed() async {
         guard !isMeasuring, !isRunning else { return }
         guard let host else {
@@ -137,7 +137,7 @@ final class TransferStore {
             measureStep = nil
         }
         do {
-            lastSpeed = try await SpeedTest.run(host: host, megabytes: 64) { event in
+            lastSpeed = try await SpeedTest.run(host: host, seconds: 5) { event in
                 Task { @MainActor [weak self] in self?.measured(event) }
             }
         } catch {

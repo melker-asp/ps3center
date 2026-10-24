@@ -202,14 +202,27 @@ struct Speedtest: AsyncParsableCommand {
 
     @OptionGroup var global: GlobalOptions
 
-    @Option(name: .long, help: "Megabyte att skicka.")
+    @Option(name: .long, help: "Sekunder att skicka.")
+    var seconds = 5
+
+    @Option(name: .long, help: "Högst så här många megabyte.")
     var mb = 256
 
     func run() async throws {
         let host = try await Console.host(global)
-        UI.header("Hastighetstest", detail: "\(mb) MB till /dev_hdd0/tmp och tillbaka")
-        let printer = TransferPrinter(dryRun: false)
-        let result = try await SpeedTest.run(host: host, megabytes: mb) { printer.handle($0) }
+        UI.header("Hastighetstest", detail: "\(seconds) sekunder till /dev_hdd0/tmp, sedan tillbaka")
+        let result = try await SpeedTest.run(host: host, seconds: TimeInterval(seconds), megabytes: mb) { event in
+            switch event {
+            case .progress(_, let sent, let total, let rate):
+                UI.progress("\(UI.bar(total > 0 ? Double(sent) / Double(total) : 0)) Skickar  \(Format.rate(rate))")
+            case .note(let text):
+                UI.endProgress()
+                UI.step(text)
+            default:
+                break
+            }
+        }
+        UI.endProgress()
         UI.row("Till PS3:an", Format.rate(result.upload))
         if let down = result.download { UI.row("Från PS3:an", Format.rate(down)) }
         if let network = result.network { UI.row("Nätverk", network) }
