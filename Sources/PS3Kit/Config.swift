@@ -6,10 +6,14 @@ public struct PS3Config: Codable, Equatable, Sendable {
     public var host: String?
     /// The local folder that mirrors the console's file system (contains dev_hdd0/, USB/, _Installerat/).
     public var root: String?
+    /// The app's colour theme (Utseende). A plain string, so an unknown value from a newer
+    /// version cannot make the whole file unreadable.
+    public var theme: String?
 
-    public init(host: String? = nil, root: String? = nil) {
+    public init(host: String? = nil, root: String? = nil, theme: String? = nil) {
         self.host = host
         self.root = root
+        self.theme = theme
     }
 }
 

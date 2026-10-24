@@ -69,6 +69,13 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   enhet, en sparkline eller stapel och en grå fotnot.
 - **Laddning och förlopp:** tunn ring (`Spinner`) och PS-appens lagringsstapel (`PSProgressBar`),
   inte `ProgressView`, som inte går att rendera till skärmbilder.
+- **Startskärm:** anslutningsskärmen är PS-appens blå startskärm med vit logga (`SplashBackground`).
+- **Bilder:** Spelar nu visar spelets ICON0/PIC1 från `/dev_bdvd/PS3_GAME` (`GameArt`), och
+  detaljsidan har en banderoll som PS Store med programmets PIC1.PNG eller README:ns första bild.
+  Hämta är ett rutnät av kort som PS-appens bibliotek.
+- **Utseende** (kugghjulet uppe till höger): PS-appens teman. "Följ fliken" (standard) ger varje
+  flik sin färg; Starlight Blue, Nova Pink, Cosmic Red, Galactic Purple och Midnight Black färgar
+  alla flikar lika. Sparas som `theme` i `config.json`.
 - Hjältebild som speglar hälsan. Mole använder en planet; här kan det vara konsolen eller en
   skiva som lyser i hälsofärgen.
 - Granskningsvy före ändringar: grupper med kryssrutor och storlek, och en vit huvudknapp som
@@ -120,5 +127,6 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   strikt läge, flikarna Status och Appar, och skärmbildsläget (`PS3CENTER_SNAPSHOT_DIR`).
 - **Skärmbilder utan PS3 (klart):** `PS3CENTER_FIXTURES=1` ger appen data från PS3Kit:s
   `Fixtures`; CI renderar varje skärm och laddar upp PNG:erna som artefakten `screenshots`.
-- **App härnäst:** PS-inspirerat utseende (se nedan), Spel-fliken med dra-och-släpp (kräver att
-  PS3Kit kan lista spelen på konsolen), menyraden och en appikon.
+- **PS-utseende (klart):** se avsnittet Utseende ovan.
+- **App härnäst:** Spel-fliken med dra-och-släpp (kräver att PS3Kit kan lista spelen på
+  konsolen), menyraden och en appikon.

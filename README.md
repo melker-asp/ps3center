@@ -27,7 +27,11 @@ Version 0.1 har två flikar i Mole-stil:
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 
-`make snapshot DIR=/tmp/shots` renderar flikarna till PNG utan att något fönster öppnas.
+Utseendet följer PlayStation-appen: blå startskärm, mörk bas med färg per flik, vita knappar och
+spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens teman.
+
+`make snapshot DIR=/tmp/shots` renderar flikarna till PNG utan att något fönster öppnas, och
+`make snapshot-fixtures DIR=/tmp/shots` gör samma sak utan PS3.
 
 ## Kommandon
 

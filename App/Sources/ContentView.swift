@@ -15,23 +15,26 @@ enum MainTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @Environment(ConsoleStore.self) private var console
+    @Environment(AppearanceStore.self) private var appearance
     @State private var tab: MainTab = .status
+    @State private var showsAppearance = false
 
     var body: some View {
         ZStack {
             Group {
                 if console.connection == .online {
-                    Theme.background(for: tab)
+                    Theme.background(for: tab, theme: appearance.theme)
                 } else {
                     SplashBackground()
                 }
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: 0.35), value: tab)
+            .animation(.easeInOut(duration: 0.35), value: appearance.theme)
             .animation(.easeInOut(duration: 0.5), value: console.connection == .online)
 
             VStack(spacing: 0) {
-                TabBar(selection: $tab)
+                TopBar(selection: $tab) { showsAppearance = true }
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -51,6 +54,23 @@ struct ContentView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
+        .sheet(isPresented: $showsAppearance) { AppearanceView() }
+    }
+}
+
+/// The tabs centred, the settings button on the right.
+struct TopBar: View {
+    @Binding var selection: MainTab
+    let openAppearance: () -> Void
+
+    var body: some View {
+        TabBar(selection: $selection)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .trailing) {
+                Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
+                    .buttonStyle(CircleIconButtonStyle())
+                    .help("Utseende")
+            }
     }
 }
 

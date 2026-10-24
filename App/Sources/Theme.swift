@@ -30,15 +30,23 @@ enum Theme {
     static let cardFill = Color.white.opacity(0.05)
     static let cardStroke = Color.white.opacity(0.07)
 
-    static func hue(for tab: MainTab) -> Color {
-        switch tab {
-        case .status: return starlightBlue
-        case .apps: return galacticPurple
+    static func hue(for tab: MainTab, theme: AppTheme = .perTab) -> Color {
+        switch theme {
+        case .perTab:
+            switch tab {
+            case .status: return starlightBlue
+            case .apps: return galacticPurple
+            }
+        case .starlightBlue: return starlightBlue
+        case .novaPink: return novaPink
+        case .cosmicRed: return cosmicRed
+        case .galacticPurple: return galacticPurple
+        case .midnightBlack: return Color(white: 0.55)
         }
     }
 
-    static func background(for tab: MainTab) -> some View {
-        FacetBackground(tint: hue(for: tab))
+    static func background(for tab: MainTab, theme: AppTheme = .perTab) -> some View {
+        FacetBackground(tint: hue(for: tab, theme: theme), intensity: theme == .midnightBlack ? 0.12 : 0.35)
     }
 
     static func healthColor(_ score: Int) -> Color {
@@ -339,13 +347,21 @@ struct PillButtonStyle: ButtonStyle {
 /// The PS app's round outlined icon buttons (refresh, settings).
 struct CircleIconButtonStyle: ButtonStyle {
     var size: CGFloat = 34
+    /// The white disc with a black icon, like the PS app's back button.
+    var filled = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(Theme.primaryText)
+            .font(.system(size: size * 0.42, weight: .semibold))
+            .foregroundStyle(filled ? Color.black : Theme.primaryText)
             .frame(width: size, height: size)
-            .background(Circle().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.7 : 0.4), lineWidth: 1.5))
+            .background {
+                if filled {
+                    Circle().fill(Color.white.opacity(configuration.isPressed ? 0.8 : 1))
+                } else {
+                    Circle().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.7 : 0.4), lineWidth: 1.5)
+                }
+            }
             .contentShape(Circle())
     }
 }

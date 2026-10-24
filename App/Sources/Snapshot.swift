@@ -47,16 +47,23 @@ enum Snapshot {
             apps.selectedID = "ps3health"
             render(.apps, name: "apps-detail-cfw", console: console, apps: apps, into: directory) { AppsView(scrolls: false) }
             apps.selectedID = nil
+            console.loadFixture()
+            apps.loadFixture()
         }
+        render(.status, name: "status-nova-pink", console: console, apps: apps, into: directory, theme: .novaPink) {
+            StatusView(scrolls: false)
+        }
+        write(AppearanceView().environment(AppearanceStore(previewing: .perTab)), name: "appearance", into: directory)
         NSApp.terminate(nil)
     }
 
     private static func render<Content: View>(_ tab: MainTab, name: String, console: ConsoleStore, apps: AppsStore,
-                                              into directory: URL, splash: Bool = false, @ViewBuilder content: () -> Content) {
+                                              into directory: URL, splash: Bool = false, theme: AppTheme = .perTab,
+                                              @ViewBuilder content: () -> Content) {
         let view = ZStack(alignment: .top) {
-            if splash { SplashBackground() } else { Theme.background(for: tab) }
+            if splash { SplashBackground() } else { Theme.background(for: tab, theme: theme) }
             VStack(spacing: 0) {
-                TabBar(selection: .constant(tab))
+                TopBar(selection: .constant(tab)) {}
                     .padding(.top, 14)
                     .padding(.bottom, 20)
                 content()
@@ -67,9 +74,11 @@ enum Snapshot {
         .frame(width: 1180)
         .environment(console)
         .environment(apps)
-        .environment(\.colorScheme, .dark)
+        write(view, name: name, into: directory)
+    }
 
-        let renderer = ImageRenderer(content: view)
+    private static func write<Content: View>(_ content: Content, name: String, into directory: URL) {
+        let renderer = ImageRenderer(content: content.environment(\.colorScheme, .dark))
         renderer.scale = 2
         guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return }
