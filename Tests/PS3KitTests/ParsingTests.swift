@@ -702,3 +702,70 @@ private final class NetClient {
     client.send(NetCommand.createFile.rawValue, path: "/PS3ISO/new.iso")
     #expect(client.receive(1).isEmpty)
 }
+
+// MARK: Controlling the console
+
+@Test func padButtonsAreFixedNames() {
+    #expect(PadButton(name: "ner") == .down)
+    #expect(PadButton(name: "OK") == .accept)
+    #expect(PadButton(name: "x") == .cross)
+    #expect(PadButton(name: "ps") == .ps)
+    #expect(PadButton(name: "cross=swap") == nil)
+    // No name holds "=", which webMAN reads as "change the enter button".
+    #expect(PadButton.allCases.allSatisfy { !$0.rawValue.contains("=") })
+}
+
+@Test func findsTheScreenshotOnWebMANsPage() {
+    let page = #"<html><body><img src="/dev_hdd0/tmp/screenshot.bmp" width="100%"></body></html>"#
+    #expect(WebMAN.imageSource(in: page) == "/dev_hdd0/tmp/screenshot.bmp")
+    #expect(WebMAN.imageSource(in: "<p>no image</p>") == nil)
+    #expect(ImageKind(Data([0x42, 0x4D, 0, 0])) == .bmp)
+    #expect(ImageKind(Data([0xFF, 0xD8, 0xFF, 0xE0])) == .jpeg)
+    #expect(ImageKind(Data("<html>".utf8)) == nil)
+}
+
+@Test func fanTargetOnlyInDynamicModeAndRange() {
+    var dynamic = ConsoleSnapshot()
+    dynamic.fanTargetMax = 68
+    #expect(FanControl.refusal(target: 70, snapshot: dynamic) == nil)
+    #expect(FanControl.refusal(target: 55, snapshot: dynamic) != nil)
+    #expect(FanControl.refusal(target: 80, snapshot: dynamic) != nil)
+    #expect(FanControl.refusal(target: 70, snapshot: ConsoleSnapshot()) != nil)  // SYSCON: no target
+}
+
+@Test func pingPacketChecksums() {
+    let packet: [UInt8] = [8, 0, 0, 0, 0x12, 0x34, 0, 1]
+    let sum = Reachability.checksum(packet)
+    #expect(sum == 0xE5CA)
+    #expect(Reachability.checksum([8, 0, UInt8(sum >> 8), UInt8(sum & 0xFF), 0x12, 0x34, 0, 1]) == 0)
+}
+
+@Test func tracksPlayTimeFromPolls() {
+    var running = ConsoleSnapshot()
+    running.mountedGamePath = "/dev_hdd0/PS3ISO/Gran Turismo 5.iso"
+    running.mountedGameName = "Gran Turismo 5"
+    running.runningProcess = "EBOOT.BIN"
+    var tracker = PlayTracker(interval: 3)
+    var log = PlayLog()
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let first = tracker.observe(running, at: start, log: &log)
+    #expect(first)
+    _ = tracker.observe(running, at: start.addingTimeInterval(3), log: &log)
+    _ = tracker.observe(running, at: start.addingTimeInterval(603), log: &log)  // the Mac slept: 6 s, not 600
+    let afterSleep = log.games[running.mountedGamePath!]
+    #expect(afterSleep?.seconds == 9)
+    #expect(afterSleep?.sessions == 1)
+
+    var xmb = running
+    xmb.runningProcess = nil
+    let onXMB = tracker.observe(xmb, at: start.addingTimeInterval(606), log: &log)
+    #expect(!onXMB)
+    _ = tracker.observe(running, at: start.addingTimeInterval(700), log: &log)
+    #expect(log.games[running.mountedGamePath!]?.sessions == 2)
+    #expect(log.games[running.mountedGamePath!]?.seconds == 9)
+
+    let game = Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5.iso", title: "Gran Turismo 5", platform: .ps3)
+    #expect(log.record(for: game)?.title == "Gran Turismo 5")
+    #expect(Format.playTime(9) == "under en minut")
+    #expect(Format.playTime(3 * 3600 + 20 * 60) == "3 h 20 min")
+}

@@ -117,6 +117,11 @@ struct GameDetailView: View {
                     .foregroundStyle(Color.white.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if let played = console.playLog.record(for: game) {
+                    Text("Spelat \(Format.playTime(played.seconds)) · senast \(Format.day(played.lastPlayed))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
                 HStack(spacing: 10) { actions }
                     .padding(.top, 4)
             }

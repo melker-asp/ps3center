@@ -35,6 +35,12 @@ enum Snapshot {
             ConnectionView().frame(height: 640)
         }
 
+        let henOff = ConsoleStore()
+        henOff.loadHenOffFixture()
+        render(.status, name: "connecting-hen", console: henOff, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory, splash: true) {
+            ConnectionView().frame(height: 640)
+        }
+
         render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { StatusView(scrolls: false) }
         render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { GamesView(scrolls: false) }
         // Gran Turismo 5 has an update installed; live, the first game.
@@ -51,6 +57,9 @@ enum Snapshot {
         games.selection = []
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
+        write(RemoteView(live: false).environment(console), name: "remote", into: directory)
+        write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),
+              name: "menubar", into: directory)
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(section: .updates, scrolls: false) }
         render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(section: .get, scrolls: false) }
         if let entry = Catalog.entry(named: "apollo") {

@@ -46,7 +46,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
 | **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
-| **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka fil, Uppdatera spellista, Stäng av) |
+| **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
 
 ## Utseende (Moles struktur, PS-appens färger)
 
@@ -130,6 +130,21 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   på 2–848 MB får sin sektorstorlek gissad ur var volymbeskrivningen ligger. Bygget READ_ONLY
   stänger anslutningen vid skrivande kommandon, och så gör PS3 Centers `NetServer` också.
   webMAN når servern som `/net0` … `/net4` (nätverksserver 1–5 i `/setup.ps3`).
+- **Handkontrollen** (`/pad.ps3?<knapp>`, `include/feat/vpad.h`, läst 24 okt 2026): knapparna
+  är up, down, left, right, cross, circle, square, triangle, l1–l3, r1–r3, start, select, psbtn,
+  och accept/cancel trycker konsolens egen OK och Tillbaka. `/pad.ps3?off` kopplar bort den
+  virtuella handkontrollen. **Ett "=" efter cross eller circle byter konsolens OK-knapp och startar
+  om den**, så PS3 Center skickar bara de fasta namnen i `PadButton`, aldrig fri text.
+- **Fläkten** (`include/cpursx.h`): `/cpursx.ps3?max=<°C>` flyttar målet i det dynamiska läget
+  (webMAN varvar upp fläkten för att hålla konsolen under målet). `?fan=`, `?man` och `?sys` byter
+  läge eller sätter fast hastighet; dem använder PS3 Center inte. GETSYSINFO visar `MAX: 68°C` bara
+  i dynamiskt läge, och bara då går målet att ändra, inom 60–75 °C.
+- **Skivan och skärmen:** `/eject.ps3` och `/insert.ps3` matar ut och in skivan.
+  `/xmb.ps3$screenshot?show?fast` visar XMB:n som bild (inte under spel); PS3 Center tar både en
+  bild och en sida med `<img>` (test 8 i PLAN.md avgör vilket).
+- **HEN av:** webMAN startar först när HEN är aktiverat. Svarar adressen på ping, eller vägrar en
+  TCP-anslutning till port 80 (bara en påslagen dator svarar med RST), men webMAN inte, säger appen
+  och `ps3 status` att HEN behöver aktiveras.
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när

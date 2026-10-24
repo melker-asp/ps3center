@@ -87,6 +87,9 @@ struct Games: AsyncParsableCommand {
             if let update = game.updateVersion { UI.row("Uppdatering", "\(update) installerad") }
             UI.row("Plats", game.path)
             for companion in game.companions { UI.row("", UI.paint(companion, .gray)) }
+            if let played = PlayLog.load().record(for: game) {
+                UI.row("Speltid", "\(Format.playTime(played.seconds)) · senast \(Format.day(played.lastPlayed))")
+            }
             print("\n  Starta med " + UI.paint("ps3 games play \(game.titleID ?? game.title)", .bold) + ".")
         }
     }

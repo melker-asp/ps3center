@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct PS3CenterApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var console = ConsoleStore()
     @State private var apps = AppsStore()
     @State private var games = GamesStore()
@@ -10,7 +11,8 @@ struct PS3CenterApp: App {
     @State private var appearance = AppearanceStore()
 
     var body: some Scene {
-        WindowGroup("PS3 Center") {
+        // One window; closed, the app keeps running in the menu bar.
+        Window("PS3 Center", id: WindowOpener.mainID) {
             ContentView()
                 .environment(console)
                 .environment(apps)
@@ -38,5 +40,17 @@ struct PS3CenterApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 820)
+
+        MenuBarExtra {
+            MenuBarView()
+                .environment(console)
+                .environment(apps)
+                .environment(transfers)
+                .environment(netServer)
+                .preferredColorScheme(.dark)
+        } label: {
+            Image(systemName: "playstation.logo")
+        }
+        .menuBarExtraStyle(.window)
     }
 }

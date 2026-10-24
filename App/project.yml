@@ -27,6 +27,15 @@ targets:
             playstation.net:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: true
+        # Finder: "Skicka till PS3" under Tjänster and Snabbåtgärder (ServiceProvider in Inbox.swift).
+        NSServices:
+          - NSMenuItem:
+              default: Skicka till PS3
+            NSMessage: sendToPS3
+            NSPortName: PS3 Center
+            NSRequiredContext: {}
+            NSSendFileTypes:
+              - public.item
     dependencies:
       - package: PS3Center
         product: PS3Kit

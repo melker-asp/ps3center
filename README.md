@@ -22,7 +22,9 @@ make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar 
 
 Appen har tre flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
-  löpande kurvor och historiken från `ps3 history`.
+  löpande kurvor och historiken från `ps3 history`. Under korten: Fjärrkontroll (XMB:n som bild,
+  styrkors och knappar, piltangenter och Retur/Esc), Avsluta spelet, Mata ut skivan, Starta om och
+  Stäng av. I dynamiskt fläktläge flyttar − och + webMAN:s måltemperatur (60–75 °C).
 - **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform och sök.
   Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort
   eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
@@ -36,6 +38,14 @@ Appen har tre flikar i Mole-stil:
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
+
+**Menyraden** visar temperaturer, vad som spelas, kön och spelservern, med Skicka filer…,
+Uppdatera spellistan, Avsluta spelet och Stäng av; appen fortsätter där när fönstret är stängt
+(Starta vid inloggning finns i samma meny). I Finder finns **Skicka till PS3** under Tjänster och
+Snabbåtgärder, och i Genvägar finns PS3-status, Starta spel på PS3:an, Stäng av PS3:an och Skicka
+till PS3. Är PS3:an på men HEN inte aktiverat säger anslutningsskärmen det. Spelsidan visar hur
+länge du har spelat ett spel och när du spelade senast. Notiser kommer när kön är klar, när
+konsolen blir varm och när ett program har en ny version.
 
 Utseendet följer PlayStation-appen: blå startskärm, mörk bas med färg per flik, vita knappar och
 spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens teman.
@@ -63,6 +73,10 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 speedtest` | Mäter hur fort det går till och från PS3:an; ger tidsberäkningar i kön |
 | `ps3 usb prepare /Volumes/X <spel>` | Kopierar spel till en FAT32-disk i webMAN:s mappar, PS3-ISO:er över 4 GB delade |
 | `ps3 power off\|restart` | Stänger av eller startar om PS3:an (på HEN måste HEN aktiveras igen efter omstart) |
+| `ps3 disc eject\|insert` | Matar ut eller in skivan |
+| `ps3 fan [70]` | Fläktens hastighet och läge; med ett tal flyttas målet i webMAN:s dynamiska läge (60–75 °C) |
+| `ps3 pad down down ok` | Trycker på knappar med webMAN:s virtuella handkontroll (`ps3 pad off` kopplar bort den) |
+| `ps3 screenshot [fil]` | Sparar en bild av XMB:n på Macen |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp via `.part`-filer, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup. Håller Macen vaken; `--verify` jämför MD5, `--shutdown-when-done` stänger av PS3:an efteråt |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
 | `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |

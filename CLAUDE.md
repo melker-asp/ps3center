@@ -94,6 +94,11 @@ xcodebuild den inte.
   avbilden. Skrivande kommandon stänger anslutningen och bara konsolens adress släpps in. Ett
   Mac-spel har `netPath`, och appen startar det som `/net0` + `netPath`. `NetServerStore` håller
   Macen vaken medan en `/net`-sökväg är monterad.
+- **Styrning** (`Control.swift`): `PadButton` (fasta namn till `/pad.ps3`), skiva, skärmbild,
+  `FanControl` (bara mål i dynamiskt läge), `Reachability` (ping/TCP när webMAN inte svarar = HEN
+  av) och `PlayLog`/`PlayTracker` (speltid ur statusen, `playtime.json`). Appen: `ConsoleStore`
+  har knapparna, `RemoteView` fjärrkontrollen, `MenuBarView` menyraden. Filer utifrån (Finder-
+  tjänsten, menyraden, Genvägar i `Intents.swift`) går via `Inbox` till granskningsvyn.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -114,5 +119,7 @@ xcodebuild den inte.
   (användarens beslut 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd och ska inte kringgås. Program som bara finns där
   får en länk.
+- **Fläkten ändras bara som mål i webMAN:s dynamiska läge, 60–75 °C,** aldrig som fast hastighet.
+- **Ingen fri text till `/pad.ps3`:** "cross=" byter OK-knapp och startar om konsolen.
 - **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i
   appens historiktabell, och har `--dry-run` i CLI:t.

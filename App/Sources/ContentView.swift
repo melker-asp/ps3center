@@ -20,6 +20,7 @@ struct ContentView: View {
     @Environment(AppearanceStore.self) private var appearance
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
+    @Environment(\.openWindow) private var openWindow
     @State private var tab: MainTab = .status
     @State private var showsAppearance = false
     @State private var showsTransfers = false
@@ -69,13 +70,22 @@ struct ContentView: View {
             netServer.host = console.host
         }
         .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
-        // Files dragged onto the window go to the review, then the queue.
-        .dropDestination(for: URL.self) { urls, _ in
-            guard console.connection == .online,
-                  let routes = try? FileRouter.routes(for: urls, mirrorRoot: MirrorRoot.resolve()), !routes.isEmpty else { return false }
-            dropped = SendReview(routes: routes)
-            return true
+        // Files from Finder's "Skicka till PS3", the menu bar and Shortcuts.
+        // They wait until the console is online.
+        .onChange(of: Inbox.shared.revision * 2 + (console.connection == .online ? 1 : 0), initial: true) {
+            WindowOpener.shared.openWindow = openWindow
+            guard console.connection == .online, !Inbox.shared.files.isEmpty else { return }
+            _ = review(Inbox.shared.take())
         }
+        // Files dragged onto the window go to the review, then the queue.
+        .dropDestination(for: URL.self) { urls, _ in review(urls) }
+    }
+
+    private func review(_ urls: [URL]) -> Bool {
+        guard console.connection == .online,
+              let routes = try? FileRouter.routes(for: urls, mirrorRoot: MirrorRoot.resolve()), !routes.isEmpty else { return false }
+        dropped = SendReview(routes: routes)
+        return true
     }
 }
 
@@ -202,8 +212,10 @@ struct ConnectionView: View {
     }
 
     private var isOffline: Bool {
-        if case .offline = console.connection { return true }
-        return false
+        switch console.connection {
+        case .offline, .henOff: return true
+        default: return false
+        }
     }
 
     private var title: String {
@@ -211,6 +223,7 @@ struct ConnectionView: View {
         case .connecting: return "Ansluter till PS3:an…"
         case .scanning: return "Letar efter PS3:an på nätverket…"
         case .offline: return "Ingen kontakt med PS3:an"
+        case .henOff: return "PS3:an är på, men HEN är inte aktiverat"
         case .online: return ""
         }
     }
@@ -218,6 +231,7 @@ struct ConnectionView: View {
     private var detail: String {
         switch console.connection {
         case .offline(let message): return message
+        case .henOff: return "webMAN startar först när HEN är aktiverat. Välj \u{201D}Enable HEN\u{201D} under Spel på PS3:an, så ansluter PS3 Center av sig själv."
         case .scanning: return "Den sparade adressen svarade inte. Det här tar upp till en halv minut."
         default: return "webMAN måste vara igång, så aktivera HEN efter varje omstart."
         }

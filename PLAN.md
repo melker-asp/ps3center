@@ -279,6 +279,11 @@ webMAN har en inbyggd klient för ps3netsrv (`/net0`–`/net4`, port 38008). Pro
 
 ### Fas 7 – Styr konsolen
 
+**Läge 24 okt 2026:** byggt: strömraden i Status-fliken och `ps3 power`/`ps3 disc`, "På men HEN är
+av" (ping eller TCP-svar utan webMAN), fjärrkontrollen med XMB-bild och `ps3 pad`/`ps3 screenshot`,
+fläktmålet (`ps3 fan`), menyraden med inloggningsobjekt, notiser (kön, värme, programuppdateringar),
+"Skicka till PS3" i Finder, Genvägar och speltid. Kvar att prova hemma: test 7, 8 och 11.
+
 - **Ström:** Stäng av (`/shutdown.ps3`), Starta om (`/restart.ps3`) med varningen "HEN måste
   aktiveras igen efter omstarten", Avsluta spel, Mata ut/Mata in skiva. CLI `ps3 power off|restart`.
   Loggas, `--dry-run`.
@@ -370,6 +375,11 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     nätverksserver 1 i webMAN (`http://$PS3/setup.ps3`) med Macens adress och port 38008, och
     uppdatera spellistan. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
     en stund, gärna både över Wi-Fi och med kabel. Säg vad `ps3 serve` skrev och om något hackade.
+11. Fas 7 i appen: Fjärrkontroll i Status-fliken (syns XMB:n, och följer bilden med när du trycker
+    på piltangenterna?), − och + på fläktkortet (bara om webMAN kör dynamiskt läge), menyraden
+    med fönstret stängt, "Skicka till PS3" i Finder (högerklick → Snabbåtgärder eller Tjänster;
+    kan kräva att appen ligger i Program och har startats en gång) och Genvägar → PS3-status.
+    Stäng av HEN genom en omstart och se om appen säger "HEN är inte aktiverat".
 
 ## Beslut (24 okt 2026)
 

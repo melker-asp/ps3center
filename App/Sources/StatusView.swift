@@ -6,14 +6,27 @@ struct StatusView: View {
     @Environment(ConsoleStore.self) private var console
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views.
     var scrolls = true
+    @State private var showsRemote = false
+    @State private var confirming: PowerAction?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: 4)
 
     var body: some View {
-        if scrolls {
-            ScrollView { grid }.scrollIndicators(.hidden)
-        } else {
-            grid
+        Group {
+            if scrolls {
+                ScrollView { grid }.scrollIndicators(.hidden)
+            } else {
+                grid
+            }
+        }
+        .sheet(isPresented: $showsRemote) { RemoteView() }
+        .confirmationDialog(confirming?.question ?? "", isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+                            presenting: confirming) { action in
+            Button(action.button, role: .destructive) {
+                if action == .shutdown { console.shutdown() } else { console.restart() }
+            }
+        } message: { action in
+            Text(action.message(running: console.snapshot?.isGameRunning == true))
         }
     }
 
@@ -32,6 +45,7 @@ struct StatusView: View {
                         nowPlayingCard(s)
                         systemCard(s)
                     }
+                    controls(s)
                     HistoryTable(entries: console.history)
                 }
                 .padding(.bottom, 8)
@@ -87,9 +101,49 @@ struct StatusView: View {
             Sparkline(values: console.fanHistory, range: Self.range(for: console.fanHistory, padding: 5), color: Theme.cool)
                 .frame(height: 34)
             Spacer(minLength: 0)
-            Footnote(text: "webMAN styr fläkten automatiskt")
+            if let target = s.fanTargetMax {
+                // webMAN's dynamic mode: only the target moves, within FanControl.targets.
+                HStack(spacing: 6) {
+                    Footnote(text: "Mål \(target) °C")
+                    Spacer(minLength: 0)
+                    Button { console.setFanTarget(target - 1) } label: { Image(systemName: "minus") }
+                        .disabled(target <= FanControl.targets.lowerBound)
+                        .help("Sänk målet (fläkten varvar upp tidigare)")
+                    Button { console.setFanTarget(target + 1) } label: { Image(systemName: "plus") }
+                        .disabled(target >= FanControl.targets.upperBound)
+                        .help("Höj målet (tystare, varmare)")
+                }
+                .buttonStyle(CircleIconButtonStyle(size: 24))
+                .disabled(console.isActing)
+            } else {
+                Footnote(text: "Konsolen styr fläkten själv")
+            }
         }
         .frame(height: 210)
+    }
+
+    /// The console's own buttons: the remote, quitting the game, the disc, and power.
+    private func controls(_ s: ConsoleSnapshot) -> some View {
+        HStack(spacing: 10) {
+            Button { showsRemote = true } label: { Label("Fjärrkontroll", systemImage: "gamecontroller") }
+            if s.isGameRunning {
+                Button { console.exitGame() } label: { Label("Avsluta spelet", systemImage: "xmark.circle") }
+            }
+            Button { console.eject() } label: { Label("Mata ut skivan", systemImage: "eject") }
+            if let note = console.actionNote {
+                Text(note)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.leading, 6)
+            }
+            Spacer(minLength: 10)
+            Button { confirming = .restart } label: { Label("Starta om…", systemImage: "arrow.clockwise") }
+            Button { confirming = .shutdown } label: { Label("Stäng av…", systemImage: "power") }
+        }
+        .buttonStyle(PillButtonStyle(prominent: false))
+        .disabled(console.isActing)
     }
 
     /// The PS app's storage sheet: free space, a white bar of what is used, and the total.
@@ -307,5 +361,21 @@ struct HistoryTable: View {
         formatter.locale = Locale(identifier: "sv_SE")
         formatter.dateFormat = Calendar.current.isDateInToday(date) ? "'idag' HH:mm" : "d MMM HH:mm"
         return formatter.string(from: date)
+    }
+}
+
+/// Shut down or restart, with what the confirmation says.
+enum PowerAction: Equatable {
+    case shutdown, restart
+
+    var question: String { self == .shutdown ? "Stänga av PS3:an?" : "Starta om PS3:an?" }
+    var button: String { self == .shutdown ? "Stäng av" : "Starta om" }
+
+    func message(running: Bool) -> String {
+        let game = running ? "Ett spel körs: spara först, annars försvinner det som inte är sparat. " : ""
+        switch self {
+        case .shutdown: return game + "PS3:an kan inte startas från Macen, bara med knappen eller handkontrollen."
+        case .restart: return game + "På HEN måste HEN aktiveras igen efter omstarten innan PS3 Center når konsolen."
+        }
     }
 }

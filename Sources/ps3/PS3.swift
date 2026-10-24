@@ -21,7 +21,7 @@ struct PS3: AsyncParsableCommand {
           ps3 apps install X.pkg       Installera ett paket utan USB-sticka
         """,
         version: "0.1.0",
-        subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Serve.self,
+        subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Serve.self,
                       Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }

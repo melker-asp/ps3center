@@ -33,6 +33,15 @@ public enum Fixtures {
         }
     }
 
+    /// Gran Turismo 5 played on and off for a while.
+    public static let playLog: PlayLog = {
+        var log = PlayLog()
+        log.games["/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso"] = PlayLog.Record(
+            title: "Gran Turismo 5", seconds: 41 * 3600 + 25 * 60, sessions: 37,
+            lastPlayed: Date(timeIntervalSince1970: 1_792_670_400))
+        return log
+    }()
+
     public static let history: [OperationLog.Entry] = [
         .init(date: "2026-10-24T18:12:40+02:00", action: "install", detail: "apollo-ps3.pkg"),
         .init(date: "2026-10-24T17:58:03+02:00", action: "send", detail: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso (9.6 GB)"),

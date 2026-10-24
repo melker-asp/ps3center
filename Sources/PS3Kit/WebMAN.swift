@@ -44,6 +44,12 @@ public struct WebMAN: Sendable {
     /// Runs a raw web command such as "/refresh.ps3". `command` must already be encoded.
     @discardableResult
     public func get(encoded command: String, timeout: TimeInterval? = nil) async throws -> String {
+        let data = try await self.data(encoded: command, timeout: timeout)
+        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+
+    /// The raw answer to a web command (an image, a file). `command` must already be encoded.
+    public func data(encoded command: String, timeout: TimeInterval? = nil) async throws -> Data {
         guard let url = URL(string: "http://\(host)\(command)") else {
             throw PS3Error.ftpProtocol("ogiltig adress: \(command)")
         }
@@ -62,7 +68,7 @@ public struct WebMAN: Sendable {
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw PS3Error.http(status: http.statusCode, command: command)
         }
-        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        return data
     }
 
     @discardableResult

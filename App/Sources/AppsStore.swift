@@ -71,6 +71,7 @@ final class AppsStore {
         do {
             let next = try await AppsService(host: host).check()
             statuses = next
+            notifyNewUpdates(in: next)
             phase = .loaded
             lastChecked = Date()
             let installed = Catalog.entries.filter { entry in next.contains { $0.id == entry.id && $0.installed != nil } }
@@ -79,6 +80,19 @@ final class AppsStore {
         } catch {
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// One notice per new version, remembered between launches.
+    private func notifyNewUpdates(in next: [AppStatus]) {
+        let key = "notifiedUpdates"
+        var seen = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        let fresh = next.filter { $0.state == .updateAvailable && !seen.contains("\($0.id) \($0.latest ?? "")") }
+        guard !fresh.isEmpty else { return }
+        for status in fresh { seen.insert("\(status.id) \(status.latest ?? "")") }
+        UserDefaults.standard.set(Array(seen), forKey: key)
+        let names = fresh.map(\.name).joined(separator: ", ")
+        Notifier.post(title: fresh.count == 1 ? "Ny version av \(names)" : "\(fresh.count) programuppdateringar",
+                      body: fresh.count == 1 ? "Finns att installera under Appar." : names)
     }
 
     /// Fixture mode (`PS3CENTER_FIXTURES=1`): canned rows and README, no network.

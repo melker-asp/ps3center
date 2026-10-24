@@ -21,7 +21,16 @@ struct Status: AsyncParsableCommand {
 
     func run() async throws {
         let asJSON = json || !UI.isTTY
-        let host = try await Console.host(global, quiet: asJSON)
+        let host: String
+        do {
+            host = try await Console.host(global, quiet: asJSON)
+        } catch {
+            // Off, or on with HEN not enabled? Only the second answers on the network.
+            if let known = global.host ?? ConfigStore.load().host, await Reachability.probe(known) == .henOff {
+                throw PS3Error.refused(Reachability.henOffAdvice(host: known))
+            }
+            throw error
+        }
         let webman = WebMAN(host: host)
 
         guard watch else {
