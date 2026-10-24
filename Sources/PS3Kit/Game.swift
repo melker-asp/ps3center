@@ -51,6 +51,9 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     public var source: Source
     /// For a game on the Mac: where it goes on the console ("/dev_hdd0/PS3ISO/Game.iso").
     public var remotePath: String?
+    /// For a game on the Mac: its path on the Mac's game server ("/PS3ISO/Game.iso"), which
+    /// webMAN reaches as /net0/PS3ISO/Game.iso.
+    public var netPath: String?
 
     init(path: String, title: String, titleID: String? = nil, platform: Platform, size: Int64? = nil,
          isFolder: Bool = false, version: String? = nil, iconPath: String? = nil, backgroundPath: String? = nil,

@@ -251,6 +251,12 @@ Finjusteringen av klienten väntar på mätningar från din PS3 (test 4 och 5).
 
 **Mål:** spelen i Macens mappar syns och startar på PS3:an utan att kopieras.
 
+**Läge 24 okt 2026:** byggt: `NetServer` (läsning bara, de kopplade mapparna som rot, `.SFO`/`.PNG`
+ur PS3-ISO:erna, bara konsolens adress släpps in), `ps3 serve`, Spelservern i Spel-fliken med
+stegen för webMAN, "Spela från Macen" och Macen hålls vaken medan ett nätverksspel är monterat.
+Testat mot en egen klient i `swift test`, inte mot konsolen eller den riktiga ps3netsrv än (test 10).
+Menyraden kommer i fas 7.
+
 webMAN har en inbyggd klient för ps3netsrv (`/net0`–`/net4`, port 38008). Protokollet är litet:
 16 byte långa kommandon i big-endian (`OPEN_FILE` = 0x1224, `READ_FILE`, `READ_CD_2048_CRITICAL`,
 `STAT_FILE`, `OPEN_DIR`, `READ_DIR` …), definierade i `include/netiso.h` i aldostools/ps3netsrv.
@@ -360,6 +366,10 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
 ```
 
 9. Mät strömmen med en energimätare i uttaget: i XMB:n, under ett spel och under en överföring.
+10. Spelservern (fas 6): starta `ps3 serve` (eller slå på Spelservern i appen), ställ in
+    nätverksserver 1 i webMAN (`http://$PS3/setup.ps3`) med Macens adress och port 38008, och
+    uppdatera spellistan. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
+    en stund, gärna både över Wi-Fi och med kabel. Säg vad `ps3 serve` skrev och om något hackade.
 
 ## Beslut (24 okt 2026)
 

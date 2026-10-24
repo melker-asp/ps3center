@@ -42,7 +42,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | Flik | CLI | Innehåll |
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
-| **Spel** | `ps3 games`, `ps3 send` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
+| **Spel** | `ps3 games`, `ps3 send`, `ps3 serve` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
 | **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
 | **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
@@ -123,6 +123,13 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
   `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i
   PLAN.md). För nätverksspel hämtar den `<namn>.SFO` bredvid ISO:n från ps3netsrv-servern.
+- **ps3netsrv** (aldostools/ps3netsrv, `include/netiso.h` och `src/main.cpp`, läst 24 okt 2026):
+  kommandon på 16 byte i big-endian från `OPEN_FILE` = 0x1224 till `READ_DIR` = 0x1232, svar med
+  fast storlek. `READ_DIR` ger ett antal och sedan poster på 529 byte (storlek, tid, mapp, namn på
+  512 byte). `//` i sökvägen betyder att filerna i undermappar ska med, som "mapp/fil". CD-avbilder
+  på 2–848 MB får sin sektorstorlek gissad ur var volymbeskrivningen ligger. Bygget READ_ONLY
+  stänger anslutningen vid skrivande kommandon, och så gör PS3 Centers `NetServer` också.
+  webMAN når servern som `/net0` … `/net4` (nätverksserver 1–5 i `/setup.ps3`).
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när

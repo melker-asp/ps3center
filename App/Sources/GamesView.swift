@@ -8,11 +8,13 @@ import SwiftUI
 struct GamesView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
+    @Environment(NetServerStore.self) private var netServer
     /// Box art (Fodral) or XMB icons (Ikoner); remembered between launches.
     @AppStorage("gamesShowCovers") private var showCovers = true
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views or text fields.
     var scrolls = true
     @State private var showsFolders = false
+    @State private var showsServer = false
     @State private var review: SendReview?
 
     private var onMac: Bool { library.source == .mac }
@@ -39,9 +41,13 @@ struct GamesView: View {
             await library.loadMac()
         }
         .sheet(isPresented: $showsFolders) {
-            FoldersView { Task { await library.loadMac() } }
+            FoldersView {
+                netServer.restart()
+                Task { await library.loadMac() }
+            }
         }
         .sheet(item: $review) { SendReviewView(review: $0) }
+        .sheet(isPresented: $showsServer) { NetServerView() }
     }
 
     private var toolbar: some View {
@@ -105,6 +111,18 @@ struct GamesView: View {
             Spacer()
 
             if onMac {
+                Button {
+                    showsServer = true
+                } label: {
+                    HStack(spacing: 7) {
+                        Circle()
+                            .fill(netServer.status.isRunning ? Theme.good : Theme.tertiaryText)
+                            .frame(width: 8, height: 8)
+                        Text("Spelserver")
+                    }
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+                .help("Spela ISO:er direkt från Macen utan att kopiera dem")
                 Button {
                     showsFolders = true
                 } label: {
@@ -309,6 +327,7 @@ extension ConsoleStore {
 struct GameTile: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
+    @Environment(NetServerStore.self) private var netServer
     let game: Game
     var showCover = true
     @State private var hovering = false
@@ -371,6 +390,13 @@ struct GameTile: View {
         }
         .onHover { hovering = $0 }
         .help(game.title)
+        .contextMenu {
+            if game.isOnMac {
+                Button("Spela från Macen") { library.playFromMac(game, exitingRunning: true) }
+                    .disabled(!netServer.status.isRunning || game.netPath == nil || game.isFolder)
+                Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
+            }
+        }
     }
 
     private var background: Color {

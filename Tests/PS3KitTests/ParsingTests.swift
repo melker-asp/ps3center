@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 @testable import PS3Kit
@@ -475,8 +476,9 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
 
 // MARK: The Mac's games and the queue
 
-/// A minimal ISO 9660 image with SYSTEM.CNF in the root, as 2048-byte blocks.
-private func makeISO(systemCNF: String) -> Data {
+/// A minimal ISO 9660 image: files in the root and, optionally, in PS3_GAME. Files are small
+/// (one 2048-byte block each).
+private func makeISO(root rootFiles: [(String, Data)] = [], game gameFiles: [(String, Data)] = []) -> Data {
     func block(_ bytes: [UInt8]) -> [UInt8] { bytes + [UInt8](repeating: 0, count: 2048 - bytes.count) }
     func le32(_ v: Int) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24 & 0xFF)] }
     func be32(_ v: Int) -> [UInt8] { le32(v).reversed() }
@@ -487,17 +489,32 @@ private func makeISO(systemCNF: String) -> Data {
         r[0] = UInt8(r.count)
         return r
     }
-    let cnf = [UInt8](systemCNF.utf8)
+    var next = 20
+    var data: [UInt8] = []
+    var rootDir = record([0], extent: 18, size: 2048, directory: true) + record([1], extent: 18, size: 2048, directory: true)
+    if !gameFiles.isEmpty { rootDir += record([UInt8]("PS3_GAME".utf8), extent: 19, size: 2048, directory: true) }
+    for (name, content) in rootFiles {
+        rootDir += record([UInt8]((name + ";1").utf8), extent: next, size: content.count, directory: false)
+        data += block([UInt8](content))
+        next += 1
+    }
+    var gameDir = record([0], extent: 19, size: 2048, directory: true) + record([1], extent: 18, size: 2048, directory: true)
+    for (name, content) in gameFiles {
+        gameDir += record([UInt8]((name + ";1").utf8), extent: next, size: content.count, directory: false)
+        data += block([UInt8](content))
+        next += 1
+    }
     var pvd: [UInt8] = [1] + [UInt8]("CD001".utf8) + [1, 0]
-    pvd += [UInt8]("PLAYSTATION".padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
-    pvd += [UInt8]("TEST".padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
-    pvd += [UInt8](repeating: 0, count: 156 - pvd.count) + record([0], extent: 20, size: 2048, directory: true)
-    let root = record([0], extent: 20, size: 2048, directory: true) + record([1], extent: 20, size: 2048, directory: true)
-        + record([UInt8]("SYSTEM.CNF;1".utf8), extent: 21, size: cnf.count, directory: false)
+    pvd += [UInt8]((gameFiles.isEmpty ? "PLAYSTATION" : "PS3").padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
+    pvd += [UInt8]((gameFiles.isEmpty ? "TEST" : "PS3VOLUME").padding(toLength: 32, withPad: " ", startingAt: 0).utf8)
+    pvd += [UInt8](repeating: 0, count: 156 - pvd.count) + record([0], extent: 18, size: 2048, directory: true)
     var image = [UInt8](repeating: 0, count: 16 * 2048)
-    image += block(pvd) + block([255] + [UInt8]("CD001".utf8)) + [UInt8](repeating: 0, count: 2 * 2048)
-    image += block(root) + block(cnf)
+    image += block(pvd) + block([255] + [UInt8]("CD001".utf8)) + block(rootDir) + block(gameDir) + data
     return Data(image)
+}
+
+private func makeISO(systemCNF: String) -> Data {
+    makeISO(root: [("SYSTEM.CNF", Data(systemCNF.utf8))])
 }
 
 /// The same image as a raw CD image: 2352-byte MODE2 sectors, 24 bytes of header first.
@@ -561,4 +578,127 @@ private func rawCD(_ iso: Data) -> Data {
     queue.removeFinished()
     #expect(queue.items.map(\.title) == ["GT5"])
     #expect(Fixtures.queue.items.contains { $0.state == .sending })
+}
+
+// MARK: Game server
+
+private func packet(_ opcode: UInt16, length: UInt16 = 0, count: UInt32 = 0, offset: UInt64 = 0) -> Data {
+    var data = Data()
+    data.appendBE(opcode)
+    data.appendBE(length)
+    data.appendBE(count)
+    data.appendBE(offset)
+    return data
+}
+
+/// A blocking client, as webMAN talks to ps3netsrv: one command, then its answer.
+private final class NetClient {
+    let fd: Int32
+
+    init?(port: UInt16) {
+        fd = socket(AF_INET, SOCK_STREAM, 0)
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = port.bigEndian
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let connected = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        if connected != 0 { return nil }  // deinit closes the socket
+    }
+
+    deinit { close(fd) }
+
+    func send(_ data: Data) {
+        data.withUnsafeBytes { _ = Darwin.send(fd, $0.baseAddress, data.count, 0) }
+    }
+
+    func send(_ opcode: UInt16, path: String) {
+        let bytes = Data(path.utf8)
+        send(packet(opcode, length: UInt16(bytes.count)) + bytes)
+    }
+
+    func receive(_ count: Int) -> Data {
+        var out = Data()
+        var buffer = [UInt8](repeating: 0, count: max(count, 1))
+        while out.count < count {
+            let n = recv(fd, &buffer, count - out.count, 0)
+            if n <= 0 { break }
+            out.append(contentsOf: buffer[0..<n])
+        }
+        return out
+    }
+}
+
+@Test func servesGamesOverThePS3NetsrvProtocol() async throws {
+    let fm = FileManager.default
+    let folder = fm.temporaryDirectory.appendingPathComponent("ps3center-net-\(UUID().uuidString)")
+    try fm.createDirectory(at: folder.appendingPathComponent("Sub"), withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: folder) }
+    let sfo = makeSFO(["TITLE": "Net Game", "TITLE_ID": "BLES99999", "APP_VER": "01.00"])
+    let iso = makeISO(game: [("PARAM.SFO", sfo), ("ICON0.PNG", Data([0x89, 0x50, 0x4E, 0x47]))])
+    try iso.write(to: folder.appendingPathComponent("Game.iso"))
+    try Data(count: 4096).write(to: folder.appendingPathComponent("Sub/Other.iso"))
+
+    let port = UInt16.random(in: 41000...49000)
+    let kind = try #require(GameFolders.kind(named: "PS3ISO"))
+    let server = NetServer(folders: [(kind, folder)], allowedHost: nil, port: port)
+    try server.start()
+    defer { server.stop() }
+    for _ in 0..<50 where !server.currentStatus.isRunning { try await Task.sleep(nanoseconds: 50_000_000) }
+    let client = try #require(NetClient(port: port))
+
+    // The merged folder, all at once (READ_DIR): a count, then 529-byte records.
+    client.send(NetCommand.openDir.rawValue, path: "/PS3ISO")
+    #expect(client.receive(4) == Data([0, 0, 0, 0]))
+    client.send(packet(NetCommand.readDir.rawValue))
+    let count = Int(client.receive(8).be64(0))
+    try #require(count == 2)
+    let records = client.receive(count * 529)
+    let names = (0..<count).map { i -> String in
+        String(decoding: records[(i * 529 + 17)..<(i * 529 + 529)].prefix { $0 != 0 }, as: UTF8.self)
+    }
+    #expect(names == ["Game.iso", "Sub"])
+    #expect(records[529 + 16] == 1)  // Sub is a directory
+
+    // Open the ISO and read the volume descriptor, with and without a result header.
+    client.send(NetCommand.openFile.rawValue, path: "/PS3ISO/Game.iso")
+    let opened = client.receive(16)
+    #expect(Int(opened.be64(0)) == iso.count)
+    client.send(packet(NetCommand.readFile.rawValue, count: 6, offset: 32768))
+    #expect(client.receive(4).be32(0) == 6)
+    #expect(client.receive(6) == Data([1]) + Data("CD001".utf8))
+    client.send(packet(NetCommand.readFileCritical.rawValue, count: 16, offset: 32768))
+    #expect(client.receive(16).prefix(6) == Data([1]) + Data("CD001".utf8))
+
+    // PARAM.SFO next to the ISO comes from inside it.
+    client.send(NetCommand.statFile.rawValue, path: "/PS3ISO/Game.SFO")
+    let stat = client.receive(33)
+    #expect(Int(stat.be64(0)) == sfo.count)
+    client.send(NetCommand.openFile.rawValue, path: "/PS3ISO/Game.SFO")
+    #expect(Int(client.receive(16).be64(0)) == sfo.count)
+    client.send(packet(NetCommand.readFile.rawValue, count: UInt32(sfo.count), offset: 0))
+    #expect(Int(client.receive(4).be32(0)) == sfo.count)
+    #expect(client.receive(sfo.count) == sfo)
+
+    // "//" lists the files of subfolders too.
+    client.send(NetCommand.openDir.rawValue, path: "/PS3ISO//")
+    #expect(client.receive(4) == Data([0, 0, 0, 0]))
+    client.send(packet(NetCommand.readDir.rawValue))
+    let deep = Int(client.receive(8).be64(0))
+    try #require(deep == 2)
+    let deepRecords = client.receive(deep * 529)
+    let deepNames = (0..<deep).map { i -> String in
+        String(decoding: deepRecords[(i * 529 + 17)..<(i * 529 + 529)].prefix { $0 != 0 }, as: UTF8.self)
+    }
+    #expect(deepNames == ["Game.iso", "Sub/Other.iso"])
+
+    // Nothing outside the folders, and nothing written.
+    client.send(NetCommand.openFile.rawValue, path: "/PS3ISO/../../etc/passwd")
+    #expect(client.receive(16).be64(0) == UInt64.max)
+    client.send(NetCommand.createFile.rawValue, path: "/PS3ISO/new.iso")
+    #expect(client.receive(1).isEmpty)
 }

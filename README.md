@@ -28,6 +28,8 @@ Appen har tre flikar i Mole-stil:
   eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
   banderoll för att byta omslag. Under **Macen** visas spelen i dina kopplade spelmappar, med vad
   som redan finns på PS3:an; markera spel och tryck Skicka. Filer som dras till fönstret går samma väg.
+  **Spelservern** (under Macen) låter PS3:an spela ISO:erna direkt från Macen utan att kopiera dem,
+  med stegen för webMAN:s inställning.
 - **Överföringar** (pilarna uppe till höger): kön med förlopp, Starta/Pausa, "När kön är klar"
   (popup eller stäng av PS3:an), MD5-kontroll och hastighetsmätning. Macen hålls vaken medan kön går,
   och kön pausas rent när Macen somnar och fortsätter när den vaknar.
@@ -57,6 +59,7 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 games mac` | Spelen i Macens spelmappar och om de redan finns på PS3:an (`--missing`) |
 | `ps3 config folder add PS3ISO ~/Spel/PS3` | Kopplar en spelmapp på Macen per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) |
 | `ps3 queue add <filer eller spel>` | Lägger spel i kön som appen också använder; `ps3 queue start` skickar ett i taget (`--when-done shutdown`, `--verify`) |
+| `ps3 serve` | Spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN:s `/net0` (port 38008, bara läsning, bara PS3:an släpps in) |
 | `ps3 speedtest` | Mäter hur fort det går till och från PS3:an; ger tidsberäkningar i kön |
 | `ps3 usb prepare /Volumes/X <spel>` | Kopierar spel till en FAT32-disk i webMAN:s mappar, PS3-ISO:er över 4 GB delade |
 | `ps3 power off\|restart` | Stänger av eller startar om PS3:an (på HEN måste HEN aktiveras igen efter omstart) |

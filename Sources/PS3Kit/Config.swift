@@ -12,6 +12,8 @@ public struct PS3Config: Codable, Equatable, Sendable {
     /// The Mac's game folders per kind ("PS3ISO", "PS2ISO" …), as linked in the app or with
     /// `ps3 config folder add`. See `GameFolders`.
     public var folders: [String: [String]]?
+    /// Whether the app runs its game server (`NetServer`) for webMAN's /net0.
+    public var netServer: Bool?
 
     public init(host: String? = nil, root: String? = nil, theme: String? = nil, folders: [String: [String]]? = nil) {
         self.host = host

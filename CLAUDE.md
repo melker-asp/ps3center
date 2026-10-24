@@ -89,6 +89,11 @@ xcodebuild den inte.
   `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`;
   `QueueLock` ser till att bara en process skickar. Allt skickas via `TransferService.send`, som
   laddar upp till `.part` och döper om.
+- **Spelservern** (`NetServer.swift`): en egen ps3netsrv som bara läser. Roten är de kopplade
+  mapparna ihopslagna per typ (`/PS3ISO` …); `<namn>.SFO`/`.PNG` bredvid en PS3-ISO läses ur
+  avbilden. Skrivande kommandon stänger anslutningen och bara konsolens adress släpps in. Ett
+  Mac-spel har `netPath`, och appen startar det som `/net0` + `netPath`. `NetServerStore` håller
+  Macen vaken medan en `/net`-sökväg är monterad.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar

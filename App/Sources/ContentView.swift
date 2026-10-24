@@ -19,6 +19,7 @@ struct ContentView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(AppearanceStore.self) private var appearance
     @Environment(TransferStore.self) private var transfers
+    @Environment(NetServerStore.self) private var netServer
     @State private var tab: MainTab = .status
     @State private var showsAppearance = false
     @State private var showsTransfers = false
@@ -63,7 +64,11 @@ struct ContentView: View {
         .sheet(isPresented: $showsAppearance) { AppearanceView() }
         .sheet(isPresented: $showsTransfers) { TransfersView() }
         .sheet(item: $dropped) { SendReviewView(review: $0) }
-        .task(id: console.host) { transfers.host = console.host }
+        .task(id: console.host) {
+            transfers.host = console.host
+            netServer.host = console.host
+        }
+        .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
         // Files dragged onto the window go to the review, then the queue.
         .dropDestination(for: URL.self) { urls, _ in
             guard console.connection == .online,

@@ -92,11 +92,7 @@ struct GameDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.cardStroke))
         // A picture dropped on the banner becomes the game's cover.
-        .dropDestination(for: URL.self) { urls, _ in
-            guard let file = urls.first else { return false }
-            library.setCustomCover(from: file, for: game)
-            return true
-        }
+        .droppingFile(scrolls) { library.setCustomCover(from: $0, for: game) }
         .help(game.titleID == nil ? "" : "Dra en bild hit för att använda den som omslag")
     }
 
@@ -285,5 +281,20 @@ struct UpdateBanner: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.accent.opacity(0.12)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.accent.opacity(0.25)))
+    }
+}
+
+extension View {
+    /// A drop target for one file. Off in snapshots, where ImageRenderer draws drop targets as yellow boxes.
+    @ViewBuilder func droppingFile(_ enabled: Bool, perform: @escaping (URL) -> Void) -> some View {
+        if enabled {
+            dropDestination(for: URL.self) { urls, _ in
+                guard let file = urls.first else { return false }
+                perform(file)
+                return true
+            }
+        } else {
+            self
+        }
     }
 }

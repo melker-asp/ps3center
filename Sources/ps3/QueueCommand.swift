@@ -348,3 +348,50 @@ struct USB: AsyncParsableCommand {
         }
     }
 }
+
+struct Serve: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "serve",
+        abstract: "Kör spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN (/net0).",
+        discussion: """
+        En egen ps3netsrv som bara läser, på port 38008. Ställ in den en gång i webMAN:
+        Inställningar (http://<ps3>/setup.ps3) → nätverksserver 1 = Macens adress och 38008.
+        Spelen syns sedan under webMAN:s spel och startas som vanligt, eller med
+        `ps3 games play` på /net0-sökvägen. Ctrl-C stoppar servern.
+        PS3-spel bör gå över kabel. PS2-ISO:er kopieras till hårddisken när de startas, och
+        spelmappar (GAMES) går inte över nätet, bara ISO:er.
+        """
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @Flag(name: .long, help: "Släpp in alla på nätverket, inte bara PS3:an.")
+    var anyClient = false
+
+    func run() async throws {
+        let folders = GameFolders.linked()
+        guard !folders.isEmpty else {
+            throw PS3Error.refused("Inga spelmappar är kopplade. Koppla en med `ps3 config folder add PS3ISO ~/Spel/PS3`.")
+        }
+        let console = anyClient ? nil : (try? await Console.host(global, quiet: true))
+        let server = NetServer(folders: folders, allowedHost: console) { status in
+            if let error = status.error { UI.fail(error) }
+        }
+        try server.start()
+        let awake = KeepAwake(reason: "Spelservern för PS3:an")
+        defer { withExtendedLifetime(awake) {}; server.stop() }
+        UI.header("Spelservern", detail: "port \(NetServer.defaultPort)" + (console.map { " · bara \($0)" } ?? ""))
+        for address in NetServer.macAddresses() { UI.row("Adress", "\(address):\(NetServer.defaultPort)") }
+        for (kind, url) in folders { UI.row(kind.name, url.path) }
+        print("\n  Ctrl-C stoppar. Macen hålls vaken så länge servern går.")
+        // Polled, so the output stays calm: one line per game file the console opens.
+        var last: String?
+        while true {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            if let file = server.currentStatus.lastFile, file != last {
+                last = file
+                UI.step("PS3:an läser \(file)")
+            }
+        }
+    }
+}

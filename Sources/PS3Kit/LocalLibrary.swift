@@ -87,6 +87,7 @@ public struct LocalLibrary: Sendable {
                 var game = candidate.game
                 game.source = .mac
                 game.remotePath = remoteFolder + "/" + (game.path as NSString).lastPathComponent
+                game.netPath = "/" + kind.name + String(game.path.dropFirst(url.path.count))
                 let info = cache[candidate.cacheKey] ?? LocalGameReader.read(game)
                 fresh[candidate.cacheKey] = info
                 if let title = info.title { game.title = title }
