@@ -14,6 +14,8 @@ public struct PS3Config: Codable, Equatable, Sendable {
     public var folders: [String: [String]]?
     /// Whether the app runs its game server (`NetServer`) for webMAN's /net0.
     public var netServer: Bool?
+    /// Which of webMAN's network servers points at the game server: 0 for /net0 … 4 for /net4.
+    public var netServerSlot: Int?
 
     public init(host: String? = nil, root: String? = nil, theme: String? = nil, folders: [String: [String]]? = nil) {
         self.host = host

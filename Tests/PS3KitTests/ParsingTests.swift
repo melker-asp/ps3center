@@ -804,3 +804,11 @@ private final class NetClient {
     #expect(disc.folderName == "BCES00757-[Uncharted 2 Among Thieves]")
     #expect(disc.destination == "/dev_hdd0/GAMES/BCES00757-[Uncharted 2 Among Thieves]")
 }
+
+@Test func comparesWebMANSettingsForms() {
+    let sent = "u0=1&autop=%2Fdev_hdd0%2FPS3ISO%2FAUTOBOOT.ISO&ic=1&nd0=1&neth0=10.0.1.43&netp0=38008&l=0"
+    let sameInAnotherOrder = "ic=1&u0=1&l=0&nd0=1&neth0=10.0.1.43&netp0=38008&autop=%2Fdev_hdd0%2FPS3ISO%2FAUTOBOOT.ISO"
+    #expect(WebMANSettings.differences(sent: sent, saved: sameInAnotherOrder).isEmpty)
+    let lostTwo = "u0=1&autop=%2Fdev_hdd0%2FPS3ISO%2FAUTOBOOT.ISO&ic=0&neth0=10.0.1.43&netp0=38008&l=0"
+    #expect(WebMANSettings.differences(sent: sent, saved: lostTwo) == ["ic", "nd0"])
+}

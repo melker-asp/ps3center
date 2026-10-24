@@ -122,6 +122,13 @@ public final class NetServer: @unchecked Sendable {
         if report { onChange(current) }
     }
 
+    /// The Mac's address on the console's network (the same first three numbers), else the first.
+    public static func address(facing console: String) -> String? {
+        let all = macAddresses()
+        let prefix = console.split(separator: ".").prefix(3).joined(separator: ".") + "."
+        return all.first { $0.hasPrefix(prefix) } ?? all.first
+    }
+
     /// The Mac's IPv4 addresses on its network interfaces, to enter in webMAN's settings.
     public static func macAddresses() -> [String] {
         var result: [String] = []

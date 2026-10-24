@@ -5,6 +5,7 @@ public enum Format {
         let f = ByteCountFormatter()
         f.countStyle = .file
         f.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        f.allowsNonnumericFormatting = false  // "0 KB", not "Zero KB"
         return f
     }()
 

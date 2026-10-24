@@ -96,8 +96,9 @@ xcodebuild den inte.
 - **Spelservern** (`NetServer.swift`): en egen ps3netsrv som bara läser. Roten är de kopplade
   mapparna ihopslagna per typ (`/PS3ISO` …); `<namn>.SFO`/`.PNG` bredvid en PS3-ISO läses ur
   avbilden. Skrivande kommandon stänger anslutningen och bara konsolens adress släpps in. Ett
-  Mac-spel har `netPath`, och appen startar det som `/net0` + `netPath`. `NetServerStore` håller
-  Macen vaken medan en `/net`-sökväg är monterad.
+  Mac-spel har `netPath`, och appen startar det som `/net<slot>` + `netPath`. `NetServerStore`
+  håller Macen vaken medan en `/net`-sökväg är monterad och ställer in webMAN med `WebMANSetup`
+  (en ledig nätverksserver; numret sparas som `netServerSlot` i config.json).
 - **Styrning** (`Control.swift`): `PadButton` (fasta namn till `/pad.ps3`), skiva, skärmbild,
   `FanControl` (bara mål i dynamiskt läge), `Reachability` (ping/TCP när webMAN inte svarar = HEN
   av) och `PlayLog`/`PlayTracker` (speltid ur statusen, `playtime.json`). Appen: `ConsoleStore`
@@ -131,5 +132,8 @@ xcodebuild den inte.
 - **boot_plugins.txt ändras aldrig av PS3 Center;** saknade plugins rapporteras bara.
 - **Fläkten ändras bara som mål i webMAN:s dynamiska läge, 60–75 °C,** aldrig som fast hastighet.
 - **Ingen fri text till `/pad.ps3`:** "cross=" byter OK-knapp och startar om konsolen.
+- **webMAN:s inställningar ändras bara via `WebMANSetup`:** hela formuläret som Safari skulle
+  skicka, en kopia av inställningarna först och en kontroll efteråt. Ett ofullständigt anrop till
+  `/setup.ps3` nollställer alla andra inställningar.
 - **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i
   appens historiktabell, och har `--dry-run` i CLI:t.

@@ -392,7 +392,7 @@ struct GameTile: View {
         .help(game.title)
         .contextMenu {
             if game.isOnMac {
-                Button("Spela från Macen") { library.playFromMac(game, exitingRunning: true) }
+                Button("Spela från Macen") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
                     .disabled(!netServer.status.isRunning || game.netPath == nil || game.isFolder)
                 Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
             }

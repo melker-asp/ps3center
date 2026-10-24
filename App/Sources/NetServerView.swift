@@ -40,22 +40,14 @@ struct NetServerView: View {
             }
             .frame(height: 190)
 
-            Text("SÅ STÄLLER DU IN WEBMAN (EN GÅNG)")
+            Text("WEBMAN")
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 22)
                 .padding(.bottom, 10)
-            VStack(alignment: .leading, spacing: 8) {
-                step(1, "Öppna webMAN:s inställningar, på PS3:an eller här på Macen.")
-                if let host = console.host, let url = URL(string: "http://\(host)/setup.ps3") {
-                    Button("Öppna webMAN:s inställningar") { openURL(url) }
-                        .buttonStyle(PillButtonStyle(prominent: false))
-                        .padding(.leading, 26)
-                }
-                step(2, "Slå på nätverksserver 1 och skriv in \(server.addresses.first ?? "Macens adress") och port \(NetServer.defaultPort). Spara.")
-                step(3, "Uppdatera spellistan. Spelen syns under webMAN:s spel och startar som vanligt.")
-            }
+            webMANSection
+
             Text("PS3-spel bör gå över kabel. PS2-ISO:er kopieras till hårddisken när de startas, och spelmappar (GAMES) går inte över nätet, bara ISO:er. Ge Macen en fast adress i routern, annars hittar webMAN inte servern efter en omstart.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.tertiaryText)
@@ -71,6 +63,53 @@ struct NetServerView: View {
         .padding(32)
         .frame(width: 580, height: 700, alignment: .topLeading)
         .background(Theme.base)
+        .task(id: console.host) { await server.checkWebMAN() }
+    }
+
+    @ViewBuilder private var webMANSection: some View {
+        switch server.webMAN {
+        case .unknown, .checking:
+            HStack(spacing: 10) {
+                Spinner(size: 14)
+                Text("Läser webMAN:s inställningar…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            }
+        case .working(let step):
+            HStack(spacing: 10) {
+                Spinner(size: 14)
+                Text(step).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            }
+        case .configured(let slot):
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
+                Text("webMAN hämtar spel från Macen som nätverksserver \(slot + 1) (/net\(slot)). Spelen syns under webMAN:s spel och startar som vanligt.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .notConfigured, .failed:
+            VStack(alignment: .leading, spacing: 10) {
+                if case .failed(let message) = server.webMAN {
+                    Text(message)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.hot)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("webMAN behöver veta var spelservern finns. PS3 Center fyller i en ledig nätverksserver med \(server.address ?? "Macens adress"):\(NetServer.defaultPort), sparar och uppdaterar spellistan. Dina andra webMAN-inställningar lämnas som de är, och en kopia av dem sparas först (Underhåll → Systemfiler).")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button("Ställ in webMAN åt mig") { Task { await server.configureWebMAN() } }
+                        .buttonStyle(PillButtonStyle())
+                        .disabled(console.host == nil)
+                    if let host = console.host, let url = URL(string: "http://\(host)/setup.ps3") {
+                        Button("Göra det själv") { openURL(url) }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                            .help("Öppnar webMAN:s inställningar: nätverksserver 1 = \(server.address ?? "Macens adress") och port \(NetServer.defaultPort)")
+                    }
+                }
+            }
+        }
     }
 
     private var statusChip: String {
@@ -82,20 +121,6 @@ struct NetServerView: View {
         HStack(alignment: .firstTextBaseline) {
             Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText).frame(width: 70, alignment: .leading)
             Text(value).font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.primaryText).lineLimit(1).truncationMode(.middle)
-        }
-    }
-
-    private func step(_ number: Int, _ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("\(number)")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.black)
-                .frame(width: 18, height: 18)
-                .background(Circle().fill(Color.white.opacity(0.85)))
-            Text(text)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -30,8 +30,9 @@ Appen har fyra flikar i Mole-stil:
   eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
   banderoll för att byta omslag. Under **Macen** visas spelen i dina kopplade spelmappar, med vad
   som redan finns på PS3:an; markera spel och tryck Skicka. Filer som dras till fönstret går samma väg.
-  **Spelservern** (under Macen) låter PS3:an spela ISO:erna direkt från Macen utan att kopiera dem,
-  med stegen för webMAN:s inställning.
+  **Spelservern** (under Macen) låter PS3:an spela ISO:erna direkt från Macen utan att kopiera dem.
+  "Ställ in webMAN åt mig" fyller i en ledig nätverksserver i webMAN och lämnar resten av
+  inställningarna som de var (en kopia av dem sparas först).
 - **Överföringar** (pilarna uppe till höger): kön med förlopp, Starta/Pausa, "När kön är klar"
   (popup eller stäng av PS3:an), MD5-kontroll och hastighetsmätning. Macen hålls vaken medan kön går,
   och kön pausas rent när Macen somnar och fortsätter när den vaknar.

@@ -119,10 +119,11 @@ final class GamesStore {
     }
 
     /// Starts a Mac game through the game server, as webMAN sees it (/net0/PS3ISO/…).
-    func playFromMac(_ game: Game, exitingRunning: Bool) {
+    /// `slot` is webMAN's network server that points at the Mac (0 for /net0).
+    func playFromMac(_ game: Game, slot: Int, exitingRunning: Bool) {
         guard let netPath = game.netPath else { return }
         var copy = game
-        copy.path = "/net0" + netPath
+        copy.path = "/net\(slot)" + netPath
         copy.source = .console
         let net = copy
         perform(.starting, on: game) { try await $0.play(net, exitingRunning: exitingRunning) }

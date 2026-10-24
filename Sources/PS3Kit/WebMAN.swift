@@ -198,6 +198,25 @@ public struct WebMAN: Sendable {
     }
 }
 
+/// webMAN's settings form (/setup.ps3). Saving it resets every setting and reads them all back
+/// from the request (include/setup.h), so the app sends the whole form (see WebMANSetup) and
+/// checks afterwards that it came back the same.
+public enum WebMANSettings {
+    /// The names of the fields whose values differ between two form queries, order aside.
+    public static func differences(sent: String, saved: String) -> [String] {
+        func fields(_ query: String) -> [String: [String]] {
+            var result: [String: [String]] = [:]
+            for pair in query.split(separator: "&") {
+                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                result[parts[0], default: []].append(parts.count > 1 ? parts[1] : "")
+            }
+            return result.mapValues { $0.sorted() }
+        }
+        let a = fields(sent), b = fields(saved)
+        return Set(a.keys).union(b.keys).filter { a[$0] != b[$0] }.sorted()
+    }
+}
+
 /// Counts the long commands in flight (see `WebMAN.isBusy`).
 final class LongCommands: @unchecked Sendable {
     static let shared = LongCommands()

@@ -376,9 +376,9 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
 ```
 
 9. Mät strömmen med en energimätare i uttaget: i XMB:n, under ett spel och under en överföring.
-10. Spelservern (fas 6): starta `ps3 serve` (eller slå på Spelservern i appen), ställ in
-    nätverksserver 1 i webMAN (`http://$PS3/setup.ps3`) med Macens adress och port 38008, och
-    uppdatera spellistan. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
+10. Spelservern (fas 6): öppna Spelservern i appen och tryck "Ställ in webMAN åt mig" (eller
+    ställ in nätverksserver 1 själv i `http://$PS3/setup.ps3` med Macens adress och port 38008
+    och kör `ps3 serve`). Kolla efteråt i webMAN:s inställningar att inget annat ändrats. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
     en stund, gärna både över Wi-Fi och med kabel. Säg vad `ps3 serve` skrev och om något hackade.
 11. Fas 7 i appen: Fjärrkontroll i Status-fliken (syns XMB:n, och följer bilden med när du trycker
     på piltangenterna?), − och + på fläktkortet (bara om webMAN kör dynamiskt läge), menyraden

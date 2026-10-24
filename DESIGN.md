@@ -156,6 +156,14 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   och följer målmappen över FTP (test 12 i PLAN.md).
 - **HEN:s inställningar** är tomma filer i `/dev_hdd0/hen/toggles/` (`hotkey_polling.off`,
   `remap_files.off` i `payload/main.c`). `ps3 maintain` visar dem bara.
+- **webMAN:s inställningar** (`/setup.ps3`, `include/setup.h`): när formuläret skickas nollställs
+  *alla* inställningar och läses sedan in ur anropet, så ett fält som saknas stängs av. Några fält
+  (ikontyp, informationstaggar, väntetider för USB) får dessutom sitt värde av JavaScript i
+  sidan (`wm_res/setup/setup*.dat`). PS3 Center laddar därför sidan i en dold `WKWebView`, ändrar
+  bara nätverksservern och skickar `new URLSearchParams(new FormData(form))`, alltså exakt det
+  Safari skulle skicka. Först sparas en kopia av inställningarna (Systemfiler), och efteråt läses
+  sidan igen och jämförs fält för fält. Nätverksservrarna heter `nd<n>`, `neth<n>` och `netp<n>`
+  (n = 0–4, `/net0`–`/net4`).
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när
