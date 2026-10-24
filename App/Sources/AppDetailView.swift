@@ -71,7 +71,7 @@ struct AppDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Text(status.name)
-                        .font(.system(size: 26, weight: .semibold))
+                        .font(.system(size: 30, weight: .light))
                         .foregroundStyle(Theme.primaryText)
                     Chip(text: status.category.label)
                     if let badge = status.compatibility.badge {
@@ -102,7 +102,7 @@ struct AppDetailView: View {
                 .buttonStyle(PillButtonStyle())
         } else if status.installed == nil, status.installable {
             Button("Installera") { apps.install(status) }
-                .buttonStyle(PillButtonStyle(tint: Theme.cool))
+                .buttonStyle(PillButtonStyle())
         } else if status.blocked {
             Label("Fungerar inte på din PS3", systemImage: "nosign")
                 .font(.system(size: 13, weight: .semibold))
@@ -136,8 +136,8 @@ struct AppDetailView: View {
                 Text(compatibilityDetail)
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
                 Footnote(text: profile.label)
             }
             Card(icon: "chevron.left.forwardslash.chevron.right", title: "Källa", chip: entry?.repository == nil ? "Länk" : "GitHub") {
@@ -149,7 +149,7 @@ struct AppDetailView: View {
                 Footnote(text: sourceFootnote)
             }
         }
-        .frame(height: 158)
+        .frame(height: 176)
     }
 
     private var stateLabel: String {
@@ -217,7 +217,7 @@ struct AppDetailView: View {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.warm)
+                    .foregroundStyle(Theme.accent)
                 Text("README")
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.3)
@@ -239,13 +239,14 @@ struct AppDetailView: View {
                     .foregroundStyle(Theme.tertiaryText)
             }
             switch readmeState {
-            case nil:
-                Text(entry?.repository == nil ? "Programmet finns inte på GitHub, så det finns ingen README att visa." : "")
+            case nil where entry?.repository == nil:
+                Text("Programmet finns inte på GitHub, så det finns ingen README att visa.")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.secondaryText)
-            case .some(.loading):
+            case nil, .some(.loading):
+                // nil with a repo: the fetch starts when the page appears.
                 HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
+                    Spinner()
                     Text("Hämtar README från GitHub…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
                 }
             case .some(.failed(let message)):
@@ -332,7 +333,7 @@ struct ReadmeView: View {
             .font(.system(size: 14))
         case .quote(let text):
             HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: 2).fill(Theme.warm.opacity(0.7)).frame(width: 3)
+                RoundedRectangle(cornerRadius: 2).fill(Theme.accent.opacity(0.8)).frame(width: 3)
                 Text(Self.inline(text))
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.primaryText.opacity(0.8))
@@ -340,16 +341,16 @@ struct ReadmeView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.warm.opacity(0.08)))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.08)))
         case .code(let code):
-            ScrollView(.horizontal) {
-                Text(code)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(Theme.primaryText.opacity(0.85))
-                    .padding(12)
-            }
-            .scrollIndicators(.hidden)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Wraps instead of scrolling sideways: a nested scroll view fights the page's, and
+            // ImageRenderer cannot draw one.
+            Text(code)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Theme.primaryText.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.25)))
         case .image(let image):
             ReadmeImage(image: image)
@@ -414,7 +415,7 @@ struct ReadmeImage: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.white.opacity(0.04))
                     .frame(width: 320, height: 180)
-                    .overlay(ProgressView().controlSize(.small))
+                    .overlay(Spinner())
             }
         }
         .task(id: image.url) {

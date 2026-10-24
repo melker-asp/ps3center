@@ -49,35 +49,33 @@ struct AppsView: View {
                     Button {
                         section = item
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             Text(item.title)
                             if item == .updates, !apps.updates.isEmpty {
-                                Text("\(apps.updates.count)").foregroundStyle(Theme.accent)
+                                CountBadge(count: apps.updates.count)
                             }
                         }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(section == item ? Theme.primaryText : Theme.secondaryText)
+                        .font(.system(size: 14, weight: section == item ? .bold : .semibold))
+                        .foregroundStyle(section == item ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Capsule().fill(section == item ? Color.white.opacity(0.1) : .clear))
+                        .background(Capsule().fill(section == item ? Color.white.opacity(0.14) : .clear))
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(4)
-            .background(Capsule().fill(Color.white.opacity(0.05)))
+            .background(Capsule().fill(Color.black.opacity(0.45)))
 
             Button {
                 guard let host = console.host else { return }
                 Task { await apps.load(host: host, refreshIcons: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.secondaryText)
                     .rotationEffect(.degrees(apps.phase == .loading ? 360 : 0))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconButtonStyle())
             .help("Kolla igen")
             .disabled(apps.isBusy)
 
@@ -96,7 +94,7 @@ struct AppsView: View {
         switch apps.phase {
         case _ where firstLoad:
             VStack(spacing: 12) {
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Kollar versioner på PS3:an och GitHub…")
                     .font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
             }
@@ -162,15 +160,12 @@ struct SectionHeader: View {
     var action: (String, () -> Void)?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.primaryText.opacity(0.85))
-            Text("\(count)").font(.system(size: 13)).foregroundStyle(Theme.tertiaryText)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title).font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
+            Text("\(count)").font(.system(size: 14)).foregroundStyle(Theme.tertiaryText)
             Spacer()
             if let action {
-                Button(action.0, action: action.1)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+                Button(action.0, action: action.1).buttonStyle(PillButtonStyle())
             }
         }
         .padding(.horizontal, 14)
@@ -264,7 +259,7 @@ struct AppRow: View {
                 if status.canInstall {
                     Button("Uppdatera") { apps.install(status) }.buttonStyle(PillButtonStyle())
                 } else {
-                    Button("Läs mer") { if let url = URL(string: status.homepage) { openURL(url) } }
+                    Button("Läs mer") { apps.selectedID = status.id }
                         .buttonStyle(PillButtonStyle(prominent: false))
                 }
             case .manual:
@@ -286,7 +281,7 @@ struct AppRow: View {
                         if let latest = status.latest {
                             Text(latest).font(.system(size: 12, design: .rounded)).foregroundStyle(Theme.tertiaryText)
                         }
-                        Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle(tint: Theme.cool))
+                        Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
                     }
                 }
             }
@@ -303,16 +298,16 @@ struct OperationView: View {
             case .queued:
                 Text("I kö").foregroundStyle(Theme.tertiaryText)
             case .downloading:
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Laddar ner…").foregroundStyle(Theme.secondaryText)
             case .uploading(let fraction):
-                ProgressView(value: fraction).frame(width: 110).tint(Theme.accent)
+                PSProgressBar(fraction: fraction).frame(width: 110)
                 Text("\(Int(fraction * 100)) %").foregroundStyle(Theme.secondaryText).monospacedDigit()
             case .waitingForGame:
                 Image(systemName: "pause.circle").foregroundStyle(Theme.warm)
                 Text("Väntar på spelet").foregroundStyle(Theme.warm)
             case .installing:
-                ProgressView().controlSize(.small)
+                Spinner()
                 Text("Installerar…").foregroundStyle(Theme.secondaryText)
             case .done:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
@@ -345,7 +340,7 @@ struct AppIcon: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     if let symbol {
                         Image(systemName: symbol)
                             .font(.system(size: 16 * scale, weight: .semibold))
@@ -359,15 +354,15 @@ struct AppIcon: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: 8 * scale, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8 * scale, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
     }
 
     private var tint: Color {
         switch category {
-        case .system: return Theme.warm
-        case .tools: return Theme.cool
-        case .webmanAddons: return Theme.good
+        case .system: return Theme.psBlue
+        case .tools: return Theme.galacticPurple
+        case .webmanAddons: return Theme.cosmicRed
         }
     }
 }
