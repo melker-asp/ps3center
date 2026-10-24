@@ -92,12 +92,20 @@ struct StatusView: View {
         .frame(height: 210)
     }
 
+    /// The PS app's storage sheet: free space, a white bar of what is used, and the total.
     private func spaceCard(_ s: ConsoleSnapshot) -> some View {
         let parts = s.freeBytes.map { Format.bytes($0).split(separator: " ").map(String.init) } ?? ["–"]
         return Card(icon: "internaldrive", title: "Ledigt", chip: "/dev_hdd0") {
             BigValue(value: parts.first ?? "–", unit: parts.count > 1 ? parts[1] : nil)
+            if let free = s.freeBytes, let total = s.totalBytes {
+                PSProgressBar(fraction: 1 - Double(free) / Double(total))
+            }
             Spacer(minLength: 0)
-            Footnote(text: (s.freeBytes ?? 0) < 50_000_000_000 ? "Det börjar bli trångt" : "Gott om plats för fler spel")
+            if let total = s.totalBytes {
+                Footnote(text: "Lagring \(Format.bytes(total))")
+            } else {
+                Footnote(text: (s.freeBytes ?? 0) < 50_000_000_000 ? "Det börjar bli trångt" : "Gott om plats för fler spel")
+            }
         }
         .frame(height: 170)
     }
@@ -121,17 +129,84 @@ struct StatusView: View {
         .frame(height: 170)
     }
 
+    /// Like "Vänner som spelar" in the PS app: the game's own art behind it, its icon, and
+    /// a green dot while it runs.
     private func nowPlayingCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "gamecontroller", title: "Spelar nu", chip: s.isGameRunning ? "Spelar" : "XMB",
-             chipColor: s.isGameRunning ? Theme.good : Theme.secondaryText) {
-            Text(s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "Okänt spel") : "Inget spel")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(s.isGameRunning ? Theme.primaryText : Theme.secondaryText)
-                .lineLimit(2)
-            Spacer(minLength: 0)
-            Footnote(text: s.isGameRunning ? (s.playTime.map { "Spelat \($0)" } ?? "") : (s.mountedGameName.map { "Monterat: \($0)" } ?? "Ingen skiva monterad"))
+        let name = s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "Okänt spel") : (s.mountedGameName ?? "Inget spel")
+        return ZStack(alignment: .bottomLeading) {
+            nowPlayingBackdrop
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "gamecontroller")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    Text("SPELAR NU")
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(1.3)
+                        .foregroundStyle(Theme.primaryText.opacity(0.85))
+                    Spacer()
+                    Chip(text: s.isGameRunning ? "Spelar" : "XMB", color: s.isGameRunning ? Theme.good : Theme.secondaryText)
+                }
+                Spacer(minLength: 0)
+                HStack(alignment: .center, spacing: 12) {
+                    gameThumbnail(name: name)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(name)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(s.isGameRunning || s.mountedGameName != nil ? Theme.primaryText : Theme.secondaryText)
+                            .lineLimit(2)
+                        HStack(spacing: 6) {
+                            if s.isGameRunning {
+                                Circle().fill(Theme.good).frame(width: 8, height: 8)
+                                Text(s.playTime.map { "Spelar nu · \($0)" } ?? "Spelar nu")
+                            } else {
+                                Text(s.mountedGameName == nil ? "Ingen skiva monterad" : "Monterad")
+                            }
+                        }
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryText)
+                    }
+                }
+            }
+            .padding(20)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 170)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.cardStroke))
+    }
+
+    @ViewBuilder private var nowPlayingBackdrop: some View {
+        if let background = console.gameBackground ?? console.gameIcon {
+            // In an overlay, so the picture fills the card without widening its grid column.
+            Color.clear
+                .overlay(Image(nsImage: background).resizable().aspectRatio(contentMode: .fill))
+                .overlay(LinearGradient(colors: [Color.black.opacity(0.35), Color.black.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+        } else {
+            ZStack {
+                Theme.cardFill
+                LinearGradient(colors: [Theme.novaPink.opacity(0.22), Theme.psBlue.opacity(0.10), .clear],
+                               startPoint: .topTrailing, endPoint: .bottomLeading)
+            }
+        }
+    }
+
+    private func gameThumbnail(name: String) -> some View {
+        Group {
+            if let icon = console.gameIcon {
+                Image(nsImage: icon).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    LinearGradient(colors: [Theme.novaPink.opacity(0.9), Theme.psBlue.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Image(systemName: "opticaldisc.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                }
+            }
+        }
+        .frame(width: 80, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(0.1)))
     }
 
     private func systemCard(_ s: ConsoleSnapshot) -> some View {

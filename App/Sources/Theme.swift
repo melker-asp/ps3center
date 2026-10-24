@@ -30,15 +30,23 @@ enum Theme {
     static let cardFill = Color.white.opacity(0.05)
     static let cardStroke = Color.white.opacity(0.07)
 
-    static func hue(for tab: MainTab) -> Color {
-        switch tab {
-        case .status: return starlightBlue
-        case .apps: return galacticPurple
+    static func hue(for tab: MainTab, theme: AppTheme = .perTab) -> Color {
+        switch theme {
+        case .perTab:
+            switch tab {
+            case .status: return starlightBlue
+            case .apps: return galacticPurple
+            }
+        case .starlightBlue: return starlightBlue
+        case .novaPink: return novaPink
+        case .cosmicRed: return cosmicRed
+        case .galacticPurple: return galacticPurple
+        case .midnightBlack: return Color(white: 0.55)
         }
     }
 
-    static func background(for tab: MainTab) -> some View {
-        FacetBackground(tint: hue(for: tab))
+    static func background(for tab: MainTab, theme: AppTheme = .perTab) -> some View {
+        FacetBackground(tint: hue(for: tab, theme: theme), intensity: theme == .midnightBlack ? 0.12 : 0.35)
     }
 
     static func healthColor(_ score: Int) -> Color {
@@ -126,6 +134,32 @@ struct FacetBackground: View {
         }
         .fill(LinearGradient(colors: [Color.white.opacity(opacity * intensity), tint.opacity(opacity * intensity * 0.6), .clear],
                              startPoint: from, endPoint: to))
+    }
+}
+
+/// The PS app's splash screen: PlayStation blue, lighter at the top left, with angled planes.
+struct SplashBackground: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let w = proxy.size.width, h = proxy.size.height
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.19, green: 0.45, blue: 0.85), Color(red: 0.11, green: 0.27, blue: 0.62),
+                                        Color(red: 0.03, green: 0.09, blue: 0.36)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                plane([(0.18 * w, 0), (0.30 * w, 0), (0, h), (0, 0.72 * h)], opacity: 0.07)
+                plane([(0.32 * w, 0), (w, 0), (w, 0.19 * h)], opacity: 0.10)
+                plane([(w, 0.52 * h), (w, h), (0.13 * w, h)], opacity: 0.06)
+            }
+        }
+    }
+
+    private func plane(_ points: [(CGFloat, CGFloat)], opacity: Double) -> some View {
+        Path { path in
+            path.move(to: CGPoint(x: points[0].0, y: points[0].1))
+            points.dropFirst().forEach { path.addLine(to: CGPoint(x: $0.0, y: $0.1)) }
+            path.closeSubpath()
+        }
+        .fill(Color.white.opacity(opacity))
     }
 }
 
@@ -313,13 +347,21 @@ struct PillButtonStyle: ButtonStyle {
 /// The PS app's round outlined icon buttons (refresh, settings).
 struct CircleIconButtonStyle: ButtonStyle {
     var size: CGFloat = 34
+    /// The white disc with a black icon, like the PS app's back button.
+    var filled = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(Theme.primaryText)
+            .font(.system(size: size * 0.42, weight: .semibold))
+            .foregroundStyle(filled ? Color.black : Theme.primaryText)
             .frame(width: size, height: size)
-            .background(Circle().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.7 : 0.4), lineWidth: 1.5))
+            .background {
+                if filled {
+                    Circle().fill(Color.white.opacity(configuration.isPressed ? 0.8 : 1))
+                } else {
+                    Circle().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.7 : 0.4), lineWidth: 1.5)
+                }
+            }
             .contentShape(Circle())
     }
 }

@@ -15,16 +15,26 @@ enum MainTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @Environment(ConsoleStore.self) private var console
+    @Environment(AppearanceStore.self) private var appearance
     @State private var tab: MainTab = .status
+    @State private var showsAppearance = false
 
     var body: some View {
         ZStack {
-            Theme.background(for: tab)
-                .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.35), value: tab)
+            Group {
+                if console.connection == .online {
+                    Theme.background(for: tab, theme: appearance.theme)
+                } else {
+                    SplashBackground()
+                }
+            }
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.35), value: tab)
+            .animation(.easeInOut(duration: 0.35), value: appearance.theme)
+            .animation(.easeInOut(duration: 0.5), value: console.connection == .online)
 
             VStack(spacing: 0) {
-                TabBar(selection: $tab)
+                TopBar(selection: $tab) { showsAppearance = true }
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -44,6 +54,23 @@ struct ContentView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
+        .sheet(isPresented: $showsAppearance) { AppearanceView() }
+    }
+}
+
+/// The tabs centred, the settings button on the right.
+struct TopBar: View {
+    @Binding var selection: MainTab
+    let openAppearance: () -> Void
+
+    var body: some View {
+        TabBar(selection: $selection)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .trailing) {
+                Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
+                    .buttonStyle(CircleIconButtonStyle())
+                    .help("Utseende")
+            }
     }
 }
 
@@ -106,28 +133,32 @@ struct TabBar: View {
     }
 }
 
-/// Shown until webMAN answers: connecting, scanning or offline with a way out.
+/// Shown until webMAN answers, on the PS app's splash screen: the white logo on PlayStation
+/// blue, then connecting, scanning or offline with a way out.
 struct ConnectionView: View {
     @Environment(ConsoleStore.self) private var console
 
     var body: some View {
         VStack(spacing: 18) {
             Spacer()
-            HealthOrb(color: orbColor)
-                .opacity(isOffline ? 0.55 : 1)
+            Image(systemName: "playstation.logo")
+                .font(.system(size: 96, weight: .regular))
+                .foregroundStyle(.white)
+                .opacity(isOffline ? 0.6 : 1)
+                .padding(.bottom, 18)
             Text(title)
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 26, weight: .light))
                 .foregroundStyle(Theme.primaryText)
             Text(detail)
                 .font(.system(size: 14))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Color.white.opacity(0.72))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
             if isOffline {
                 Button("Försök igen") { console.retry() }
-                    .buttonStyle(PillButtonStyle(tint: Theme.warm))
+                    .buttonStyle(PillButtonStyle())
             } else {
-                Spinner()
+                Spinner(size: 20)
             }
             Spacer()
             Spacer()
@@ -139,8 +170,6 @@ struct ConnectionView: View {
         if case .offline = console.connection { return true }
         return false
     }
-
-    private var orbColor: Color { isOffline ? Theme.hot : Theme.psBlue }
 
     private var title: String {
         switch console.connection {

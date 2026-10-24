@@ -118,9 +118,28 @@ public struct WebMAN: Sendable {
         let statusPage = try await get("/cpursx.ps3")
         var snapshot = ConsoleSnapshot.parse(sysInfo: sysInfoText, statusPage: statusPage)
         snapshot.host = host
+        snapshot.totalBytes = await diskTotal()
         snapshot.runningProcess = try? await runningProcess()
         snapshot.computeHealth()
         return snapshot
+    }
+
+    /// The disk's size never changes, so GETHDDINFO is asked once per console, not every poll.
+    private static let diskTotals = DiskTotals()
+
+    private func diskTotal() async -> Int64? {
+        if let known = Self.diskTotals.get(host) { return known > 0 ? known : nil }
+        let total = (try? await ps3mapi("PS3 GETHDDINFO")).flatMap { Self.parseDiskSpace($0)?.total }
+        Self.diskTotals.set(host, total ?? 0)  // 0: asked, not available
+        return total
+    }
+
+    /// GETHDDINFO answers "[free,total,minfree,optim]" in bytes (webMAN's ps3mapi_server.h).
+    static func parseDiskSpace(_ text: String) -> (free: Int64, total: Int64)? {
+        let numbers = text.trimmingCharacters(in: CharacterSet(charactersIn: "[] \"\n"))
+            .split(separator: ",").map { Int64($0.trimmingCharacters(in: .whitespaces)) }
+        guard numbers.count >= 2, let free = numbers[0], let total = numbers[1], total > 0, free <= total else { return nil }
+        return (free, total)
     }
 
     /// The foreground process name, or nil when only the XMB (vsh.self) is running.
@@ -147,5 +166,22 @@ public struct WebMAN: Sendable {
         guard !name.isEmpty, !name.lowercased().contains("vsh.self") else { return nil }
         if let range = name.range(of: "_main_") { return String(name[range.upperBound...]) }
         return name
+    }
+}
+
+final class DiskTotals: @unchecked Sendable {
+    private var totals: [String: Int64] = [:]
+    private let lock = NSLock()
+
+    func get(_ host: String) -> Int64? {
+        lock.lock()
+        defer { lock.unlock() }
+        return totals[host]
+    }
+
+    func set(_ host: String, _ total: Int64) {
+        lock.lock()
+        defer { lock.unlock() }
+        totals[host] = total
     }
 }

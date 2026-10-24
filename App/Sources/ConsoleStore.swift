@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import PS3Kit
@@ -21,6 +22,10 @@ final class ConsoleStore {
     private(set) var rsxHistory: [Double] = []
     private(set) var fanHistory: [Double] = []
     private(set) var history: [OperationLog.Entry] = []
+    /// ICON0 and PIC1 of the mounted game, fetched again when the mount changes.
+    private(set) var gameIcon: NSImage?
+    private(set) var gameBackground: NSImage?
+    private var artPath: String?
 
     let interval: TimeInterval = 3
     private let historyLength = 40
@@ -58,12 +63,26 @@ final class ConsoleStore {
                 latency = Date().timeIntervalSince(started)
                 record(next)
                 connection = .online
+                if next.mountedGamePath != artPath { loadArt(for: next.mountedGamePath, host: host) }
             } catch {
                 connection = .offline(error.localizedDescription)
                 self.host = nil  // look again next round; the IP may have changed
             }
             history = OperationLog.read(limit: 12).reversed()
             try? await Task.sleep(for: .seconds(interval))
+        }
+    }
+
+    private func loadArt(for path: String?, host: String) {
+        artPath = path
+        gameIcon = nil
+        gameBackground = nil
+        guard path != nil else { return }
+        Task { [weak self] in
+            let art = await GameArt.mounted(host: host)
+            guard let self, self.artPath == path else { return }
+            self.gameIcon = art.icon.flatMap(NSImage.init(data:))
+            self.gameBackground = art.background.flatMap(NSImage.init(data:))
         }
     }
 

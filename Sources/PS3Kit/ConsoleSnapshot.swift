@@ -16,6 +16,8 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public var fanPercent: Int?
     public var fanTargetMax: Int?
     public var freeBytes: Int64?
+    /// Size of /dev_hdd0 from PS3MAPI GETHDDINFO; nil on webMAN versions without it.
+    public var totalBytes: Int64?
     public var network: String?
     public var ip: String?
     public var playTime: String?

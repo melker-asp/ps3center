@@ -27,7 +27,9 @@ struct AppDetailView: View {
             }
         }
         .task(id: status.id) {
-            if let entry { await apps.loadReadme(for: entry) }
+            guard let entry else { return }
+            await apps.loadReadme(for: entry)
+            await apps.loadBackground(for: entry)
         }
     }
 
@@ -64,10 +66,30 @@ struct AppDetailView: View {
 
     // MARK: Header
 
+    /// A banner like the PS Store's: the app's own XMB background (PIC1.PNG) when it is
+    /// installed, else the README's first picture, else the category colour.
     private var header: some View {
-        HStack(alignment: .center, spacing: 22) {
+        ZStack(alignment: .bottomLeading) {
+            HeroBackdrop(image: apps.backgrounds[status.id], url: firstReadmeImage, tint: AppIcon.tint(for: status.category))
+            LinearGradient(colors: [Color.black.opacity(0.05), Color.black.opacity(0.78)], startPoint: .top, endPoint: .bottom)
+            headerContent.padding(24)
+        }
+        .frame(height: 290)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.cardStroke))
+    }
+
+    private var firstReadmeImage: URL? {
+        guard case .some(.loaded(let readme)) = readmeState else { return nil }
+        for block in readme.blocks { if case .image(let image) = block { return image.url } }
+        return nil
+    }
+
+    private var headerContent: some View {
+        HStack(alignment: .bottom, spacing: 22) {
             AppIcon(image: apps.icons[status.id], name: status.name, category: status.category,
                     symbol: AppRow.symbols[status.id], size: CGSize(width: 160, height: 88))
+                .shadow(color: .black.opacity(0.4), radius: 10, y: 4)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Text(status.name)
@@ -80,7 +102,7 @@ struct AppDetailView: View {
                 }
                 Text(status.summary)
                     .font(.system(size: 14))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Color.white.opacity(0.75))
                 HStack(spacing: 10) {
                     action
                     if let url = sourceURL {
@@ -270,6 +292,28 @@ struct AppDetailView: View {
 
     private var readmeState: AppsStore.ReadmeState? {
         entry?.repository.flatMap { apps.readmes[$0] }
+    }
+}
+
+/// The banner picture, filling its frame; the category colour while nothing has loaded.
+struct HeroBackdrop: View {
+    let image: NSImage?
+    let url: URL?
+    let tint: Color
+    @State private var remote: NSImage?
+
+    var body: some View {
+        Group {
+            if let picture = image ?? remote {
+                Color.clear.overlay(Image(nsImage: picture).resizable().aspectRatio(contentMode: .fill))
+            } else {
+                FacetBackground(tint: tint, intensity: 1)
+            }
+        }
+        .task(id: url) {
+            guard image == nil, let url, let response = try? await URLSession.shared.data(from: url) else { return }
+            remote = NSImage(data: response.0)
+        }
     }
 }
 
