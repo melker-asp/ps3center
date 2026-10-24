@@ -49,12 +49,19 @@ enum Snapshot {
             render(.games, name: "games-detail", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
             games.selectedID = nil
         }
+        // An installed game (Journey in the fixtures): Avinstallera instead of Ta bort.
+        if let installed = games.games.first(where: \.isInstalled) {
+            games.selectedID = installed.id
+            render(.games, name: "games-detail-installed", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+            games.selectedID = nil
+        }
         // The Mac's library with two games picked for sending.
         games.source = .mac
         games.selection = Set(games.macGames.filter { games.macStates[$0.id] == .notOnConsole }.prefix(2).map(\.id))
         render(.games, name: "games-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
         games.source = .console
         games.selection = []
+        write(FoldersView(live: false), name: "folders", into: directory)
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)

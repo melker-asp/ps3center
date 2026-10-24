@@ -39,12 +39,17 @@ xcodebuild den inte.
 
 - **Bara macOS kan bygga.** PS3Kit använder Network.framework och CryptoKit, och appen är SwiftUI,
   så varken `swift build` eller `swift test` fungerar på Linux.
-- **CI kontrollerar varje push.** GitHub Actions (`.github/workflows/ci.yml`, macos-15) kör
-  `swift test`, bygger CLI:t och bygger appen. Pusha och läs CI-resultatet i stället för att bygga
-  lokalt.
+- **CI kontrollerar varje commit** i en pull request och på main. GitHub Actions
+  (`.github/workflows/ci.yml`, macos-15) kör `swift test`, bygger CLI:t och bygger appen. Pusha
+  och läs CI-resultatet i stället för att bygga lokalt. Med repo-variabeln `CI_RUNNER=self-hosted`
+  går jobbet på användarens egen Mac i stället för GitHubs, och då kostar det inga Actions-minuter.
 - **Skärmbilder:** CI renderar varje skärm från `Fixtures` (`PS3CENTER_FIXTURES=1`) och laddar upp
   dem som artefakten `screenshots`. Granska designändringar där. Nya skärmar läggs till i
   `Snapshot.run`, och data som behövs för dem i `Fixtures.swift`.
+- **Rapportera med skärmbilder.** Är en fas eller en ändring som syns i appen klar, hämta
+  artefakten `screenshots` från CI-körningen för den commiten. Skicka sedan de skärmar som är nya
+  eller har ändrats tillsammans med rapporten (användarens önskan 24 okt 2026). Går CI inte att
+  köra, säg det, och skicka inga gamla bilder som om de vore nya.
 - **Konsolen finns bara på användarens hemnätverk.** Allt som kräver en riktig PS3 (snapshot,
   installationer, `ps3 status`) får användaren köra på sin Mac. Beskriv vad som ska provas.
 - **CI kan ha en äldre Xcode** än användarens (Xcode 27 / Swift 6.4). Undvik helt nya API:er utan

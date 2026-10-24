@@ -9,9 +9,20 @@ struct FoldersView: View {
     @Environment(\.dismiss) private var dismiss
     /// Called after a change, so the Mac's library is read again.
     let onChange: () -> Void
-    @State private var linked: [(kind: GameFolders.Kind, url: URL)] = GameFolders.linked()
-    @State private var configured: [String: [String]] = ConfigStore.load().folders ?? [:]
-    @State private var watched: Set<String> = Set(ConfigStore.load().watchedFolders ?? [])
+    /// False when rendered for a snapshot: the folders in Fixtures, and no disk is looked at.
+    private let live: Bool
+    @State private var linked: [(kind: GameFolders.Kind, url: URL)]
+    @State private var configured: [String: [String]]
+    @State private var watched: Set<String>
+
+    init(live: Bool = true, onChange: @escaping () -> Void = {}) {
+        let config = live ? ConfigStore.load() : Fixtures.folderConfig
+        self.live = live
+        self.onChange = onChange
+        _linked = State(initialValue: live ? GameFolders.linked(config: config) : GameFolders.linked(config: config, mirrorRoot: nil))
+        _configured = State(initialValue: config.folders ?? [:])
+        _watched = State(initialValue: Set(config.watchedFolders ?? []))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -65,7 +76,7 @@ struct FoldersView: View {
                             .foregroundStyle(Theme.primaryText)
                             .lineLimit(1)
                             .truncationMode(.middle)
-                        if !FileManager.default.fileExists(atPath: url.path) {
+                        if !isPluggedIn(url) {
                             Chip(text: "Inte ansluten", color: Theme.warm)
                         }
                         Spacer(minLength: 4)
@@ -93,6 +104,10 @@ struct FoldersView: View {
             }
         }
         .padding(.vertical, 12)
+    }
+
+    private func isPluggedIn(_ url: URL) -> Bool {
+        live ? FileManager.default.fileExists(atPath: url.path) : !Fixtures.unpluggedFolders.contains(url.path)
     }
 
     private func isConfigured(_ url: URL, _ kind: GameFolders.Kind) -> Bool {

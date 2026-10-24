@@ -1,13 +1,23 @@
 name: CI
 
+# One run per commit: pushes to main, and pull requests (which cover their branch's pushes).
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the older run moot.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     # PS3Kit uses Network.framework and CryptoKit, and the app is SwiftUI: macOS only.
-    runs-on: macos-15
+    # The repository variable CI_RUNNER=self-hosted runs it on a Mac of your own instead
+    # (Settings → Actions → Runners), which uses no Actions minutes.
+    runs-on: ${{ vars.CI_RUNNER || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +32,7 @@ jobs:
 
       - name: Build app
         run: |
-          brew install xcodegen
+          command -v xcodegen >/dev/null || brew install xcodegen
           make project
           xcodebuild -project App/PS3Center.xcodeproj -scheme PS3Center -derivedDataPath .build/xcode \
             -configuration Debug CODE_SIGNING_ALLOWED=NO build
@@ -31,6 +41,7 @@ jobs:
       - name: Render screenshots
         run: |
           out="$PWD/.build/snapshots"
+          rm -rf "$out"
           mkdir -p "$out"
           PS3CENTER_FIXTURES=1 PS3CENTER_SNAPSHOT_DIR="$out" \
             ".build/xcode/Build/Products/Debug/PS3 Center.app/Contents/MacOS/PS3 Center" &

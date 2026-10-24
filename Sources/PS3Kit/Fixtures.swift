@@ -237,6 +237,20 @@ public enum Fixtures {
              source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue"),
     ])
 
+    /// Spelmappar: the folders behind `macGames`, the PS3 one watched, and one on a drive that is
+    /// not plugged in (`unpluggedFolders`).
+    public static var folderConfig: PS3Config {
+        var config = PS3Config(folders: [
+            "PS3ISO": ["/Users/melker/Spel/PS3", "/Volumes/Spel/PS3ISO"],
+            "PS2ISO": ["/Users/melker/Spel/PS2"],
+            "PSXISO": ["/Users/melker/Spel/PS1"],
+        ])
+        config.watchedFolders = ["/Users/melker/Spel/PS3"]
+        return config
+    }
+
+    public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO"]
+
     /// The send queue halfway through Uncharted 2, set to shut the console down when done.
     public static var queue: TransferQueue {
         var queue = TransferQueue()
