@@ -1,3 +1,4 @@
+import PS3Kit
 import SwiftUI
 
 enum MainTab: String, CaseIterable, Identifiable {
