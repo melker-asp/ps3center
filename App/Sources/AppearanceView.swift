@@ -21,7 +21,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 
     var detail: String? {
-        self == .perTab ? "Varje flik får sin egen färg: Status Starlight Blue, Appar Galactic Purple." : nil
+        self == .perTab ? "Varje flik får sin egen färg: Status Starlight Blue, Spel Nova Pink, Appar Galactic Purple." : nil
     }
 }
 
@@ -109,13 +109,14 @@ struct AppearanceView: View {
         .contentShape(Rectangle())
     }
 
-    /// A colour square; "Följ fliken" is split between the two tab colours.
+    /// A colour square; "Följ fliken" is split between the tab colours.
     private func swatch(_ theme: AppTheme) -> some View {
         Group {
             switch theme {
             case .perTab:
                 HStack(spacing: 0) {
                     Theme.hue(for: .status)
+                    Theme.hue(for: .games)
                     Theme.hue(for: .apps)
                 }
             case .midnightBlack:

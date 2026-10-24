@@ -8,6 +8,8 @@ public final class FTPClient {
         public let name: String
         public let size: Int64
         public let isDirectory: Bool
+        /// The listing's date as printed ("Jun 05 18:33"): enough to notice that something changed.
+        public var modified = ""
     }
 
     struct Reply {
@@ -139,9 +141,9 @@ public final class FTPClient {
     }
 
     static func parseListLine(_ line: String) -> Entry? {
-        guard let m = ConsoleSnapshot.firstMatch(#"^([\-dl])\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\w{3}\s+\d+\s+[\d:]+\s(.+)$"#, in: line)
+        guard let m = ConsoleSnapshot.firstMatch(#"^([\-dl])\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\w{3}\s+\d+\s+[\d:]+)\s(.+)$"#, in: line)
         else { return nil }
-        return Entry(name: m[3], size: Int64(m[2]) ?? 0, isDirectory: m[1] == "d")
+        return Entry(name: m[4], size: Int64(m[2]) ?? 0, isDirectory: m[1] == "d", modified: m[3])
     }
 
     public func download(_ path: String, limit: Int = 64 << 20) async throws -> Data? {
@@ -166,6 +168,18 @@ public final class FTPClient {
 
     public func delete(_ path: String) async throws {
         _ = try await command("DELE \(path)", expect: [250])
+    }
+
+    /// Deletes a folder and everything in it. webMAN's RMD is recursive in builds with its file
+    /// manager (COPY_PS3 in include/ftp.h); otherwise the folder is emptied file by file first.
+    public func removeTree(_ path: String) async throws {
+        // A recursive RMD of a large game folder takes a while.
+        if try await command("RMD \(path)", timeout: 300).code == 250 { return }
+        for entry in try await list(path) {
+            let child = path + "/" + entry.name
+            if entry.isDirectory { try await removeTree(child) } else { try await delete(child) }
+        }
+        _ = try await command("RMD \(path)", expect: [250])
     }
 
     /// Uploads `file`. With `offset > 0` the rest of the file is appended (APPE),

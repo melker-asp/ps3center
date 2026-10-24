@@ -42,7 +42,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | Flik | CLI | Innehåll |
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
-| **Spel** | `ps3 send` (+ senare `games`) | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
+| **Spel** | `ps3 games`, `ps3 send` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
 | **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
 | **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
@@ -55,7 +55,7 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
 
 - **Bas:** blåsvart som PS-appens mörka läge, med startskärmens snedställda ljusytor
   (`FacetBackground`). Varje flik tonas med ett av PS-appens teman: Status Starlight Blue,
-  Appar Galactic Purple, och senare Spel Nova Pink och Underhåll Cosmic Red.
+  Spel Nova Pink, Appar Galactic Purple, och senare Underhåll Cosmic Red.
 - **Färger:** PlayStation-blått för det man kan agera på (ikoner, länkar, förlopp), PS-appens
   gröna för närvaro, badges och "bra", gult och rött för varningar.
 - **Flikar** som piller centrerade högst upp, som PS-appens segmentkontroll: mörk kapsel, ljusare
@@ -100,7 +100,9 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   webMAN tillfälligt av konsolens "Stäng av automatiskt" och slår på den igen efteråt
   (`include/init/autopoweroff.h`).
 - **`/md5.ps3/<sökväg>`** visar en fils MD5 på konsolen. **`/play.ps3/<sökväg>`** monterar och
-  startar, **`/xmb.ps3$exit`** avslutar spelet, **`/shutdown.ps3`** stänger av (webMAN:s wiki).
+  startar, **`/play.ps3?<title ID>`** startar ett installerat spel från dess ikon, **`/xmb.ps3$exit`**
+  avslutar spelet, **`/shutdown.ps3`** stänger av (webMAN:s wiki). RMD tar bort mappar rekursivt i
+  bygget med filhanteraren (`COPY_PS3`).
 - **Spellistan och cachen:** webMAN skriver XMB:ns spellista till
   `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
   `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i
@@ -137,7 +139,9 @@ Planen framåt, fas för fas, finns i [PLAN.md](PLAN.md).
 - **Spel:** bara egna filer via `send`. Ingen inbyggd nedladdning från ROM-/ISO-arkiv.
   Planerat i stället: `ps3 rip` (kopiera skivan i spelaren med `/copy.ps3/dev_bdvd`),
   Finder-åtgärden "Skicka till PS3" och en bevakad mapp.
-- **CLI härnäst:** `games` (lista/starta/avsluta/ta bort), `maintain`, `analyze`,
+- **Spelbiblioteket (fas 1, påbörjad):** `ps3 games` (lista, info, starta, montera, avsluta, ta
+  bort) och Spel-fliken med rutnät och detaljsida. Se PLAN.md för vad som återstår.
+- **CLI härnäst:** `maintain`, `analyze`,
   `backup-saves`, `plugin add/remove` (säker ändring av boot_plugins.txt), en interaktiv meny
   när `ps3` körs utan argument, och Finder-åtgärden "Skicka till PS3".
 - **App 0.1 (klar):** Xcode-projekt genererat från `App/project.yml` som länkar PS3Kit, Swift 6
@@ -145,5 +149,5 @@ Planen framåt, fas för fas, finns i [PLAN.md](PLAN.md).
 - **Skärmbilder utan PS3 (klart):** `PS3CENTER_FIXTURES=1` ger appen data från PS3Kit:s
   `Fixtures`; CI renderar varje skärm och laddar upp PNG:erna som artefakten `screenshots`.
 - **PS-utseende (klart):** se avsnittet Utseende ovan.
-- **App härnäst:** Spel-fliken med dra-och-släpp (kräver att PS3Kit kan lista spelen på
-  konsolen), menyraden och en appikon.
+- **App härnäst:** omslag och Macens spelmappar med dra-och-släpp i Spel-fliken (fas 2 och 3),
+  menyraden och en appikon.

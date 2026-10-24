@@ -4,6 +4,7 @@ import SwiftUI
 struct PS3CenterApp: App {
     @State private var console = ConsoleStore()
     @State private var apps = AppsStore()
+    @State private var games = GamesStore()
     @State private var appearance = AppearanceStore()
 
     var body: some Scene {
@@ -11,6 +12,7 @@ struct PS3CenterApp: App {
             ContentView()
                 .environment(console)
                 .environment(apps)
+                .environment(games)
                 .environment(appearance)
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)
@@ -18,11 +20,12 @@ struct PS3CenterApp: App {
                     if Snapshot.usesFixtures {
                         console.loadFixture()
                         apps.loadFixture()
+                        games.loadFixture()
                     } else {
                         console.start()
                     }
                     if let directory = Snapshot.directory {
-                        await Snapshot.run(console: console, apps: apps, into: directory)
+                        await Snapshot.run(console: console, apps: apps, games: games, into: directory)
                     }
                 }
         }

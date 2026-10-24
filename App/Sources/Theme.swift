@@ -35,6 +35,7 @@ enum Theme {
         case .perTab:
             switch tab {
             case .status: return starlightBlue
+            case .games: return novaPink
             case .apps: return galacticPurple
             }
         case .starlightBlue: return starlightBlue

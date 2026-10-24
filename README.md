@@ -20,9 +20,11 @@ brew install xcodegen   # en gång
 make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar appen
 ```
 
-Version 0.1 har två flikar i Mole-stil:
+Appen har tre flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
   löpande kurvor och historiken från `ps3 history`.
+- **Spel:** spelen på PS3:an som rutnät med XMB-ikoner, filter per plattform och sök. Klicka på ett
+  spel för title ID, region, storlek och version, och för att starta, montera eller ta bort det.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
@@ -38,6 +40,11 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | Kommando | Gör |
 |---|---|
 | `ps3 status` | Hälsa, temperaturer, fläkt, ledigt utrymme och vad som körs. `--watch` uppdaterar löpande, `--json` ger JSON |
+| `ps3 games` | Spelen på PS3:an per plattform: title ID, region, storlek, version och installerade uppdateringar (`--platform ps2`, `--json`) |
+| `ps3 games info <namn>` | Allt om ett spel. Namnet kan vara en del av titeln, ett title ID eller sökvägen |
+| `ps3 games play <namn>` | Startar spelet. Körs ett annat spel frågar den först om det ska avslutas (`-y`, `--dry-run`) |
+| `ps3 games mount\|unmount\|exit` | Monterar ett spel som skiva, avmonterar det eller avslutar spelet som körs |
+| `ps3 games delete <namn>` | Tar bort spelets filer från PS3:an efter en fråga (`--dry-run`, `-y`) |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
 | `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |

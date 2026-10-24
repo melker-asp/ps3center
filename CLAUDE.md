@@ -78,6 +78,12 @@ xcodebuild den inte.
 - **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
   `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
   Samma data visar `ps3 apps info`.
+- **Spelen** (`GameLibrary.swift`): `GameLibraryService.scan` listar webMAN:s spelmappar (PS3ISO,
+  GAMES, PS2ISO …) på hdd0 och USB plus `/dev_hdd0/game`. Titel och title ID kommer ur PARAM.SFO,
+  för ISO:er webMAN:s kopia i `/dev_hdd0/tmp/wmtmp`, och cachas i `~/Library/Caches/ps3center/`.
+  `GameListing` är den nätverksfria delen som testerna matar med listningar. Installerade spel i
+  `/dev_hdd0/game` startas via title ID och tas aldrig bort av PS3 Center. `GamesStore` och
+  `GamesView` är Spel-fliken.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -92,6 +98,10 @@ xcodebuild den inte.
   En trasig sprx kan få konsolen att frysa vid start.
 - **Spara eller visa aldrig PSID/IDPS.** `/cpursx.ps3` innehåller dem.
 - **Ingen inbyggd nedladdning av spel från ROM- eller ISO-arkiv.** `send` tar användarens egna filer.
+- **Speluppdateringar** får hämtas från Sonys officiella uppdateringsserver, som RPCS3 gör: bara
+  spelpatchar, aldrig firmware (PUP), utan PSN-inloggning, och en patch som kräver nyare
+  systemprogramvara än konsolens blockeras. Inget får kunna uppdatera konsolen eller leda till ban
+  (användarens beslut 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd och ska inte kringgås. Program som bara finns där
   får en länk.
 - **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i

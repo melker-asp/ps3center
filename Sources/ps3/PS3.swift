@@ -11,12 +11,14 @@ struct PS3: AsyncParsableCommand {
         Exempel:
           ps3 status                   Temperatur, fläkt, utrymme och vad som körs
           ps3 send Spel.dec.iso        Ladda upp ett spel, uppdatera spellistan, visa popup
+          ps3 games                    Spelen på PS3:an, med title ID, storlek och version
+          ps3 games play gran          Starta ett spel från Macen
           ps3 apps                     Installerade program och tillgängliga uppdateringar
           ps3 apps info apollo         Version, om det fungerar på din PS3, README
           ps3 apps update              Granska och installera uppdateringar
           ps3 apps install X.pkg       Installera ett paket utan USB-sticka
         """,
         version: "0.1.0",
-        subcommands: [Status.self, Send.self, Apps.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
+        subcommands: [Status.self, Send.self, Games.self, Apps.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }

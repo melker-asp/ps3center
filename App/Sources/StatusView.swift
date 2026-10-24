@@ -292,6 +292,11 @@ struct HistoryTable: View {
         case "install": return "shippingbox"
         case "send": return "arrow.up.circle"
         case "refresh": return "arrow.clockwise"
+        case "play": return "play.circle"
+        case "mount": return "opticaldisc"
+        case "unmount": return "eject"
+        case "exit": return "xmark.circle"
+        case "delete": return "trash"
         default: return "circle"
         }
     }

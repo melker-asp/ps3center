@@ -119,14 +119,19 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum GameName {
-    /// "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso" -> "Test Drive Unlimited 2"
+    /// "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso" -> "Test Drive Unlimited 2",
+    /// "Shadow of the Colossus [SCES-53326].iso" -> "Shadow of the Colossus",
+    /// "BLUS30443-[Demon's Souls]" (multiMAN's folder names) -> "Demon's Souls"
     public static func clean(_ fileName: String) -> String {
         var name = (fileName as NSString).lastPathComponent
-        for ext in [".dec.iso", ".iso", ".ISO", ".pkg", ".bin", ".cue"] where name.hasSuffix(ext) {
+        for ext in [".dec.iso", ".iso.0", ".bin.enc", ".iso", ".pkg", ".bin", ".cue", ".cso", ".img", ".mdf"]
+            where name.lowercased().hasSuffix(ext) {
             name.removeLast(ext.count)
             break
         }
-        if let paren = name.range(of: " (") { name = String(name[..<paren.lowerBound]) }
+        if let folder = ConsoleSnapshot.firstMatch(#"^[A-Z]{4}\d{5}-\[(.+)\]$"#, in: name) { return folder[1] }
+        if name.hasPrefix("["), let close = name.range(of: "] ") { name = String(name[close.upperBound...]) }
+        if let tag = name.range(of: #" [(\[]"#, options: .regularExpression) { name = String(name[..<tag.lowerBound]) }
         return name.trimmingCharacters(in: .whitespaces)
     }
 }

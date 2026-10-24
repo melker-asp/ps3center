@@ -131,4 +131,34 @@ public enum Fixtures {
          rawBase: URL(string: "https://raw.githubusercontent.com/bucanero/apollo-ps3/master/"),
          htmlBase: URL(string: "https://github.com/bucanero/apollo-ps3/blob/master/"),
          htmlURL: URL(string: "https://github.com/bucanero/apollo-ps3/blob/master/README.md"))
+
+    // MARK: Games
+
+    /// The console's games as `GameLibraryService.scan` returns them: Test Drive Unlimited 2 is
+    /// the one mounted in `snapshot`, Gran Turismo 5 and The Last of Us have updates installed.
+    public static let games: [Game] = GameListing.attach(["BCES00569": "02.17", "BCES01584": "01.11"], to: [
+        Game(path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", title: "Test Drive Unlimited 2",
+             titleID: "BLES01200", platform: .ps3, size: 9_642_180_608, version: "01.00"),
+        Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
+             platform: .ps3, size: 13_481_082_880, version: "01.00"),
+        Game(path: "/dev_hdd0/PS3ISO/The Last of Us (Europe).iso", title: "The Last of Us", titleID: "BCES01584",
+             platform: .ps3, size: 27_525_120_000, version: "01.00"),
+        Game(path: "/dev_hdd0/PS3ISO/Red Dead Redemption (Europe).iso", title: "Red Dead Redemption", titleID: "BLES00680",
+             platform: .ps3, size: 7_331_643_392, version: "01.00"),
+        Game(path: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", title: "Demon's Souls", titleID: "BLUS30443",
+             platform: .ps3, isFolder: true, version: "01.00"),
+        Game(path: "/dev_hdd0/game/NPEA00418", title: "Journey", titleID: "NPEA00418", platform: .psn, isFolder: true,
+             version: "01.03"),
+        Game(path: "/dev_hdd0/PS2ISO/Shadow of the Colossus [SCES-53326].iso", title: "Shadow of the Colossus",
+             titleID: "SCES-53326", platform: .ps2, size: 4_352_016_384),
+        Game(path: "/dev_hdd0/PS2ISO/Ratchet & Clank [SCES-50916].iso", title: "Ratchet & Clank", titleID: "SCES-50916",
+             platform: .ps2, size: 3_120_562_176),
+        Game(path: "/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).cue", title: "Final Fantasy VII", titleID: "SCES-00867",
+             platform: .ps1, size: 698_496_000,
+             companions: ["/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).bin"]),
+        Game(path: "/dev_usb000/PSXISO/Crash Bandicoot (Europe).cue", title: "Crash Bandicoot", titleID: "SCES-00344",
+             platform: .ps1, size: 529_221_552, companions: ["/dev_usb000/PSXISO/Crash Bandicoot (Europe).bin"]),
+        Game(path: "/dev_hdd0/PSPISO/Patapon (Europe).iso", title: "Patapon", titleID: "UCES-00995", platform: .psp,
+             size: 312_475_648),
+    ])
 }

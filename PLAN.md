@@ -106,11 +106,16 @@ och har `--dry-run` i CLI:t.
 
 **Mål:** se alla spel på konsolen med ikon, titel, title ID, storlek och plats, och starta dem.
 
+**Läge 24 okt 2026:** byggt utan tester på konsolen, med reservvägar där fakta saknas. Klart är
+listningen (steg 2 nedan plus wmtmp-cachen), ikoner och bakgrunder, starta/montera/avsluta/ta bort,
+`ps3 games` och Spel-fliken med detaljsida. Kvar: `mygames.xml` (väntar på test 1), läsning i ISO:n
+via `REST` (väntar på test 2), sortering på storlek och datum, och att `send` sparar det den vet.
+
 PS3Kit:
-- `Game.swift`: `Game` (titel, title ID, plattform, region, storlek, platser), `GamePlatform`
-  (PS3, PSN, PS2, PS1, PSP, Blu-ray, DVD) och `GameLocation` (`.console(path)`, `.mac(URL)`,
-  `.network(path)`). Regionen läses ur title ID: `BLES`/`SLES` = Europa, `BLUS`/`SLUS` = USA osv.
-- `ConsoleLibrary.swift` hittar spelen i tre steg, billigast först:
+- `Game.swift`: `Game` (titel, title ID, plattform, region, storlek, sökväg) med `Game.Platform`
+  (PS3, PSN, PS2, PS1, PSP, Blu-ray, DVD). Regionen läses ur title ID: `BLES`/`SLES` = Europa,
+  `BLUS`/`SLUS` = USA osv. Platser på Macen kommer i fas 3.
+- `GameLibrary.swift` (`GameLibraryService`) hittar spelen i tre steg, billigast först:
   1. **webMAN:s egen lista** `/dev_hdd0/xmlhost/game_plugin/mygames.xml` (titel, ikon och sökväg
      eller title ID per spel) och dess cache i `/dev_hdd0/tmp/wmtmp` (`<namn>.SFO`, `<namn>.PNG`).
      Formatet kontrolleras mot en riktig fil först (test 1 under Prova).
@@ -129,12 +134,13 @@ PS3Kit:
   läsning blir bara en listning.
 - `send` sparar det den redan vet om spelen den skickar (title ID, titel, ikon), så att de spelen
   aldrig behöver läsas på konsolen.
-- `GameControl`: montera (`/mount.ps3/<sökväg>`), starta (`/play.ps3/<sökväg>`), avmontera
-  (`/mount.ps3/unmount`), avsluta spelet (`/xmb.ps3$exit`), ta bort (FTP `DELE`/`RMD`).
+- `GameLibraryService` styr också: montera (`/mount.ps3/<sökväg>`), starta (`/play.ps3/<sökväg>`,
+  installerade spel med `/play.ps3?<title ID>`), avmontera (`/mount.ps3/unmount`), avsluta spelet
+  (`/xmb.ps3$exit`), ta bort (FTP `DELE`/`RMD`). Installerade spel tas aldrig bort av PS3 Center.
 
 CLI:
 - `ps3 games` (gruppering per plattform, `--platform ps2`, `--json`), `ps3 games info <namn>`.
-- `ps3 games play <namn>`: körs ett annat spel frågar den om det ska avslutas (`--force` hoppar
+- `ps3 games play <namn>`: körs ett annat spel frågar den om det ska avslutas (`-y` hoppar
   över frågan). `ps3 games mount|unmount|exit`.
 - `ps3 games delete <namn>` med fråga, `--dry-run` och logg.
 
@@ -339,15 +345,15 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
 
 9. Mät strömmen med en energimätare i uttaget: i XMB:n, under ett spel och under en överföring.
 
-## Beslut som behövs från dig
+## Beslut (24 okt 2026)
 
-1. **Speluppdateringar (patchar).** Sony har en öppen server med officiella uppdateringar per
-   title ID (`a0.ww.np.dl.playstation.net/tpl/np/<ID>/<ID>-ver.xml`), som RPCS3 och andra verktyg
-   använder. Det är inte spel från ett ROM-arkiv, men det är en nedladdning till konsolen, så
-   regeln i CLAUDE.md bör säga uttryckligen om det är okej. Om ja passar det i fas 2 som
-   "Uppdateringar" i Spel-fliken, med samma installationsflöde som Appar.
-2. **ps3netsrv:** egen implementation i Swift (rekommenderas: läsning bara, de kopplade mapparna
-   som rot, ikoner i farten) eller den färdiga ps3netsrv startad av appen (snabbare att komma
-   igång, men licensen och en Mac-version måste kontrolleras).
-3. **Ordningen.** Planen tar biblioteket först och Mac-mapparna sedan. Vill du hellre ha
-   avbrottssäkra överföringar (fas 4) före omslagen går det bra.
+1. **Speluppdateringar (patchar): ja**, så länge inget kan uppdatera konsolen eller leda till
+   ban. Patcharna hämtas från Sonys öppna server
+   (`a0.ww.np.dl.playstation.net/tpl/np/<ID>/<ID>-ver.xml`), som RPCS3 gör, på Macen och utan
+   inloggning. De installeras som vanliga paket i `/dev_hdd0/game/<ID>`, vilket inte rör
+   systemprogramvaran. Aldrig firmware (`PS3UPDAT.PUP`), konsolen går aldrig ut på PSN för det, och
+   en patch som kräver nyare systemprogramvara än konsolens (`ps3_system_ver` i XML:en) blockeras
+   som i säkerhetsspärren. Kommer i fas 2 som "Uppdateringar" i Spel-fliken.
+2. **ps3netsrv:** egen implementation i Swift (fas 6): läsning bara, de kopplade mapparna som rot
+   och ikoner i farten.
+3. **Ordningen** står fast: biblioteket, omslag, Mac-mapparna och sedan överföringarna.

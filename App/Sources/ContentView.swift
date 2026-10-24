@@ -1,13 +1,14 @@
 import SwiftUI
 
 enum MainTab: String, CaseIterable, Identifiable {
-    case status, apps
+    case status, games, apps
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .status: return "Status"
+        case .games: return "Spel"
         case .apps: return "Appar"
         }
     }
@@ -43,6 +44,7 @@ struct ContentView: View {
                     Group {
                         switch tab {
                         case .status: StatusView()
+                        case .games: GamesView()
                         case .apps: AppsView()
                         }
                     }

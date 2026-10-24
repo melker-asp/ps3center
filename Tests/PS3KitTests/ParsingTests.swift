@@ -60,7 +60,7 @@ import Testing
 
 @Test func parsesFTPListLines() {
     let line = "-rwxrwxrwx 1 root  root     9642180608 Jun 05 18:33 Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso"
-    #expect(FTPClient.parseListLine(line) == FTPClient.Entry(name: "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", size: 9_642_180_608, isDirectory: false))
+    #expect(FTPClient.parseListLine(line) == FTPClient.Entry(name: "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", size: 9_642_180_608, isDirectory: false, modified: "Jun 05 18:33"))
     #expect(FTPClient.parseListLine("drwxrwxrwx 1 root  root            512 Jul 20 13:17 GAMES")?.isDirectory == true)
     #expect(FTPClient.parseListLine("total 0") == nil)
 }
@@ -115,6 +115,110 @@ import Testing
 @Test func cleansGameNames() {
     #expect(GameName.clean("Ferrari - The Race Experience (Europe) (En,Fr,De,Es,It).dec.iso") == "Ferrari - The Race Experience")
     #expect(GameName.clean("/dev_hdd0/PS3ISO/Game.iso") == "Game")
+    #expect(GameName.clean("Shadow of the Colossus [SCES-53326].iso") == "Shadow of the Colossus")
+    #expect(GameName.clean("Big Game (Europe).iso.0") == "Big Game")
+    #expect(GameName.clean("Classic.BIN.ENC") == "Classic")
+    #expect(GameName.clean("BLUS30443-[Demon's Souls]") == "Demon's Souls")
+}
+
+// MARK: Games
+
+@Test func readsTitleIDsAndRegions() {
+    #expect(TitleID.find(in: "Shadow of the Colossus [SCES-53326].iso", platform: .ps2) == "SCES-53326")
+    #expect(TitleID.find(in: "SLUS_209.46.Ratchet.iso", platform: .ps2) == "SLUS-20946")
+    #expect(TitleID.find(in: "BLES01234-[Game]", platform: .ps3) == "BLES01234")
+    #expect(TitleID.find(in: "Gran Turismo 5 (Europe).iso", platform: .ps3) == nil)
+    #expect(TitleID.find(in: "FIFA 2014 (Europe).iso", platform: .ps3) == nil)
+    #expect(TitleID.isOfficial("BCES00569"))
+    #expect(TitleID.isOfficial("NPUB31234"))
+    #expect(!TitleID.isOfficial("NP0APOLLO"))
+    #expect(!TitleID.isOfficial("IRISMAN00"))
+    #expect(Region(titleID: "BLES01234") == .europe)
+    #expect(Region(titleID: "NPUB31234") == .usa)
+    #expect(Region(titleID: "SLPM-65555") == .japan)
+    #expect(Region(titleID: "ULJM05500") == .japan)
+    #expect(Region(titleID: "BLAS50001") == .asia)
+    #expect(Region(titleID: "NP0APOLLO") == nil)
+}
+
+private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPClient.Entry {
+    FTPClient.Entry(name: name, size: size, isDirectory: dir, modified: "Oct 24 18:12")
+}
+
+@Test func listsGamesFromWebMANsFolders() throws {
+    let ps3iso = try #require(GameListing.folders.first { $0.name == "PS3ISO" })
+    let wmtmp = GameListing.names([entry("Gran Turismo 5 (Europe).PNG"), entry("Gran Turismo 5 (Europe).SFO")])
+    let games = GameListing.candidates(
+        in: "/dev_hdd0/PS3ISO", folder: ps3iso,
+        entries: [entry("Gran Turismo 5 (Europe).iso", 13_000), entry("Big Game.iso.0", 4_000), entry("Big Game.iso.1", 2_000),
+                  entry(".DS_Store"), entry("Nested", dir: true)],
+        nested: ["Nested": [entry("Nested.iso", 500), entry("Nested.jpg")]],
+        wmtmp: wmtmp)
+    #expect(games.map(\.game.path) == ["/dev_hdd0/PS3ISO/Big Game.iso.0", "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso",
+                                        "/dev_hdd0/PS3ISO/Nested/Nested.iso"])
+    let split = games[0].game
+    #expect(split.size == 6_000)
+    #expect(split.companions == ["/dev_hdd0/PS3ISO/Big Game.iso.1"])
+    #expect(split.title == "Big Game")
+    let gt5 = games[1]
+    #expect(gt5.game.iconPath == "/dev_hdd0/tmp/wmtmp/Gran Turismo 5 (Europe).PNG")
+    #expect(gt5.sfoPath == "/dev_hdd0/tmp/wmtmp/Gran Turismo 5 (Europe).SFO")
+    #expect(games[2].game.iconPath == "/dev_hdd0/PS3ISO/Nested/Nested.jpg")
+
+    // A .cue takes its .bin tracks; a .bin without a .cue is a game of its own.
+    let psx = try #require(GameListing.folders.first { $0.name == "PSXISO" })
+    let ps1 = GameListing.candidates(
+        in: "/dev_hdd0/PSXISO", folder: psx,
+        entries: [entry("FF7 (Disc 1).cue", 100), entry("FF7 (Disc 1) (Track 1).bin", 600), entry("FF7 (Disc 1) (Track 2).bin", 50),
+                  entry("Crash [SCES-00344].bin", 500)],
+        nested: [:], wmtmp: [:])
+    #expect(ps1.map(\.game.path) == ["/dev_hdd0/PSXISO/Crash [SCES-00344].bin", "/dev_hdd0/PSXISO/FF7 (Disc 1).cue"])
+    #expect(ps1[0].game.titleID == "SCES-00344")
+    #expect(ps1[1].game.size == 750)
+    #expect(ps1[1].game.companions.count == 2)
+
+    let folders = try #require(GameListing.folders.first { $0.name == "GAMES" })
+    let folderGames = GameListing.candidates(in: "/dev_hdd0/GAMES", folder: folders,
+                                             entries: [entry("BLUS30443-[Demon's Souls]", dir: true), entry("readme.txt")],
+                                             nested: [:], wmtmp: [:])
+    #expect(folderGames.count == 1)
+    #expect(folderGames[0].game.titleID == "BLUS30443")
+    #expect(folderGames[0].sfoPath == "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]/PS3_GAME/PARAM.SFO")
+}
+
+@Test func installedFoldersAreGamesOrUpdates() throws {
+    var updates: [String: String] = [:]
+    let game = GameListing.installedCandidate(entry("NPEA00418", dir: true))
+    let info = GameCache.Info(sfo: ParamSFO(data: makeSFO(["CATEGORY": "HG", "TITLE": "Journey", "TITLE_ID": "NPEA00418", "APP_VER": "01.03"])))
+    let result = GameListing.resolve(game, info: info, updates: &updates)
+    let resolved = try #require(result)
+    #expect(resolved.title == "Journey")
+    #expect(resolved.platform == .psn)
+    #expect(resolved.isInstalled)
+
+    let patch = GameListing.installedCandidate(entry("BCES00569", dir: true))
+    let patchInfo = GameCache.Info(sfo: ParamSFO(data: makeSFO(["CATEGORY": "GD", "TITLE_ID": "BCES00569", "APP_VER": "02.17"])))
+    let patchResult = GameListing.resolve(patch, info: patchInfo, updates: &updates)
+    #expect(patchResult == nil)
+    #expect(updates == ["BCES00569": "02.17"])
+
+    let disc = Game(path: "/dev_hdd0/PS3ISO/GT5.iso", title: "Gran Turismo 5", titleID: "BCES00569", platform: .ps3, size: 1)
+    #expect(GameListing.attach(updates, to: [disc]).first?.updateVersion == "02.17")
+    #expect(!GameListing.isGame(titleID: "NP0APOLLO"))
+    #expect(!GameListing.isGame(titleID: "BLES80608"))
+    #expect(GameListing.isGame(titleID: "BLES01200"))
+}
+
+@Test func looksUpGames() {
+    let games = Fixtures.games
+    guard case .found(let byID) = Game.lookup("bces00569", in: games) else { Issue.record("by title ID"); return }
+    #expect(byID.title == "Gran Turismo 5")
+    guard case .found(let bySerial) = Game.lookup("SCES53326", in: games) else { Issue.record("by serial"); return }
+    #expect(bySerial.title == "Shadow of the Colossus")
+    guard case .found(let partial) = Game.lookup("demon", in: games) else { Issue.record("partial"); return }
+    #expect(partial.titleID == "BLUS30443")
+    guard case .ambiguous = Game.lookup("the", in: games) else { Issue.record("the should be ambiguous"); return }
+    guard case .missing = Game.lookup("halo", in: games) else { Issue.record("halo should be missing"); return }
 }
 
 @Test func routesFilesInsideTheMirrorByPath() throws {
@@ -321,4 +425,9 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(cfw["ps3health"]?.installable == true)
     #expect(cfw["hen"]?.compatibility.verdict == .incompatible)
     #expect(Fixtures.readme.blocks.contains { if case .table = $0 { return true }; return false })
+
+    let games = Fixtures.games
+    #expect(games.contains { $0.path == snapshot.mountedGamePath })
+    #expect(games.first { $0.titleID == "BCES00569" }?.updateVersion == "02.17")
+    #expect(games.map(\.platform.order) == games.map(\.platform.order).sorted())
 }
