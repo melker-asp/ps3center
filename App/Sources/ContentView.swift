@@ -149,8 +149,9 @@ struct TabBar: View {
                 }
                 .frame(width: 34, height: 34)
                 if console.connection == .online {
+                    // Yellow while webMAN is slow to answer, before the console counts as gone.
                     Circle()
-                        .fill(Theme.good)
+                        .fill(console.missedPolls > 0 ? Theme.warm : Theme.good)
                         .frame(width: 10, height: 10)
                         .overlay(Circle().strokeBorder(Color.black.opacity(0.6), lineWidth: 2))
                         .offset(x: 1, y: 1)

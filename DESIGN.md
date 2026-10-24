@@ -161,7 +161,14 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när
   `PARAM.SFO` i `/dev_hdd0/game/<title ID>/` fått en ny `MDTM`-tidsstämpel och mappen sedan
   inte ändrats på två kontroller i rad. Därefter tar verktyget bort sin kopia av paketet.
-  Ominstallation av Apollo tog 11 sekunder.
+  Ominstallation av Apollo tog 11 sekunder. Svaret på `/install.ps3` kan dröja tills XMB:n är
+  klar, så det skickas på en egen anslutning och statusen fortsätter under tiden. Varje kontroll
+  öppnar en egen FTP-session (webMAN släpper en som är tyst i en minut). Ändras ingenting i
+  mappen på 75 sekunder skickas `/install.ps3` en gång till, och sedan ger verktyget upp med råd
+  om att installera från XMB:n (ett avbrott fick appen att vänta på en installation som aldrig
+  startade, 25 okt 2026).
+- **Appen tål några missade statusanrop:** webMAN är långsam ibland, så konsolen räknas som borta
+  först efter tre anrop i rad utan svar. Under tiden är pricken vid PS-loggan gul.
 - **`/refresh.ps3` och `/popup.ps3`** svarar OK direkt, även med åäö i texten (provat 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd mot automatiska anrop och kringgås inte.
   Program som bara finns där får en länk.

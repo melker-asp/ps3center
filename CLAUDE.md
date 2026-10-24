@@ -56,7 +56,8 @@ xcodebuild den inte.
   till sist en nätverkssökning (`Discovery`). En ny adress sparas i `~/.config/ps3center/config.json`,
   samma fil som appen läser.
 - **webMAN:s egenheter** hanteras i `WebMAN.swift` och `FTPClient.swift`:
-  - varje HTTP-anrop skickar `Connection: close` och körs ett i taget
+  - varje HTTP-anrop skickar `Connection: close` och körs ett i taget, utom `/install.ps3` som har
+    en egen anslutning eftersom svaret kan dröja tills XMB:n installerat klart
   - ENODATA på dataanslutningen betyder filslut
   - `APPE` fortsätter en avbruten uppladdning
 
@@ -65,7 +66,9 @@ xcodebuild den inte.
   "varna och vänta" (`TransferService.waitUntilIdle`): installation och uppdatering av spellistan
   väntar tills inget spel körs.
 - **Installationen är klar** när `PARAM.SFO` i `/dev_hdd0/game/<titleID>` fått ny `MDTM` och mappen
-  slutat ändras. webMAN tar *inte* bort paketet, trots vad wikin säger.
+  slutat ändras. webMAN tar *inte* bort paketet, trots vad wikin säger. Börjar inget hända skickas
+  `/install.ps3` en gång till, sedan ett fel med råd. `ConsoleStore` går offline först efter tre
+  missade statusanrop i rad.
 - **Katalogen** (`Catalog.swift`): varje program har ett title ID, läst ur pkg-huvudet vid offset
   0x30. `AppsService` jämför installerad `APP_VER` med GitHub-releasen. Har PS3 Center själv
   installerat programmet används kopplingen tagg ↔ `APP_VER` i `installed.json` i stället för

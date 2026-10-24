@@ -221,38 +221,79 @@ public struct TransferService: Sendable {
         }
         guard uploaded else { return }
         try await waitUntilIdle(force: options.force, events: events)
-        try await withFTP { ftp in try await install(route, ftp: ftp, events: events) }
+        try await install(route, events: events)
     }
 
-    private func install(_ route: Route, ftp: FTPClient, events: TransferHandler) async throws {
+    /// What the console shows of an install: the package still there, PARAM.SFO's date and the
+    /// folder's listing.
+    struct InstallState: Equatable {
+        var packagePresent: Bool
+        var paramSFO: String?
+        var folder: String?
+    }
+
+    private func installState(_ route: Route, gameDir: String?) async throws -> InstallState {
+        try await withFTP { ftp in
+            let size = try await ftp.size(route.remote)
+            var state = InstallState(packagePresent: size != nil)
+            if let gameDir {
+                state.paramSFO = try await ftp.modificationTime(gameDir + "/PARAM.SFO")
+                state.folder = try await folderSignature(gameDir, ftp: ftp)
+            }
+            return state
+        }
+    }
+
+    /// Asks webMAN to install, then follows the app's folder: PARAM.SFO gets a new date, then the
+    /// folder stops changing. webMAN's docs say /install.ps3 deletes the package afterwards, but on
+    /// this console it does not. Each check opens its own FTP session, since the install request
+    /// can take a minute and webMAN drops a session that is quiet that long, and a check that fails
+    /// (the network hiccups) is just tried again. If nothing on the console changes, the request is
+    /// sent once more, and then it gives up with advice instead of waiting for 20 minutes.
+    private func install(_ route: Route, events: TransferHandler) async throws {
         let name = route.local.lastPathComponent
-        // webMAN's docs say /install.ps3 deletes the package afterwards, but on this console it
-        // does not. Completion is therefore read from the installed app's folder: PARAM.SFO gets
-        // a new timestamp, then the folder stops changing.
         let gameDir = PKGInfo(url: route.local)?.titleID.map { "/dev_hdd0/game/\($0)" }
-        let sfoBefore = try await gameDir.asyncMap { try await ftp.modificationTime($0 + "/PARAM.SFO") } ?? nil
+        let before = try await installState(route, gameDir: gameDir)
 
         events(.installing(name))
-        do {
-            try await webman.installPackage(remotePath: route.remote)
-        } catch PS3Error.unreachable {
-            // The install request can block while the XMB installs; keep polling below.
+        var requests = 0
+        var requestedAt = Date()
+        func request() async {
+            requests += 1
+            requestedAt = Date()
+            // The answer may only come when the XMB is done, or never: the folder tells.
+            try? await webman.installPackage(remotePath: route.remote)
         }
+        await request()
 
         let deadline = Date().addingTimeInterval(20 * 60)
-        var lastSignature: String?
+        var started = false
+        var last: InstallState?
         var stableRounds = 0
         while Date() < deadline {
-            try await Task.sleep(nanoseconds: 3_000_000_000)
-            if try await ftp.size(route.remote) == nil { break }  // webMAN removed it: done
-            guard let gameDir else { continue }
-            let sfoNow = try await ftp.modificationTime(gameDir + "/PARAM.SFO")
-            guard let sfoNow, sfoNow != sfoBefore else { continue }
-            let signature = try await folderSignature(gameDir, ftp: ftp)
-            stableRounds = signature == lastSignature ? stableRounds + 1 : 0
-            lastSignature = signature
-            if stableRounds >= 2 {
-                try? await ftp.delete(route.remote)  // our uploaded copy; the original stays on the Mac
+            try await Task.sleep(nanoseconds: 4_000_000_000)
+            guard let now = try? await installState(route, gameDir: gameDir) else { continue }
+            if !now.packagePresent { break }  // webMAN removed it: done
+            guard gameDir != nil else {
+                // No title ID in the package header to follow: give the XMB a minute.
+                if Date().timeIntervalSince(requestedAt) > 60 { break } else { continue }
+            }
+            if now.paramSFO != before.paramSFO || now.folder != before.folder { started = true }
+            if !started {
+                guard Date().timeIntervalSince(requestedAt) > 75 else { continue }
+                if requests < 2 {
+                    events(.note("PS3:an har inte börjat installera \(name); ber webMAN igen"))
+                    await request()
+                    continue
+                }
+                throw PS3Error.timeout("PS3:an började aldrig installera \(name). Paketet ligger kvar i /dev_hdd0/packages: installera det i XMB:n (Spel → Package Manager → Installera paket → Standard) eller försök igen.")
+            }
+            stableRounds = now == last ? stableRounds + 1 : 0
+            last = now
+            // Done when PARAM.SFO is new and the folder has stood still for two checks (or five,
+            // if the date never moved).
+            if stableRounds >= (now.paramSFO != before.paramSFO ? 2 : 5) {
+                _ = try? await withFTP { try await $0.delete(route.remote) }  // our uploaded copy; the original stays on the Mac
                 break
             }
         }

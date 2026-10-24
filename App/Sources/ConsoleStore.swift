@@ -20,6 +20,10 @@ final class ConsoleStore {
     private(set) var host: String?
     private(set) var snapshot: ConsoleSnapshot?
     private(set) var latency: TimeInterval?
+    /// Polls in a row that got no answer. webMAN is slow at times (while it installs, or a game
+    /// runs), so the console only counts as gone after `allowedMisses`.
+    private(set) var missedPolls = 0
+    private let allowedMisses = 3
     private(set) var cpuHistory: [Double] = []
     private(set) var rsxHistory: [Double] = []
     private(set) var fanHistory: [Double] = []
@@ -78,11 +82,16 @@ final class ConsoleStore {
                 let next = try await WebMAN(host: host).snapshot()
                 latency = Date().timeIntervalSince(started)
                 record(next)
+                missedPolls = 0
                 connection = .online
                 if next.mountedGamePath != artPath { loadArt(for: next.mountedGamePath, host: host) }
             } catch {
-                connection = .offline(error.localizedDescription)
-                self.host = nil  // look again next round; the IP may have changed
+                missedPolls += 1
+                if connection != .online || missedPolls >= allowedMisses {
+                    missedPolls = 0
+                    connection = .offline(error.localizedDescription)
+                    self.host = nil  // look again next round; the IP may have changed
+                }
             }
             history = OperationLog.read(limit: 12).reversed()
             try? await Task.sleep(for: .seconds(interval))

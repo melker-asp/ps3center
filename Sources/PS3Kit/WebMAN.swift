@@ -6,13 +6,18 @@ public struct WebMAN: Sendable {
     public let host: String
     public var timeout: TimeInterval
 
-    static let session: URLSession = {
+    static let session = makeSession()
+    /// For commands that can block for a minute (installing a package), so they never hold up
+    /// the status polls queued on `session`.
+    static let longSession = makeSession()
+
+    static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.httpShouldUsePipelining = false
         config.httpMaximumConnectionsPerHost = 1
         config.urlCache = nil
         return URLSession(configuration: config)
-    }()
+    }
 
     public init(host: String, timeout: TimeInterval = 8) {
         self.host = host
@@ -50,6 +55,10 @@ public struct WebMAN: Sendable {
 
     /// The raw answer to a web command (an image, a file). `command` must already be encoded.
     public func data(encoded command: String, timeout: TimeInterval? = nil) async throws -> Data {
+        try await fetch(encoded: command, timeout: timeout, session: Self.session)
+    }
+
+    func fetch(encoded command: String, timeout: TimeInterval?, session: URLSession) async throws -> Data {
         guard let url = URL(string: "http://\(host)\(command)") else {
             throw PS3Error.ftpProtocol("ogiltig adress: \(command)")
         }
@@ -61,7 +70,7 @@ public struct WebMAN: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await Self.session.data(for: request)
+            (data, response) = try await session.data(for: request)
         } catch let error as URLError where [.timedOut, .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet, .cannotFindHost].contains(error.code) {
             throw PS3Error.unreachable(host: host)
         }
@@ -93,9 +102,10 @@ public struct WebMAN: Sendable {
         try await get("/refresh.ps3", timeout: 60)
     }
 
-    /// Installs a package already on the console. webMAN deletes the .pkg when it is done.
+    /// Asks the XMB to install a package already on the console. The answer can take until the
+    /// install is done, so it goes on its own connection; the package is not deleted afterwards.
     public func installPackage(remotePath: String) async throws {
-        try await get("/install.ps3" + remotePath, timeout: 60)
+        _ = try await fetch(encoded: Self.encodeCommand("/install.ps3" + remotePath), timeout: 60, session: Self.longSession)
     }
 
     /// Runs a PS3MAPI command and returns the raw value of `"response"`.
