@@ -33,6 +33,54 @@ public enum Fixtures {
         }
     }
 
+    // MARK: Underhåll
+
+    public static let saves: [SaveGame] = [
+        SaveGame(user: "00000001", folder: "BCES00569-GT5PROFILE", title: "Gran Turismo 5", subtitle: "Spelprofil",
+                 size: 3_481_600, modified: Date(timeIntervalSince1970: 1_792_670_400)),
+        SaveGame(user: "00000001", folder: "BCES00757-SAVE0001", title: "Uncharted 2: Among Thieves", subtitle: "Kapitel 14",
+                 size: 262_144, modified: Date(timeIntervalSince1970: 1_792_400_000)),
+        SaveGame(user: "00000001", folder: "BLES01807-AUTO", title: "Grand Theft Auto V", subtitle: "Franklin – 61 %",
+                 size: 524_288, modified: Date(timeIntervalSince1970: 1_791_900_000)),
+        SaveGame(user: "00000001", folder: "SLES-53326-SAVE", title: "Ratchet & Clank 3", size: 98_304,
+                 modified: Date(timeIntervalSince1970: 1_790_000_000)),
+    ]
+
+    public static let maintenanceReport = MaintenanceReport(
+        findings: [
+            MaintenanceFinding(kind: .leftoverPackage, title: "IRISMAN_4.90.pkg",
+                               detail: "Ett paket som ligger kvar i /dev_hdd0/packages. Installerade program behöver det inte.",
+                               path: "/dev_hdd0/packages/IRISMAN_4.90.pkg", size: 31_457_280, canFix: true),
+            MaintenanceFinding(kind: .partialUpload, title: "Killzone 2 (Europe).iso",
+                               detail: "En överföring som inte blev klar. Den syns inte i XMB:n.",
+                               path: "/dev_hdd0/PS3ISO/Killzone 2 (Europe).iso.part", size: 4_294_967_296, canFix: true),
+            MaintenanceFinding(kind: .duplicate, title: "Gran Turismo 5",
+                               detail: "BCES00569 finns 2 gånger: /dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso, /dev_hdd0/GAMES/BCES00569-[Gran Turismo 5]. Ta bort den du inte behöver i Spel-fliken.",
+                               size: 14_470_000_000),
+            MaintenanceFinding(kind: .missingPlugin, title: "ds45pad.sprx",
+                               detail: "boot_plugins.txt pekar på /dev_hdd0/plugins/ds45pad.sprx, som inte finns. PS3 Center ändrar aldrig listan; ta bort raden själv.",
+                               path: "/dev_hdd0/plugins/ds45pad.sprx"),
+        ],
+        passed: ["webMAN:s cache är liten", "Gott om ledigt utrymme"])
+
+    public static let storageMap = StorageMap(
+        areas: [
+            StorageUsage(name: "PS3-ISO:er", path: "/dev_hdd0/PS3ISO", bytes: 61_200_000_000),
+            StorageUsage(name: "Installerade spel och program", path: "/dev_hdd0/game", bytes: 38_400_000_000),
+            StorageUsage(name: "Spelmappar", path: "/dev_hdd0/GAMES", bytes: 14_470_000_000),
+            StorageUsage(name: "PS2-ISO:er", path: "/dev_hdd0/PS2ISO", bytes: 9_800_000_000),
+            StorageUsage(name: "Tillfälligt och webMAN:s cache", path: "/dev_hdd0/tmp", bytes: 4_430_000_000),
+            StorageUsage(name: "Användare och sparfiler", path: "/dev_hdd0/home", bytes: 1_250_000_000),
+            StorageUsage(name: "Paket", path: "/dev_hdd0/packages", bytes: 31_457_280),
+        ],
+        largest: [
+            StorageUsage(name: "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", bytes: 9_600_000_000),
+            StorageUsage(name: "Uncharted 2 - Among Thieves (Europe).iso", path: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso", bytes: 23_200_000_000),
+        ].sorted { $0.bytes > $1.bytes },
+        free: 355_800_000_000, total: 500_107_862_016)
+
+    public static let disc = DiscInfo(title: "Uncharted 3: Drake's Deception", titleID: "BCES01175", bytes: 41_300_000_000)
+
     /// Gran Turismo 5 played on and off for a while.
     public static let playLog: PlayLog = {
         var log = PlayLog()

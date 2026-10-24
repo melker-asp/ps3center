@@ -8,6 +8,7 @@ struct PS3CenterApp: App {
     @State private var games = GamesStore()
     @State private var transfers = TransferStore()
     @State private var netServer = NetServerStore()
+    @State private var maintenance = MaintenanceStore()
     @State private var appearance = AppearanceStore()
 
     var body: some Scene {
@@ -19,6 +20,7 @@ struct PS3CenterApp: App {
                 .environment(games)
                 .environment(transfers)
                 .environment(netServer)
+                .environment(maintenance)
                 .environment(appearance)
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)
@@ -29,12 +31,13 @@ struct PS3CenterApp: App {
                         games.loadFixture()
                         transfers.loadFixture()
                         netServer.loadFixture()
+                        maintenance.loadFixture()
                     } else {
                         console.start()
                         netServer.start()
                     }
                     if let directory = Snapshot.directory {
-                        await Snapshot.run(console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory)
+                        await Snapshot.run(console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory)
                     }
                 }
         }

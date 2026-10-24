@@ -304,6 +304,11 @@ fläktmålet (`ps3 fan`), menyraden med inloggningsobjekt, notiser (kön, värme
 
 ### Fas 8 – Säkerhetskopior och underhåll (Underhåll-fliken)
 
+**Läge 24 okt 2026:** byggt: `ps3 saves`/`ps3 backup` och sparfiler varje vecka i appen (med
+den förra kopian sparad och det som låg på konsolen sparat före en återställning), systemfiler,
+`ps3 maintain` med Städning, `ps3 analyze` med Lagring (via `/stat.ps3`) och `ps3 rip` med Skivan.
+Kvar att prova hemma: test 12.
+
 - **Sparfiler:** `ps3 saves list|backup|restore`. Kopierar `/dev_hdd0/home/<användare>/savedata`
   till `~/Library/Application Support/ps3center/Sparfiler/` (eller `_Säkerhetskopior` i
   spegelmappen), bara det som ändrats (storlek + `MDTM`). Återställning bara när inget spel körs,
@@ -380,6 +385,10 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     med fönstret stängt, "Skicka till PS3" i Finder (högerklick → Snabbåtgärder eller Tjänster;
     kan kräva att appen ligger i Program och har startats en gång) och Genvägar → PS3-status.
     Stäng av HEN genom en omstart och se om appen säger "HEN är inte aktiverat".
+12. Fas 8: `ps3 saves` (syns dina sparfiler med namn?), `ps3 backup`, och `ps3 saves restore` på
+    en sparfil du har en kopia av på annat håll. `ps3 maintain` och `ps3 analyze` (hur lång tid tog
+    det?). Om du har en PS3-skiva: `ps3 rip` och se om mappen i GAMES startar. Kolla också vad
+    `curl "http://$PS3/stat.ps3/dev_hdd0/game"` skriver, så att tolkningen stämmer.
 
 ## Beslut (24 okt 2026)
 

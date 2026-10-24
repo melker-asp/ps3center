@@ -769,3 +769,38 @@ private final class NetClient {
     #expect(Format.playTime(9) == "under en minut")
     #expect(Format.playTime(3 * 3600 + 20 * 60) == "3 h 20 min")
 }
+
+// MARK: Backups and maintenance
+
+@Test func readsWebMANsFolderStats() {
+    let page = #"<a href="/dev_hdd0">dev_hdd0</a>/<a href="/dev_hdd0/game">game</a><p>Size: 12.3 GB (13,207,024,640 bytes)<br>Dir(s): 1,120<br>File(s): 24,210"#
+    let stat = StorageAnalyzer.parseStat(page)
+    #expect(stat?.bytes == 13_207_024_640)
+    #expect(stat?.folders == 1120)
+    #expect(stat?.files == 24210)
+    #expect(StorageAnalyzer.parseStat("<p>Size: 0.1 MB (512 bytes)<br>Dir(s): 0<br>File(s): 1")?.bytes == 512)
+    #expect(StorageAnalyzer.parseStat("Not found") == nil)
+
+    let map = StorageMap(areas: [StorageUsage(name: "Spel", path: "/dev_hdd0/game", bytes: 100)], largest: [], free: 300, total: 1000)
+    #expect(map.other == 600)
+}
+
+@Test func readsPluginListsAndSaveFolders() {
+    let list = "# kernel\n/dev_hdd0/plugins/webftp_server.sprx\r\n\n  /dev_hdd0/plugins/ds45pad.sprx  \nwhatever\n"
+    #expect(MaintenanceService.pluginPaths(in: list) == ["/dev_hdd0/plugins/webftp_server.sprx", "/dev_hdd0/plugins/ds45pad.sprx"])
+    #expect(SaveBackupService.isUser("00000001"))
+    #expect(!SaveBackupService.isUser("tmp"))
+    let date = SaveBackupService.parseMDTM("20261022214005")
+    #expect(date == Date(timeIntervalSince1970: 1_792_705_205))
+    let save = SaveGame(user: "00000001", folder: "BCES00569-AUTOSAVE", title: "Gran Turismo 5", size: 1024)
+    #expect(save.titleID == "BCES00569")
+    let files = [FTPClient.Entry(name: "SYS-DATA", size: 10, isDirectory: false, modified: "Oct 22 21:40"),
+                 FTPClient.Entry(name: "PARAM.SFO", size: 5, isDirectory: false, modified: "Oct 22 21:40")]
+    #expect(SaveBackupService.signature(files) == ["PARAM.SFO|5|Oct 22 21:40", "SYS-DATA|10|Oct 22 21:40"])
+}
+
+@Test func namesARippedDiscLikeWebMAN() {
+    let disc = DiscInfo(title: "Uncharted 2: Among Thieves", titleID: "BCES00757", bytes: 25_000_000_000)
+    #expect(disc.folderName == "BCES00757-[Uncharted 2 Among Thieves]")
+    #expect(disc.destination == "/dev_hdd0/GAMES/BCES00757-[Uncharted 2 Among Thieves]")
+}

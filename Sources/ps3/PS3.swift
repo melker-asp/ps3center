@@ -19,9 +19,11 @@ struct PS3: AsyncParsableCommand {
           ps3 apps info apollo         Version, om det fungerar på din PS3, README
           ps3 apps update              Granska och installera uppdateringar
           ps3 apps install X.pkg       Installera ett paket utan USB-sticka
+          ps3 backup                   Sparfiler och systemfiler till Macen
+          ps3 maintain                 Städa: kvarglömda paket, avbrutna överföringar m.m.
         """,
         version: "0.1.0",
         subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Serve.self,
-                      Popup.self, Refresh.self, History.self, Discover.self, Config.self]
+                      Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }

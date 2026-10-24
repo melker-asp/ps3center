@@ -20,7 +20,7 @@ brew install xcodegen   # en gång
 make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar appen
 ```
 
-Appen har tre flikar i Mole-stil:
+Appen har fyra flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
   löpande kurvor och historiken från `ps3 history`. Under korten: Fjärrkontroll (XMB:n som bild,
   styrkors och knappar, piltangenter och Retur/Esc), Avsluta spelet, Mata ut skivan, Starta om och
@@ -38,6 +38,10 @@ Appen har tre flikar i Mole-stil:
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
+- **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
+  kan läggas tillbaka; systemfilerna kopieras på begäran; Städning hittar kvarglömda paket,
+  avbrutna överföringar, dubbletter, en stor cache och saknade plugins och tar bort det som går;
+  Lagring visar vad som tar plats; Skivan kopierar PS3-skivan i spelaren till hårddisken.
 
 **Menyraden** visar temperaturer, vad som spelas, kön och spelservern, med Skicka filer…,
 Uppdatera spellistan, Avsluta spelet och Stäng av; appen fortsätter där när fönstret är stängt
@@ -78,6 +82,11 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 pad down down ok` | Trycker på knappar med webMAN:s virtuella handkontroll (`ps3 pad off` kopplar bort den) |
 | `ps3 screenshot [fil]` | Sparar en bild av XMB:n på Macen |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp via `.part`-filer, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup. Håller Macen vaken; `--verify` jämför MD5, `--shutdown-when-done` stänger av PS3:an efteråt |
+| `ps3 saves [backup\|local\|restore <namn>]` | Sparfilerna på PS3:an, kopiera dem till Macen, lägg tillbaka en (inte under spel; det som låg där sparas först) |
+| `ps3 backup` | Sparfiler och systemfiler (xRegistry.sys, webMAN:s inställningar, boot_plugins) till Macen; läser bara konsolen |
+| `ps3 maintain [--fix]` | Kvarglömda paket, avbrutna överföringar, dubbletter, cache, saknade plugins; `--fix` tar bort paket och `.part`-filer |
+| `ps3 analyze` | Vad som tar plats på `/dev_hdd0`, räknat på konsolen |
+| `ps3 rip` | Kopierar PS3-skivan i spelaren till `/dev_hdd0/GAMES` (`--abort` stoppar) |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
 | `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |
 | `ps3 apps info <namn>` | Version, om programmet fungerar på din PS3 och README från GitHub (`--no-readme`, `--json`) |

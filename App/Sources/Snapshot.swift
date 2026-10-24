@@ -17,7 +17,7 @@ enum Snapshot {
     }
 
     static func run(console: ConsoleStore, apps: AppsStore, games: GamesStore, transfers: TransferStore, netServer: NetServerStore,
-                    into directory: URL) async {
+                    maintenance: MaintenanceStore, into directory: URL) async {
         if !usesFixtures {
             // Wait for live data (the console must be reachable).
             // A few samples so the sparklines have something to draw.
@@ -31,28 +31,28 @@ enum Snapshot {
         }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        render(.status, name: "connecting", console: ConsoleStore(), apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory, splash: true) {
+        render(.status, name: "connecting", console: ConsoleStore(), apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
             ConnectionView().frame(height: 640)
         }
 
         let henOff = ConsoleStore()
         henOff.loadHenOffFixture()
-        render(.status, name: "connecting-hen", console: henOff, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory, splash: true) {
+        render(.status, name: "connecting-hen", console: henOff, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
             ConnectionView().frame(height: 640)
         }
 
-        render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { StatusView(scrolls: false) }
-        render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { GamesView(scrolls: false) }
+        render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { StatusView(scrolls: false) }
+        render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
         // Gran Turismo 5 has an update installed; live, the first game.
         if let game = games.games.first(where: { $0.titleID == "BCES00569" }) ?? games.games.first {
             games.selectedID = game.id
-            render(.games, name: "games-detail", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { GamesView(scrolls: false) }
+            render(.games, name: "games-detail", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
             games.selectedID = nil
         }
         // The Mac's library with two games picked for sending.
         games.source = .mac
         games.selection = Set(games.macGames.filter { games.macStates[$0.id] == .notOnConsole }.prefix(2).map(\.id))
-        render(.games, name: "games-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { GamesView(scrolls: false) }
+        render(.games, name: "games-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
         games.source = .console
         games.selection = []
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
@@ -60,12 +60,15 @@ enum Snapshot {
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
         write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),
               name: "menubar", into: directory)
-        render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(section: .updates, scrolls: false) }
-        render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(section: .get, scrolls: false) }
+        render(.maintenance, name: "maintenance", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) {
+            MaintenanceView(scrolls: false)
+        }
+        render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
+        render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .get, scrolls: false) }
         if let entry = Catalog.entry(named: "apollo") {
             apps.selectedID = entry.id
             await apps.loadReadme(for: entry)
-            render(.apps, name: "apps-detail", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(scrolls: false) }
+            render(.apps, name: "apps-detail", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(scrolls: false) }
             apps.selectedID = nil
         }
         if usesFixtures {
@@ -73,12 +76,12 @@ enum Snapshot {
             console.loadFixture(Fixtures.cfwSnapshot)
             apps.loadFixture(statuses: Fixtures.appStatuses(on: Fixtures.cfwSnapshot))
             apps.selectedID = "ps3health"
-            render(.apps, name: "apps-detail-cfw", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory) { AppsView(scrolls: false) }
+            render(.apps, name: "apps-detail-cfw", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(scrolls: false) }
             apps.selectedID = nil
             console.loadFixture()
             apps.loadFixture()
         }
-        render(.status, name: "status-nova-pink", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, into: directory, theme: .novaPink) {
+        render(.status, name: "status-nova-pink", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, theme: .novaPink) {
             StatusView(scrolls: false)
         }
         write(AppearanceView().environment(AppearanceStore(previewing: .perTab)), name: "appearance", into: directory)
@@ -86,7 +89,7 @@ enum Snapshot {
     }
 
     private static func render<Content: View>(_ tab: MainTab, name: String, console: ConsoleStore, apps: AppsStore,
-                                              games: GamesStore, transfers: TransferStore, netServer: NetServerStore, into directory: URL, splash: Bool = false, theme: AppTheme = .perTab,
+                                              games: GamesStore, transfers: TransferStore, netServer: NetServerStore, maintenance: MaintenanceStore, into directory: URL, splash: Bool = false, theme: AppTheme = .perTab,
                                               @ViewBuilder content: () -> Content) {
         let view = ZStack(alignment: .top) {
             if splash { SplashBackground() } else { Theme.background(for: tab, theme: theme) }
@@ -105,6 +108,7 @@ enum Snapshot {
         .environment(games)
         .environment(transfers)
         .environment(netServer)
+        .environment(maintenance)
         write(view, name: name, into: directory)
     }
 

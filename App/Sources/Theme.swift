@@ -37,6 +37,7 @@ enum Theme {
             case .status: return starlightBlue
             case .games: return novaPink
             case .apps: return galacticPurple
+            case .maintenance: return cosmicRed
             }
         case .starlightBlue: return starlightBlue
         case .novaPink: return novaPink

@@ -182,6 +182,19 @@ public final class FTPClient {
         _ = try await command("RMD \(path)", expect: [250])
     }
 
+    /// The bytes in a folder and everything under it (0 when it does not exist).
+    public func treeSize(_ path: String) async throws -> Int64 {
+        var total: Int64 = 0
+        for entry in try await list(path) {
+            if entry.isDirectory {
+                total += try await treeSize(path + "/" + entry.name)
+            } else {
+                total += entry.size
+            }
+        }
+        return total
+    }
+
     /// Renames (or moves) a file on the console.
     public func rename(_ path: String, to newPath: String) async throws {
         _ = try await command("RNFR \(path)", expect: [350])

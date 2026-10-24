@@ -2,7 +2,7 @@ import PS3Kit
 import SwiftUI
 
 enum MainTab: String, CaseIterable, Identifiable {
-    case status, games, apps
+    case status, games, apps, maintenance
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum MainTab: String, CaseIterable, Identifiable {
         case .status: return "Status"
         case .games: return "Spel"
         case .apps: return "Appar"
+        case .maintenance: return "Underhåll"
         }
     }
 }
@@ -20,6 +21,7 @@ struct ContentView: View {
     @Environment(AppearanceStore.self) private var appearance
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
+    @Environment(MaintenanceStore.self) private var maintenance
     @Environment(\.openWindow) private var openWindow
     @State private var tab: MainTab = .status
     @State private var showsAppearance = false
@@ -52,6 +54,7 @@ struct ContentView: View {
                         case .status: StatusView()
                         case .games: GamesView()
                         case .apps: AppsView()
+                        case .maintenance: MaintenanceView()
                         }
                     }
                     .transition(.opacity)
@@ -68,6 +71,13 @@ struct ContentView: View {
         .task(id: console.host) {
             transfers.host = console.host
             netServer.host = console.host
+            maintenance.host = console.host
+        }
+        // The weekly backup of the saves, a while after the console shows up.
+        .task(id: console.connection == .online) {
+            guard console.connection == .online else { return }
+            try? await Task.sleep(for: .seconds(90))
+            maintenance.autoBackupIfDue(gameRunning: console.snapshot?.isGameRunning ?? true, transfersRunning: transfers.isRunning)
         }
         .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
         // Files from Finder's "Skicka till PS3", the menu bar and Shortcuts.

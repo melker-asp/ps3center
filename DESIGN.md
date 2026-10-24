@@ -44,8 +44,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
 | **Spel** | `ps3 games`, `ps3 send`, `ps3 serve` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
 | **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
-| **Underhåll** | senare `ps3 maintain` | Kontroller som Moles Optimize: boot_plugins.txt, hen_updater.off, kvarglömda pkg, webMAN-cache – en rapport med Klart/Hoppade över och skälet |
-| **Analys** | senare `ps3 analyze` | Trädkarta över /dev_hdd0 (som Moles Analyze) |
+| **Underhåll** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Sparfiler och systemfiler till Macen, Städning som Moles Optimize (en rapport med Klart och det som återstår, med skälet), Lagring som Moles Analyze (en stapel över /dev_hdd0) och Skivan |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
 
 ## Utseende (Moles struktur, PS-appens färger)
@@ -145,6 +144,18 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
 - **HEN av:** webMAN startar först när HEN är aktiverat. Svarar adressen på ping, eller vägrar en
   TCP-anslutning till port 80 (bara en påslagen dator svarar med RST), men webMAN inte, säger appen
   och `ps3 status` att HEN behöver aktiveras.
+- **Sparfiler:** en mapp per sparfil i `/dev_hdd0/home/<användare>/savedata/` (användaren är åtta
+  siffror, 00000001). PARAM.SFO i den har TITLE och SUB_TITLE, men också kontouppgifter
+  (ACCOUNT_ID, PARAMS); PS3 Center läser bara de två första. En sparfil läggs bara tillbaka hos
+  samma användare.
+- **`/stat.ps3<sökväg>`** (`include/cmd/stat_chmod.h`) räknar en mapps storlek på konsolen och
+  svarar `Size: 12.3 GB (13,207,024,640 bytes)<br>Dir(s): …<br>File(s): …`. Med `&id=` länkar den
+  filer i stället, så det används aldrig.
+- **`/copy.ps3/<sökväg>&to=<mål>`** kopierar på konsolen, `/copy.ps3$abort` stoppar. Om svaret
+  kommer först när kopian är klar är inte känt, så PS3 Center skickar det i en egen anslutning
+  och följer målmappen över FTP (test 12 i PLAN.md).
+- **HEN:s inställningar** är tomma filer i `/dev_hdd0/hen/toggles/` (`hotkey_polling.off`,
+  `remap_files.off` i `payload/main.c`). `ps3 maintain` visar dem bara.
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när

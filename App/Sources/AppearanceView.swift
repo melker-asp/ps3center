@@ -21,7 +21,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 
     var detail: String? {
-        self == .perTab ? "Varje flik får sin egen färg: Status Starlight Blue, Spel Nova Pink, Appar Galactic Purple." : nil
+        self == .perTab ? "Varje flik får sin egen färg: Status Starlight Blue, Spel Nova Pink, Appar Galactic Purple, Underhåll Cosmic Red." : nil
     }
 }
 
@@ -118,6 +118,7 @@ struct AppearanceView: View {
                     Theme.hue(for: .status)
                     Theme.hue(for: .games)
                     Theme.hue(for: .apps)
+                    Theme.hue(for: .maintenance)
                 }
             case .midnightBlack:
                 Color.black

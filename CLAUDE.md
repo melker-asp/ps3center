@@ -99,6 +99,10 @@ xcodebuild den inte.
   av) och `PlayLog`/`PlayTracker` (speltid ur statusen, `playtime.json`). Appen: `ConsoleStore`
   har knapparna, `RemoteView` fjärrkontrollen, `MenuBarView` menyraden. Filer utifrån (Finder-
   tjänsten, menyraden, Genvägar i `Intents.swift`) går via `Inbox` till granskningsvyn.
+- **Underhåll** (`Maintenance.swift`): `SaveBackupService` (sparfiler till `Sparfiler/<användare>/
+  <mapp>` med en manifest per mapp, förra kopian i `.tidigare`), `SystemFiles`, `MaintenanceService`
+  (rapport + `fix` som bara tar bort paket och `.part`), `StorageAnalyzer` (`/stat.ps3`) och
+  `DiscRipper` (`/copy.ps3`, förlopp över FTP). Appen: `MaintenanceStore` och `MaintenanceView`.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -119,6 +123,8 @@ xcodebuild den inte.
   (användarens beslut 24 okt 2026).
 - **Brewology** ligger bakom ett Cloudflare-skydd och ska inte kringgås. Program som bara finns där
   får en länk.
+- **Ur sparfilernas PARAM.SFO visas bara TITLE och SUB_TITLE,** aldrig konto-fälten.
+- **boot_plugins.txt ändras aldrig av PS3 Center;** saknade plugins rapporteras bara.
 - **Fläkten ändras bara som mål i webMAN:s dynamiska läge, 60–75 °C,** aldrig som fast hastighet.
 - **Ingen fri text till `/pad.ps3`:** "cross=" byter OK-knapp och startar om konsolen.
 - **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i
