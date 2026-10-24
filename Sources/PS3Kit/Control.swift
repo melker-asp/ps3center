@@ -223,7 +223,7 @@ public enum Reachability {
         let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
         let once = Once()
         return await withCheckedContinuation { continuation in
-            func finish(_ answer: Bool) {
+            @Sendable func finish(_ answer: Bool) {
                 guard once.claim() else { return }
                 connection.cancel()
                 continuation.resume(returning: answer)
