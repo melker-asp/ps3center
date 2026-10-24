@@ -27,7 +27,9 @@ enum Snapshot {
         }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        render(.status, name: "connecting", console: ConsoleStore(), apps: apps, into: directory) { ConnectionView().frame(height: 640) }
+        render(.status, name: "connecting", console: ConsoleStore(), apps: apps, into: directory, splash: true) {
+            ConnectionView().frame(height: 640)
+        }
 
         render(.status, name: "status", console: console, apps: apps, into: directory) { StatusView(scrolls: false) }
         render(.apps, name: "apps-updates", console: console, apps: apps, into: directory) { AppsView(section: .updates, scrolls: false) }
@@ -50,9 +52,9 @@ enum Snapshot {
     }
 
     private static func render<Content: View>(_ tab: MainTab, name: String, console: ConsoleStore, apps: AppsStore,
-                                              into directory: URL, @ViewBuilder content: () -> Content) {
+                                              into directory: URL, splash: Bool = false, @ViewBuilder content: () -> Content) {
         let view = ZStack(alignment: .top) {
-            Theme.background(for: tab)
+            if splash { SplashBackground() } else { Theme.background(for: tab) }
             VStack(spacing: 0) {
                 TabBar(selection: .constant(tab))
                     .padding(.top, 14)

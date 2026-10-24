@@ -129,6 +129,32 @@ struct FacetBackground: View {
     }
 }
 
+/// The PS app's splash screen: PlayStation blue, lighter at the top left, with angled planes.
+struct SplashBackground: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let w = proxy.size.width, h = proxy.size.height
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.19, green: 0.45, blue: 0.85), Color(red: 0.11, green: 0.27, blue: 0.62),
+                                        Color(red: 0.03, green: 0.09, blue: 0.36)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                plane([(0.18 * w, 0), (0.30 * w, 0), (0, h), (0, 0.72 * h)], opacity: 0.07)
+                plane([(0.32 * w, 0), (w, 0), (w, 0.19 * h)], opacity: 0.10)
+                plane([(w, 0.52 * h), (w, h), (0.13 * w, h)], opacity: 0.06)
+            }
+        }
+    }
+
+    private func plane(_ points: [(CGFloat, CGFloat)], opacity: Double) -> some View {
+        Path { path in
+            path.move(to: CGPoint(x: points[0].0, y: points[0].1))
+            points.dropFirst().forEach { path.addLine(to: CGPoint(x: $0.0, y: $0.1)) }
+            path.closeSubpath()
+        }
+        .fill(Color.white.opacity(opacity))
+    }
+}
+
 /// A thin ring that turns, like the PS app's loading indicator. Unlike ProgressView it also
 /// renders in ImageRenderer (snapshots), as a still arc.
 struct Spinner: View {

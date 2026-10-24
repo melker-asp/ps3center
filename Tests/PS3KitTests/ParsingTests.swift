@@ -44,6 +44,14 @@ import Testing
     #expect(WebMAN.foregroundName(fromProcessName: "") == nil)
 }
 
+@Test func parsesDiskSpace() {
+    let space = WebMAN.parseDiskSpace("[355812345856,500107862016,8,2]")
+    #expect(space?.free == 355_812_345_856)
+    #expect(space?.total == 500_107_862_016)
+    #expect(WebMAN.parseDiskSpace("ERROR") == nil)
+    #expect(WebMAN.parseDiskSpace("[0,0,0,0]") == nil)
+}
+
 @Test func encodesWebCommands() {
     #expect(WebMAN.encodeCommand("/install.ps3/dev_hdd0/packages/a b.pkg") == "/install.ps3/dev_hdd0/packages/a%20b.pkg")
     #expect(WebMAN.encodeText("Klart & klart") == "Klart%20%26%20klart")

@@ -20,6 +20,7 @@ public enum Fixtures {
         var s = ConsoleSnapshot.parse(sysInfo: sysInfo, statusPage: statusPage)
         s.host = host
         s.runningProcess = game
+        s.totalBytes = 500_107_862_016  // the Super Slim's 500 GB drive
         s.computeHealth()
         return s
     }
