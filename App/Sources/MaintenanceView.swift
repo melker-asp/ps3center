@@ -45,7 +45,7 @@ struct MaintenanceView: View {
                 systemCard
                 discCard
             }
-            .frame(height: 220)
+            .frame(height: 236)
             cleanupCard
             storageCard
         }
