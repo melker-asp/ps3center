@@ -15,8 +15,9 @@ concurrency:
 jobs:
   build:
     # PS3Kit uses Network.framework and CryptoKit, and the app is SwiftUI: macOS only.
-    # The repository variable CI_RUNNER=self-hosted runs it on a Mac of your own instead
-    # (Settings → Actions → Runners), which uses no Actions minutes.
+    # GitHub's runners cost nothing for a public repository. While it is private, the repository
+    # variable CI_RUNNER=self-hosted runs the job on a Mac of your own (Settings → Actions →
+    # Runners); never on a public one, where a pull request from a fork could run code on it.
     runs-on: ${{ vars.CI_RUNNER || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4

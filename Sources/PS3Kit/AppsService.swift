@@ -336,7 +336,8 @@ public struct AppsService: Sendable {
         }
         InstalledRegistry.forget(entry.id)
         OperationLog.record("uninstall", "\(entry.name) (\(path))")
-        events(.note("\(entry.name) är avinstallerat. Ikonen kan synas i XMB:n tills PS3:an startats om."))
+        let reload = await XMBReload.afterRemoval(host: host)
+        events(.note("\(entry.name) är avinstallerat. \(reload)"))
     }
 
     public func update(_ status: AppStatus, archive: URL, options: TransferOptions, events: TransferHandler) async throws {

@@ -18,18 +18,29 @@ struct Popup: AsyncParsableCommand {
 }
 
 struct Refresh: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Uppdatera webMANs spellista (som SELECT + L3).")
+    static let configuration = CommandConfiguration(
+        abstract: "Uppdatera webMANs spellista (som SELECT + L3).",
+        discussion: "Med --xmb laddas XMB:n om också, så nya och borttagna ikoner syns direkt. Med en användare och Reload XMB installerat startar webMAN den appen; annars loggar den ut och in."
+    )
 
     @OptionGroup var global: GlobalOptions
 
     @Flag(name: .long, help: "Kör även om ett spel körs.")
     var force = false
 
+    @Flag(name: .long, help: "Ladda om XMB:n också.")
+    var xmb = false
+
     func run() async throws {
         let host = try await Console.host(global)
         let service = TransferService(host: host)
         let printer = TransferPrinter(dryRun: false)
         try await service.waitUntilIdle(force: force) { printer.handle($0) }
+        if xmb {
+            try await service.webman.reloadXMB()
+            UI.ok("Spellistan uppdaterad och XMB:n omladdad")
+            return
+        }
         try await service.webman.refreshGames()
         OperationLog.record("refresh", host)
         UI.ok("Spellistan uppdaterad")

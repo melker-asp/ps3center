@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Just enough ISO 9660 to identify a disc image and read small files from it.
@@ -18,11 +19,14 @@ public final class ISOImage {
     public let volumeID: String
     private let handle: FileHandle
     private let root: Entry
+    /// Names come from the Joliet tree (UCS-2): PS3 discs keep their long names there.
+    private let joliet: Bool
     /// 2048 for plain images; 2352 for raw CD images, whose 2048 data bytes start at `dataOffset`.
     private let sectorSize: UInt64
     private let dataOffset: UInt64
 
-    public init(url: URL) throws {
+    /// `joliet` reads names from the Joliet tree when the image has one, as the IRD tools do.
+    public init(url: URL, joliet: Bool = false) throws {
         handle = try FileHandle(forReadingFrom: url)
         let head = try handle.read(upToCount: 16) ?? Data()
         let sync = Data([0x00] + Array(repeating: UInt8(0xFF), count: 10) + [0x00])
@@ -43,10 +47,26 @@ public final class ISOImage {
         }
         systemID = String(decoding: b[8..<40], as: UTF8.self).trimmingCharacters(in: .whitespaces)
         volumeID = String(decoding: b[40..<72], as: UTF8.self).trimmingCharacters(in: .whitespaces)
-        guard let root = Self.parseRecord(Array(b[156..<190])) else {
+        var rootRecord = Self.parseRecord(Array(b[156..<190]), joliet: false)
+        var useJoliet = false
+        if joliet {
+            // Supplementary descriptors follow the primary; Joliet's escape sequence is %/@, %/C or %/E.
+            for block in UInt64(17)..<UInt64(32) {
+                let d = [UInt8](try Self.read(handle, block: block, count: Int(Self.blockSize), sectorSize: sectorSize, dataOffset: dataOffset))
+                guard d.count == Int(Self.blockSize), String(decoding: d[1..<6], as: UTF8.self) == "CD001", d[0] != 255 else { break }
+                if d[0] == 2, d[88] == 0x25, d[89] == 0x2F, [0x40, 0x43, 0x45].contains(d[90]),
+                   let jolietRoot = Self.parseRecord(Array(d[156..<190]), joliet: true) {
+                    rootRecord = jolietRoot
+                    useJoliet = true
+                    break
+                }
+            }
+        }
+        guard let found = rootRecord else {
             throw PS3Error.invalidFile("\(url.lastPathComponent): trasig rotkatalog.")
         }
-        self.root = root
+        root = found
+        self.joliet = useJoliet
     }
 
     deinit { try? handle.close() }
@@ -72,11 +92,19 @@ public final class ISOImage {
         UInt64(b[o]) | UInt64(b[o + 1]) << 8 | UInt64(b[o + 2]) << 16 | UInt64(b[o + 3]) << 24
     }
 
-    static func parseRecord(_ b: [UInt8]) -> Entry? {
+    static func parseRecord(_ b: [UInt8], joliet: Bool = false) -> Entry? {
         guard b.count >= 34, Int(b[0]) <= b.count else { return nil }
         let nameLength = Int(b[32])
         guard 33 + nameLength <= b.count else { return nil }
-        var name = String(decoding: b[33..<(33 + nameLength)], as: UTF8.self)
+        let raw = Array(b[33..<(33 + nameLength)])
+        var name: String
+        if joliet, nameLength > 1 {
+            // UCS-2 big-endian; "." and ".." stay single bytes 0 and 1.
+            let units = stride(from: 0, to: raw.count - 1, by: 2).map { UInt16(raw[$0]) << 8 | UInt16(raw[$0 + 1]) }
+            name = String(decoding: units, as: UTF16.self)
+        } else {
+            name = String(decoding: raw, as: UTF8.self)
+        }
         if let semicolon = name.firstIndex(of: ";") { name = String(name[..<semicolon]) }
         if name.hasSuffix(".") { name.removeLast() }
         return Entry(name: name, extent: le32(b, 2), size: le32(b, 10), isDirectory: b[25] & 0x02 != 0)
@@ -96,7 +124,7 @@ public final class ISOImage {
                 continue
             }
             guard offset + length <= b.count else { break }
-            if let entry = Self.parseRecord(Array(b[offset..<(offset + length)])),
+            if let entry = Self.parseRecord(Array(b[offset..<(offset + length)]), joliet: joliet),
                entry.name != "\u{0}", entry.name != "\u{1}" {
                 entries.append(entry)
             }
@@ -124,5 +152,52 @@ public final class ISOImage {
     public func readFile(_ path: String) throws -> Data? {
         guard let entry = try find(path), !entry.isDirectory else { return nil }
         return try read(entry)
+    }
+
+    /// Every file under the root as "PS3_GAME/USRDIR/EBOOT.BIN", with its first block and its
+    /// size. A file over 4 GB is stored as several records with the same name (multi-extent);
+    /// they are joined.
+    public func allFiles() throws -> [(path: String, extent: UInt64, size: UInt64)] {
+        var result: [(path: String, extent: UInt64, size: UInt64)] = []
+        var visited = Set<UInt64>()
+        func walk(_ dir: Entry, prefix: String, depth: Int) throws {
+            guard depth < 32, visited.insert(dir.extent).inserted else { return }
+            var previous: String?
+            for entry in try listDirectory(dir) {
+                let path = prefix.isEmpty ? entry.name : prefix + "/" + entry.name
+                if entry.isDirectory {
+                    try walk(entry, prefix: path, depth: depth + 1)
+                    previous = nil
+                } else if path == previous, let last = result.indices.last {
+                    result[last].size += entry.size
+                } else {
+                    result.append((path, entry.extent, entry.size))
+                    previous = path
+                }
+            }
+        }
+        try walk(root, prefix: "", depth: 0)
+        return result
+    }
+
+    /// MD5 of `size` bytes from block `extent` on, read in pieces (plain 2048-byte images).
+    public func md5(extent: UInt64, size: UInt64, progress: (UInt64) -> Void = { _ in }) throws -> String {
+        var hasher = Insecure.MD5()
+        var done: UInt64 = 0
+        if sectorSize == Self.blockSize { try handle.seek(toOffset: extent * Self.blockSize) }
+        while done < size {
+            let count = Int(min(size - done, 4 << 20))
+            let chunk: Data
+            if sectorSize == Self.blockSize {
+                chunk = try handle.read(upToCount: count) ?? Data()
+            } else {
+                chunk = try Self.read(handle, block: extent + done / Self.blockSize, count: count, sectorSize: sectorSize, dataOffset: dataOffset)
+            }
+            guard !chunk.isEmpty else { break }
+            hasher.update(data: chunk)
+            done += UInt64(chunk.count)
+            progress(done)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }

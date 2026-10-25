@@ -1,3 +1,4 @@
+import AppKit
 import PS3Kit
 import SwiftUI
 
@@ -11,6 +12,7 @@ struct MaintenanceView: View {
     @State private var showsSaves = false
     @State private var confirmsFix = false
     @State private var confirmsRip = false
+    @State private var confirmsBlock = false
 
     var body: some View {
         Group {
@@ -31,9 +33,15 @@ struct MaintenanceView: View {
         } message: {
             Text(store.disc.map { "\($0.title) (\(Format.bytes($0.bytes))) hamnar i \($0.destination)." } ?? "")
         }
+        .confirmationDialog("Blockera systemuppdateringar?", isPresented: $confirmsBlock) {
+            Button("Blockera") { store.blockUpdates() }
+        } message: {
+            Text("PS3 Center lägger webMAN MOD:s ps3-updatelist.txt i /dev_hdd0. Från nästa start pekar webMAN XMB:ns uppdateringskoll på den, så ingen systemuppdatering kan hämtas av misstag. Inget i systemflashen ändras, och filen kan tas bort igen.")
+        }
         .task(id: console.host) {
             store.host = console.host
             store.loadDisc()
+            store.loadMedia()
         }
     }
 
@@ -44,6 +52,7 @@ struct MaintenanceView: View {
                 savesCard
                 systemCard
                 discCard
+                mediaCard
             }
             .frame(height: 236)
             cleanupCard
@@ -139,6 +148,30 @@ struct MaintenanceView: View {
         }
     }
 
+    // MARK: Films and pictures
+
+    private var mediaCard: some View {
+        let items = store.media ?? []
+        let videos = items.filter(\.isVideo).count
+        return Card(icon: "film.stack", title: "Filmer och bilder", chip: items.isEmpty ? nil : "\(items.count) nya", chipColor: Theme.good) {
+            BigValue(value: "\(videos)", unit: videos == 1 ? "film" : "filmer")
+            Footnote(text: "\(items.count - videos) bilder · \(Format.bytes(items.reduce(0) { $0 + $1.size }))")
+            Spacer(minLength: 0)
+            Text("Inspelningar från webMAN och skärmbilder från spel. Inget tas bort från PS3:an.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Hämta till Macen") { store.importMedia() }
+                    .buttonStyle(PillButtonStyle())
+                    .disabled(items.isEmpty || store.busy != nil)
+                Button { NSWorkspace.shared.open(MediaImport.defaultFolder) } label: { Image(systemName: "folder") }
+                    .buttonStyle(CircleIconButtonStyle(size: 30))
+                    .help("Visa mappen Bilder/PS3 Center")
+            }
+        }
+    }
+
     // MARK: Cleaning up
 
     private var cleanupCard: some View {
@@ -186,6 +219,12 @@ struct MaintenanceView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if finding.kind == .updates {
+                Spacer()
+                Button("Blockera") { confirmsBlock = true }
+                    .buttonStyle(PillButtonStyle())
+                    .disabled(store.busy != nil)
             }
         }
     }

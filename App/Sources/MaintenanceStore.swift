@@ -19,6 +19,8 @@ final class MaintenanceStore {
     private(set) var disc: DiscInfo?
     private(set) var discNote: String?
     private(set) var ripped: Int64?
+    /// Recordings and photos on the console not copied to the Mac yet, nil until looked for.
+    private(set) var media: [MediaImport.Item]?
     /// What is running ("Kopierar Gran Turismo 5"), one thing at a time.
     private(set) var busy: String?
     /// The outcome of the last action, or why it failed.
@@ -45,6 +47,7 @@ final class MaintenanceStore {
         report = Fixtures.maintenanceReport
         storage = Fixtures.storageMap
         disc = Fixtures.disc
+        media = Fixtures.mediaItems
     }
 
     func setAutoBackup(_ on: Bool) {
@@ -142,6 +145,37 @@ final class MaintenanceStore {
             let removed = Set(results.filter { $0.skipped == nil }.map { $0.finding.id })
             await MainActor.run { self.report?.findings.removeAll { removed.contains($0.id) } }
             return "\(removed.count) av \(findings.count) borttagna"
+        }
+    }
+
+    /// Puts webMAN MOD's ps3-updatelist.txt on the console, so the XMB cannot fetch a system update.
+    func blockUpdates() {
+        run("Blockerar systemuppdateringar") { host in
+            try await UpdateBlock.set(true, host: host)
+            await MainActor.run {
+                self.report?.findings.removeAll { $0.kind == .updates }
+                self.report?.passed.append("Systemuppdateringar blockeras")
+            }
+            return "Systemuppdateringar blockeras från nästa start."
+        }
+    }
+
+    // MARK: Films and pictures
+
+    func loadMedia() {
+        guard !isFixture, let host else { return }
+        Task { media = try? await MediaImport(host: host).newItems() }
+    }
+
+    /// Copies new recordings and photos to ~/Pictures/PS3 Center. Nothing is removed from the console.
+    func importMedia() {
+        guard let items = media, !items.isEmpty else { return }
+        run("Hämtar filmer och bilder") { host in
+            let written = try await MediaImport(host: host).copy(items) { done, total in
+                Task { @MainActor in self.busy = "Hämtar \(min(done + 1, total)) av \(total)" }
+            }
+            await MainActor.run { self.media = [] }
+            return "\(written.count) filer i Bilder/PS3 Center"
         }
     }
 

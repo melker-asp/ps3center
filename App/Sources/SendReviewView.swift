@@ -67,6 +67,12 @@ struct SendReviewView: View {
                     fact("Ledigt på PS3:an", "\(Format.bytes(free)) → \(Format.bytes(max(after, 0)))", warn: after < 1_000_000_000)
                 }
                 fact("Tid", timeText)
+                if sendsPS2ISOToHEN {
+                    Text(PlayCheck.Finding.ps2NeedsClassic.message)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.warm)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if console.snapshot?.network == "Wi-Fi", total > 2_000_000_000 {
                     Text("PS3:an är på Wi-Fi (bara 2,4 GHz). Med nätverkskabel brukar det gå flera gånger fortare.")
                         .font(.system(size: 12))
@@ -102,6 +108,12 @@ struct SendReviewView: View {
         .padding(32)
         .frame(width: 560, height: 640, alignment: .topLeading)
         .background(Theme.base)
+    }
+
+    /// A plain PS2 ISO among the chosen games while the console runs HEN, where it will not start.
+    private var sendsPS2ISOToHEN: Bool {
+        guard let snapshot = console.snapshot, ConsoleProfile(snapshot: snapshot).exploit == .hen else { return false }
+        return chosen.flatMap(\.routes).contains { $0.kind == .ps2ISO && !PS2Classic.isClassic($0.remote) }
     }
 
     private func row(_ group: Entry) -> some View {

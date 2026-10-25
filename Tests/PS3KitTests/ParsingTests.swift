@@ -457,7 +457,10 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(byID["hen"]?.canInstall == false)
     #expect(byID["pkgi"]?.state == .upToDate)
     #expect(byID["ds45pad"]?.state == .upToDate)
-    #expect(byID["filemanager"]?.state == .manual)
+    // mohasi's File Manager now comes from GitHub; untracked versions count as up to date.
+    #expect(byID["filemanager"]?.state == .upToDate)
+    #expect(byID["filemanager"]?.installable == true)
+    #expect(byID["yoplayer"]?.latest == nil)
     #expect(byID["ezremote"]?.installable == true)
     #expect(statuses.allSatisfy { !$0.blocked })
 

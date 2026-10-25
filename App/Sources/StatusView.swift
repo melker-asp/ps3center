@@ -128,6 +128,10 @@ struct StatusView: View {
             Button { showsRemote = true } label: { Label("Fjärrkontroll", systemImage: "gamecontroller") }
             if s.isGameRunning {
                 Button { console.exitGame() } label: { Label("Avsluta spelet", systemImage: "xmark.circle") }
+                Button { console.toggleRecording() } label: {
+                    Label(console.isRecording ? "Sluta spela in" : "Spela in", systemImage: console.isRecording ? "stop.circle" : "record.circle")
+                }
+                .help("webMAN spelar in spelet som 720p MP4 i /dev_hdd0/VIDEO")
             }
             Button { console.eject() } label: { Label("Mata ut skivan", systemImage: "eject") }
             if let note = console.actionNote {

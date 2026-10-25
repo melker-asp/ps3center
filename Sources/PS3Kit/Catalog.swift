@@ -1,7 +1,9 @@
 import Foundation
 
 /// The homebrew `ps3 apps` knows how to check and install. Add new programs here.
-/// Title IDs were read from each release's .pkg header (content ID at 0x30).
+/// Title IDs were read from each release's .pkg header (content ID at 0x30). Left out on purpose:
+/// Swarm (a torrent client) and multiMAN, which shares /dev_hdd0/game/BLES80608 with webMAN's
+/// cover packs, so uninstalling it would take the covers with it.
 public struct CatalogEntry: Sendable {
     public enum Installed: Sendable {
         /// Version from /dev_hdd0/game/<titleID>/PARAM.SFO.
@@ -99,6 +101,7 @@ public struct CatalogEntry: Sendable {
 public enum Catalog {
     static let webmanRepo = "aldostools/webMAN-MOD"
     static let resourcesRepo = "aldostools/Resources"
+    static let mohasiRepo = "mohasi/ps3-dev"
 
     public static let entries: [CatalogEntry] = [
         // System
@@ -164,16 +167,64 @@ public enum Catalog {
             category: .tools, installed: .paramSFO(titleID: "PSL145310"),
             source: .github(repo: "bucanero/ps3loadx", asset: #"^ps3loadx\.pkg$"#), releaseStyle: .semverAsAppVer,
             homepage: "https://github.com/bucanero/ps3loadx/releases"),
+        // mohasi's apps (github.com/mohasi/ps3-dev). Their tags are build numbers ("191-3541f8d"),
+        // not APP_VER, so updates are not tracked.
         CatalogEntry(
-            id: "filemanager", name: "File Manager", summary: "Filhanterare på konsolen",
+            id: "filemanager", name: "File Manager", summary: "Filhanterare på konsolen (mohasi)",
             category: .tools, installed: .paramSFO(titleID: "FILEMGR01"),
-            source: .manual(url: "https://www.brewology.com/downloads/download.php?id=841"),
-            releaseStyle: .appVer, action: .notifyOnly("Finns bara på Brewology. Kolla sidan manuellt."),
-            homepage: "https://www.brewology.com/downloads/download.php?id=841"),
+            source: .github(repo: mohasiRepo, asset: #"^file-manager\.pkg$"#),
+            homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
+        CatalogEntry(
+            id: "yoplayer", name: "Yo! Player", summary: "YouTube på TV:n, upp till 1080p",
+            category: .tools, installed: .paramSFO(titleID: "YOPLAYER1"),
+            source: .github(repo: mohasiRepo, asset: #"^yo-player\.pkg$"#),
+            homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
+        CatalogEntry(
+            id: "cellstream", name: "Cell Stream", summary: "Strömmar bild från datorn till PS3:an",
+            category: .tools, installed: .paramSFO(titleID: "CELSTRM01"),
+            source: .github(repo: mohasiRepo, asset: #"^cell-stream\.pkg$"#),
+            homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
+        CatalogEntry(
+            id: "thermalbench", name: "Thermal Bench", summary: "Testar värme, fläkt och klockfrekvenser och sparar varje körning",
+            category: .tools, installed: .paramSFO(titleID: "THERMAL01"),
+            source: .github(repo: mohasiRepo, asset: #"^thermal-bench\.pkg$"#),
+            homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
+        CatalogEntry(
+            id: "renpy", name: "Ren'Py Player", summary: "Spelar visual novels gjorda i Ren'Py (.rpk)",
+            category: .tools, installed: .paramSFO(titleID: "RENPLAY01"),
+            source: .github(repo: mohasiRepo, asset: #"^renpy-player\.pkg$"#),
+            homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
+
+        // Packages aldostools collects in Resources' "Addons" release; their versions do not follow it.
+        CatalogEntry(
+            id: "movian", name: "Movian", summary: "Mediaspelare för film, musik och bilder (M7)",
+            category: .tools, installed: .paramSFO(titleID: "HTSS00003"),
+            source: .github(repo: resourcesRepo, asset: #"^movianM7-deank-playstation3\.pkg$"#, tag: "Addons"),
+            homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
+        CatalogEntry(
+            id: "jellyfin", name: "JellyFin", summary: "Spelar film och serier från en Jellyfin-server",
+            category: .tools, installed: .paramSFO(titleID: "JFPS30000"),
+            source: .github(repo: resourcesRepo, asset: #"^JellyFin-PS3\.pkg$"#, tag: "Addons"),
+            homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
+        CatalogEntry(
+            id: "simplefm", name: "Simple File Manager MOD", summary: "Filhanterare för exFAT, NTFS, FAT32, ext2/3/4 och UFS2",
+            category: .tools, installed: .paramSFO(titleID: "PS3SFM001"),
+            source: .github(repo: resourcesRepo, asset: #"^Simple_File_Manager_MOD\.pkg$"#, tag: "Addons"),
+            homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
+        CatalogEntry(
+            id: "teeremoteplay", name: "TEE Remote Play", summary: "Strömmar bild från datorn till PS3:an",
+            category: .tools, installed: .paramSFO(titleID: "TEECRPMX1"),
+            source: .github(repo: resourcesRepo, asset: #"^TEE-Remote-Play\.pkg$"#, tag: "Addons"),
+            homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
+        CatalogEntry(
+            id: "teevanced", name: "TEE Vanced", summary: "YouTube på TV:n",
+            category: .tools, installed: .paramSFO(titleID: "TEEVANCED"),
+            source: .github(repo: resourcesRepo, asset: #"^TEE-Vanced-PS3\.pkg$"#, tag: "Addons"),
+            homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
 
         // webMAN add-ons: shipped inside webMAN's own release, so their versions do not follow the tag.
         CatalogEntry(
-            id: "ps2launcher", name: "PS2 Classics Launcher", summary: "Krävs för PS2-ISO:er på Super Slim (ingen PS2-hårdvara)",
+            id: "ps2launcher", name: "PS2 Classics Launcher", summary: "Startar PS2 Classics (.BIN.ENC), det enda sätt PS2-spel startar på HEN",
             category: .webmanAddons, installed: .paramSFO(titleID: "PS2U10000"),
             source: .github(repo: webmanRepo, asset: #"^PS2_Classics_Launcher\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),

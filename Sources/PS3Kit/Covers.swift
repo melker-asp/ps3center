@@ -37,13 +37,23 @@ public struct CoverService: Sendable {
             urls = ["https://raw.githubusercontent.com/aldostools/Resources/master/COV/\(id).JPG"]
                 + languages.map { "https://art.gametdb.com/ps3/coverM/\($0)/\(id).jpg" }
         case .ps2:
-            urls = ["https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/\(id).jpg"]
+            urls = ["https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/\(id).jpg"] + aldosRetro(id)
         case .ps1:
-            urls = ["https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/\(id).jpg"]
-        case .psp, .bluRay, .dvd:
+            urls = ["https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/\(id).jpg"] + aldosRetro(id)
+        case .psp:
+            // aldostools/Resources/PSP: "UCES00995.PNG" for UCES-00995.
+            urls = ["https://raw.githubusercontent.com/aldostools/Resources/master/PSP/\(id.replacingOccurrences(of: "-", with: "").uppercased()).PNG"]
+        case .bluRay, .dvd:
             urls = []
         }
         return urls.compactMap(URL.init(string:))
+    }
+
+    /// aldostools/Resources/PSX holds PS1 and PS2 covers under the boot file's name:
+    /// "SCES_014.38_COV.JPG" for SCES-01438. Used when xlenore's collections have none.
+    static func aldosRetro(_ id: String) -> [String] {
+        guard let exe = LibCrypt.exeName(fromTitleID: id) else { return [] }
+        return ["https://raw.githubusercontent.com/aldostools/Resources/master/PSX/\(exe)_COV.JPG"]
     }
 
     /// The cover's file on the Mac, fetched when missing. Nil when no source has one; a definite

@@ -3,7 +3,8 @@ import PS3Kit
 import SwiftUI
 
 /// Fjärrkontroll: webMAN's virtual pad, with the keyboard too: arrows, Return for OK and Esc for
-/// back. Watch the TV; a picture of the XMB fetched from the console lagged behind the presses.
+/// back, and a row of webMAN's other commands. Watch the TV; a picture of the XMB fetched from the
+/// console lagged behind the presses.
 struct RemoteView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(\.dismiss) private var dismiss
@@ -24,13 +25,24 @@ struct RemoteView: View {
             }
             pad.padding(.top, 28)
             Spacer(minLength: 12)
-            Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                .keyboardShortcut("w")
-                .help("Stäng (⌘W)")
+            HStack(spacing: 10) {
+                Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
+                    .keyboardShortcut("w")
+                    .help("Stäng (⌘W)")
+                Spacer()
+                extras
+            }
+            if let note = console.actionNote, live {
+                Text(note)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .padding(.top, 8)
+            }
         }
         .padding(32)
-        .frame(width: 720, height: 420, alignment: .topLeading)
+        .frame(width: 720, height: 450, alignment: .topLeading)
         .background(Theme.base)
         .focusable()
         .focused($focused)
@@ -82,6 +94,29 @@ struct RemoteView: View {
             }
         }
         .disabled(!live)
+    }
+
+    /// webMAN's other console commands: none of them moves the cursor.
+    private var extras: some View {
+        HStack(spacing: 8) {
+            Button("Ladda om XMB") { console.reloadXMB() }
+                .help("Uppdaterar spellistan och laddar om XMB:n, så nya och borttagna ikoner syns")
+            Button("Pip") { console.beep() }
+                .help("PS3:an piper tre gånger")
+            Button("Skärmbilder i spel") { console.enableGameScreenshots() }
+                .help("Tillåter XMB:ns Spara skärmbild i alla spel, till nästa omstart")
+            Menu("Musik i spel") {
+                Button("På") { console.setGameMusic(true) }
+                Button("Av") { console.setGameMusic(false) }
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Låter musik från XMB:n spela under spel. webMAN kan inte visa hur det står.")
+        }
+        .buttonStyle(PillButtonStyle(prominent: false))
+        .font(.system(size: 12, weight: .semibold))
+        .disabled(!live || console.isActing)
     }
 
     /// Four buttons in a diamond, like the d-pad and the face buttons.

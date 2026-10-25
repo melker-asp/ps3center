@@ -169,8 +169,8 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   försöker kön igen med paus emellan och fortsätter från `.part`-filens storlek. Har webMAN tagit
   bort filen (anslutningen bröts med ett fel) börjar den om och säger det.
 - **Avinstallera:** ett installerat spel eller program är en mapp i `/dev_hdd0/game/<title ID>`
-  som tas bort med FTP (RMD är rekursiv i webMAN). Sparfiler och troféer rörs inte. XMB:n kan visa
-  ikonen tills konsolen startats om.
+  som tas bort med FTP (RMD är rekursiv i webMAN). Sparfiler och troféer rörs inte. XMB:n visar
+  ikonen tills den laddas om (se Ladda om XMB nedan).
 - **`/cpursx.ps3` visar PSID/IDPS.** De sparas och visas aldrig.
 - **Paketinstallation:** `/install.ps3/<sökväg>` installerar, men tar *inte* bort .pkg-filen
   som wikin påstår (provat 24 okt 2026). Verktyget vet att installationen är klar när
@@ -201,6 +201,52 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   IRISMAN:s README är Latin-1.
 - **PS3HEN** har inga GitHub-releaser. Senaste versionen läses från `HEN_REV` i
   `payload/main.c` (0x0360 → 3.6.0).
+
+### Fas 9: ur webMAN:s, PS3HEN:s och aldostools källor (25 okt 2026)
+
+- **PS2 på HEN:** webMAN monterar inte vanliga PS2-ISO:er på HEN ("HEN does not support PS2 ISO",
+  `include/mount/mount_cobra.h`). Bara PS2 Classics (krypterade `.BIN.ENC`) startar, genom PS2
+  Classics Launcher. Rättningar läses ur `/dev_hdd0/game/PS2CONFIG/USRDIR`: för en PS2 Classic
+  `CONFIG/ENC/<SLES_123.45>.ENC`, för en ISO på CFW `<ID>.CONFIG` i `CUSTOM`, `NET`, `GX` eller
+  `SOFT` (`include/mount/ps2_classic.h`).
+- **LibCrypt (PAL-PS1):** PS3HEN läser skyddsdatan i `payload/storage_ext.c`: först
+  `<spårets namn>.lsd`/`.sbi` bredvid datafilen (`.bin` byts mot `.lsd`), sedan
+  `/dev_hdd0/tmp/lsd/<EXE>.lsd` och `/dev_hdd0/tmp/sbi/<EXE>.sbi`, där EXE är startfilen i
+  SYSTEM.CNF (`SCES_014.31`). webMAN MOD:s installerare lägger 225 LSD-filer i `/dev_hdd0/tmp/lsd`
+  (`_Projects_/updater/pkgfiles/USRDIR/lsd`); en post är 15 byte.
+- **Ladda om XMB:** `/refresh.ps3?xmb` läser om spellistan och laddar om XMB:n, bara när XMB:n
+  visas. Med en användare och Reload XMB (`/dev_hdd0/game/RELOADXMB`, som webMAN:s installerare
+  också lägger dit) startar webMAN den appen, annars loggar den ut och in med virtuella
+  knapptryck (`reload_xmb`, `include/init/vsh.h`). PS3 Center laddar bara om av sig själv efter en
+  avinstallation när det första gäller.
+- **Inspelning:** `/videorec.ps3` startar eller stoppar inspelning, bara under ett spel, som 720p
+  MP4 i `/dev_hdd0/VIDEO/<title ID>_<datum>.mp4`. Svaret säger `Video recording: Enabled` eller
+  `Disabled` (`include/feat/video_rec.h`).
+- **Skärmbilder i spel:** `/xmb.ps3$ingame_screenshot` slår på XMB:ns Spara skärmbild i alla spel,
+  till nästa omstart. Foton ligger under `/dev_hdd0/photo`.
+- **Musik i spel:** `/sysbgm.ps3?1` och `?0` sätter bakgrundsmusiken. webMAN kan inte läsa av
+  läget: `?` och `?status` ändrar det (`include/cmd/sysbgm.h`), så de används inte.
+- **Pip:** `/beep.ps3?1`–`3` är summerns pip (`play_sound_id`, `include/notify/vsh_notify.h`).
+- **Teman:** `/install.ps3/<sökväg>.p3t` anropar XMB:ns temainstallerare
+  (`include/feat/pkg_handler.h`). PS3 Center laddar upp temat till `/dev_hdd0/packages`.
+- **Systemuppdateringar:** finns `/dev_hdd0/ps3-updatelist.txt` pekar webMAN XMB:ns
+  uppdateringskoll på den vid varje start (`include/www/www_start.h`). webMAN MOD:s egen fil
+  skickar alla regioners uppdatering till 127.0.0.1. Inget i dev_flash ändras.
+- **Används inte:** `/fixclock.ps3` skriver konsolens säkra klocka (`sys_ss_secure_rtc`,
+  `include/feat/clock.h`), och XMB:n ställer klockan via Internet själv. USB-"utmatningen"
+  (`/xmb.ps3$eject/dev_usb000`) är en låtsad händelse till XMB:n, ingen säker avmontering.
+  Överklockning, LV1/LV2-minne, IDPS/PSID-dumpar och nätverksinställningar används aldrig.
+- **IRD:** formatet följer 13xforever:s ps3-disc-dumper (`IrdLibraryClient/IrdFormat`):
+  little-endian, hela filen ofta gzip, `header` är skivans första block (gzip) med filsystemet,
+  och filernas MD5 (på dekrypterad data) är nycklade på blocket filen börjar i. Namnen läses ur
+  Joliet-trädet. IRD-filerna hämtas från FlexBy420:s databas på GitHub
+  (`flexby420.github.io/playstation_3_ird_database/all.json`).
+- **ps3.aldostools.org** har ett självsignerat HTTPS-certifikat och fungerar bara över HTTP, så
+  PS3 Center hämtar inget därifrån. Samma data finns på GitHub (titleid.txt, omslag, LSD-filer).
+  psdevwiki ligger bakom ett Cloudflare-skydd; felkoderna (0x8001xxxx) kommer i stället från
+  RPCS3:s `rpcs3/Emu/Cell/ErrorCodes.h`.
+- **Omslag:** PSP från `aldostools/Resources/PSP/<UCES00995>.PNG`, och PS1/PS2 därifrån som
+  reserv (`PSX/<SCES_014.38>_COV.JPG`).
 
 ## Färdplan
 

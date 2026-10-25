@@ -43,7 +43,7 @@ final class GamesStore {
 
     /// What is happening to a game right now, shown instead of its buttons.
     struct Busy: Equatable {
-        enum Kind { case starting, mounting, unmounting, exiting, deleting, updating }
+        enum Kind { case starting, mounting, unmounting, exiting, deleting, updating, fixing, verifying }
         let id: String
         let kind: Kind
         /// For updates: what is happening ("Hämtar 02.12") and how far it has come.
@@ -59,6 +59,8 @@ final class GamesStore {
             case .exiting: return "Avslutar spelet…"
             case .deleting: return "Tar bort…"
             case .updating: return "Uppdaterar…"
+            case .fixing: return "Lägger LibCrypt-datan på PS3:an…"
+            case .verifying: return "Kontrollerar mot IRD…"
             }
         }
     }
@@ -80,6 +82,10 @@ final class GamesStore {
     private(set) var busy: Busy?
     /// The last failed action per game, shown on its page until the next action.
     private(set) var failures: [String: String] = [:]
+    /// What could keep a PS1 or PS2 game from starting (`PlayCheck`), by game id.
+    private(set) var findings: [String: [PlayCheck.Finding]] = [:]
+    /// The last check of a disc copy against its IRD, by game id.
+    private(set) var verifications: [String: DiscVerifier.Report] = [:]
     var filter: Filter = .all
     var search = ""
     /// The game whose page is open in the Spel tab.
@@ -185,6 +191,7 @@ final class GamesStore {
         macGames = Fixtures.macGames
         macStates = LibraryMatch.states(mac: macGames, console: games)
         macLoaded = true
+        verifications = Fixtures.discReports
     }
 
     func loadBackground(for game: Game) async {
@@ -295,6 +302,64 @@ final class GamesStore {
         }
     }
 
+    // MARK: Compatibility and copies
+
+    /// Looks for what could keep a PS1 or PS2 game from starting. Offline in fixture mode.
+    func checkCompatibility(of game: Game, console: ConsoleProfile?) async {
+        guard game.platform == .ps1 || game.platform == .ps2 else { return }
+        findings[game.id] = PlayCheck.offline(game, console: console)
+        guard let host, !Snapshot.usesFixtures else { return }
+        if let checked = try? await PlayCheck.check(game, console: console, host: host) {
+            findings[game.id] = checked
+        }
+    }
+
+    /// Puts the LibCrypt data a PAL PS1 game needs on the console, then checks again.
+    func installLibCrypt(for game: Game, console: ConsoleProfile?) {
+        guard let host, busy == nil, let exe = LibCrypt.exe(for: game) else { return }
+        busy = Busy(id: game.id, kind: .fixing)
+        failures[game.id] = nil
+        Task {
+            do {
+                try await LibCrypt.install(exe: exe, host: host)
+                await self.checkCompatibility(of: game, console: console)
+            } catch {
+                self.failures[game.id] = Self.explained(error)
+            }
+            self.busy = nil
+        }
+    }
+
+    /// Checks a PS3 game folder on the console against its IRD (the console works out the MD5s).
+    func verify(_ game: Game) {
+        guard let host, busy == nil, game.isFolder, game.platform == .ps3 else { return }
+        busy = Busy(id: game.id, kind: .verifying)
+        failures[game.id] = nil
+        let id = game.id
+        Task {
+            do {
+                let report = try await DiscVerifier.verify(.console(game.path), host: host, events: { step in
+                    Task { @MainActor in self.busy?.step = step }
+                }, progress: { done, total, _ in
+                    Task { @MainActor in
+                        guard self.busy?.id == id, total > 0 else { return }
+                        self.busy?.step = "Kontrollerar \(done) av \(total) filer…"
+                        self.busy?.progress = Double(done) / Double(total)
+                    }
+                })
+                self.verifications[id] = report
+            } catch {
+                self.failures[id] = Self.explained(error)
+            }
+            self.busy = nil
+        }
+    }
+
+    /// An error message, with any system error code in it explained.
+    static func explained(_ error: Error) -> String {
+        ConsoleErrorCode.annotate(error.localizedDescription)
+    }
+
     private func perform(_ kind: Busy.Kind, on game: Game, _ action: @escaping @Sendable (GameLibraryService) async throws -> Void) {
         guard let host, busy == nil else { return }
         busy = Busy(id: game.id, kind: kind)
@@ -303,7 +368,7 @@ final class GamesStore {
             do {
                 try await action(GameLibraryService(host: host))
             } catch {
-                self.failures[game.id] = error.localizedDescription
+                self.failures[game.id] = Self.explained(error)
             }
             self.busy = nil
         }

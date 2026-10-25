@@ -151,7 +151,7 @@ final class AppsStore {
                 operations[status.id] = nil
                 await load(host: host)
             } catch {
-                operations[status.id] = Operation(stage: .failed(error.localizedDescription))
+                operations[status.id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
             }
         }
     }
@@ -211,7 +211,7 @@ final class AppsStore {
         } catch is CancellationError {
             // forceWaiting() re-queued it.
         } catch {
-            operations[id] = Operation(stage: .failed(error.localizedDescription))
+            operations[id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
         }
     }
 

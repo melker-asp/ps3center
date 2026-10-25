@@ -59,7 +59,10 @@ public struct GameLibraryService: Sendable {
             return GameListing.attach(updates, to: games)
         }
         GameCache.save(fresh)
-        return games
+        // A game whose PARAM.SFO could not be read is named by its title ID; aldostools' title
+        // list usually knows it.
+        guard games.contains(where: TitleDatabase.needsName) else { return games }
+        return await TitleDatabase.load().named(games)
     }
 
     // MARK: Pictures
@@ -201,9 +204,12 @@ public struct GameLibraryService: Sendable {
             }
         }
         OperationLog.record(game.isInstalled ? "uninstall" : "delete", game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
-        events(.note(game.isInstalled
-            ? "\(game.title) är avinstallerat. Sparfilerna ligger kvar, och ikonen kan synas i XMB:n tills PS3:an startats om."
-            : "\(game.title) är borttaget från PS3:an"))
+        if game.isInstalled {
+            let reload = await XMBReload.afterRemoval(host: host)
+            events(.note("\(game.title) är avinstallerat. Sparfilerna ligger kvar. \(reload)"))
+        } else {
+            events(.note("\(game.title) är borttaget från PS3:an"))
+        }
         guard options.refresh else { return }
         try await TransferService(host: host).waitUntilIdle(force: options.force, events: events)
         try await webman.refreshGames()

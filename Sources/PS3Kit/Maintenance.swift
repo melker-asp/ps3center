@@ -295,7 +295,7 @@ public enum SystemFiles {
 /// removed by PS3 Center; the rest is advice.
 public struct MaintenanceFinding: Codable, Equatable, Sendable, Identifiable {
     public enum Kind: String, Codable, Sendable {
-        case leftoverPackage, partialUpload, duplicate, cache, missingPlugin, henToggles, space
+        case leftoverPackage, partialUpload, duplicate, cache, missingPlugin, henToggles, space, updates
     }
 
     public let kind: Kind
@@ -368,11 +368,21 @@ public struct MaintenanceService: Sendable {
         events("Paket och avbrutna överföringar")
         let queued = Set(queue.pending.flatMap { $0.files.map(\.remote) })
         let packages = try await ftp.list("/dev_hdd0/packages")
-        for file in packages where !file.isDirectory && file.name.lowercased().hasSuffix(".pkg") {
+        for file in packages where !file.isDirectory && [".pkg", ".p3t"].contains(where: { file.name.lowercased().hasSuffix($0) }) {
             report.findings.append(MaintenanceFinding(
                 kind: .leftoverPackage, title: file.name,
-                detail: "Ett paket som ligger kvar i /dev_hdd0/packages. Installerade program behöver det inte.",
+                detail: "Ett paket eller tema som ligger kvar i /dev_hdd0/packages. Det som är installerat behöver det inte.",
                 path: "/dev_hdd0/packages/" + file.name, size: file.size, canFix: true))
+        }
+
+        events("Systemuppdateringar")
+        if try await ftp.size(UpdateBlock.remotePath) == nil {
+            // Advice only: `fix` removes files and never adds one; `UpdateBlock.set` does that on request.
+            report.findings.append(MaintenanceFinding(
+                kind: .updates, title: "Systemuppdateringar blockeras inte",
+                detail: "Uppdaterar PS3:an systemprogramvaran av misstag kan HEN sluta fungera. Blockera uppdateringar här eller med ps3 maintain block-updates; det gäller från nästa start."))
+        } else {
+            report.passed.append("Systemuppdateringar blockeras")
         }
         var parts: [(path: String, size: Int64)] = packages.filter { $0.name.hasSuffix(".part") }
             .map { ("/dev_hdd0/packages/" + $0.name, $0.size) }

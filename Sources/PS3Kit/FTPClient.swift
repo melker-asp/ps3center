@@ -157,6 +157,27 @@ public final class FTPClient {
         return raw
     }
 
+    /// Downloads `path` into the file `local` (replaced if it exists). With `expectedSize`, a
+    /// shorter file is an error: the connection broke.
+    public func download(_ path: String, to local: URL, expectedSize: Int64? = nil, progress: (Int64) -> Void = { _ in }) async throws {
+        let fm = FileManager.default
+        try? fm.removeItem(at: local)
+        guard fm.createFile(atPath: local.path, contents: nil) else {
+            throw PS3Error.invalidFile("Kunde inte skapa \(local.path)")
+        }
+        let handle = try FileHandle(forWritingTo: local)
+        defer { try? handle.close() }
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        let reply = try await command("RETR \(path)")
+        guard [125, 150].contains(reply.code) else { throw PS3Error.ftp(code: reply.code, message: reply.text) }
+        let written = try await data.readToEnd(into: handle, timeout: 60, progress: progress)
+        _ = try await readReply(expect: [226, 250], timeout: 60)
+        if let expectedSize, written != expectedSize {
+            throw PS3Error.ftpProtocol("\((path as NSString).lastPathComponent) blev \(written) byte i stället för \(expectedSize); anslutningen bröts")
+        }
+    }
+
     public func makeDirectories(_ path: String) async throws {
         var current = ""
         for component in path.split(separator: "/") {
@@ -280,6 +301,17 @@ public final class FTPClient {
         try await data.finish()
         data.cancel()
         _ = try await readReply(expect: [226, 250], timeout: 300)
+    }
+
+    /// Writes a small file (a few KB, such as LibCrypt data) in one go, replacing any old one.
+    public func upload(contents: Data, to remotePath: String) async throws {
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        _ = try await command("STOR \(remotePath)", expect: [125, 150])
+        try await data.send(contents)
+        try await data.finish()
+        data.cancel()
+        _ = try await readReply(expect: [226, 250], timeout: 60)
     }
 }
 
@@ -432,5 +464,23 @@ final class LineConnection {
             if result.count > limit { throw PS3Error.ftpProtocol("filen är större än väntat") }
         }
         return result
+    }
+
+    /// Like `readToEnd`, but straight into a file, for downloads too big to hold in memory.
+    func readToEnd(into handle: FileHandle, timeout: TimeInterval, progress: (Int64) -> Void) async throws -> Int64 {
+        var written: Int64 = 0
+        if !buffer.isEmpty {
+            try handle.write(contentsOf: buffer)
+            written += Int64(buffer.count)
+            buffer.removeAll()
+        }
+        while let chunk = try await receive(timeout: timeout) {
+            try Task.checkCancellation()
+            guard !chunk.isEmpty else { continue }
+            try handle.write(contentsOf: chunk)
+            written += Int64(chunk.count)
+            progress(written)
+        }
+        return written
     }
 }

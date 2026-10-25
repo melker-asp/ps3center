@@ -16,12 +16,13 @@ struct Games: AsyncParsableCommand {
         ps3 games updates            Officiella uppdateringar från Sony för spelen
         ps3 games update gran        Installera uppdateringarna för ett spel (eller --all)
         ps3 games mac                Spelen i Macens spelmappar och om de finns på PS3:an
+        ps3 games libcrypt <namn>    Lägg LibCrypt-datan som ett PAL-PS1-spel behöver på PS3:an
         Namnet kan vara en del av titeln, ett title ID (BCES00569, SLES-12345) eller sökvägen.
         Spelen läses från PS3ISO, GAMES, GAMEZ, PS2ISO, PSXISO, PSPISO, BDISO och DVDISO på
         hårddisken och USB-diskar, och från spel som är installerade i /dev_hdd0/game.
         """,
         subcommands: [List.self, Info.self, Play.self, Mount.self, Unmount.self, ExitGame.self, Delete.self,
-                      Covers.self, Updates.self, Update.self, Mac.self],
+                      Covers.self, Updates.self, Update.self, Mac.self, Libcrypt.self],
         defaultSubcommand: List.self
     )
 
@@ -90,7 +91,43 @@ struct Games: AsyncParsableCommand {
             if let played = PlayLog.load().record(for: game) {
                 UI.row("Speltid", "\(Format.playTime(played.seconds)) · senast \(Format.day(played.lastPlayed))")
             }
+            // PS1 and PS2: what could keep it from starting on this console.
+            if game.platform == .ps1 || game.platform == .ps2, let snapshot = try? await WebMAN(host: host).snapshot(),
+               let findings = try? await PlayCheck.check(game, console: ConsoleProfile(snapshot: snapshot), host: host) {
+                for finding in findings {
+                    if finding.blocksPlay { UI.warn(finding.message) } else { UI.step(finding.message) }
+                }
+            }
             print("\n  Starta med " + UI.paint("ps3 games play \(game.titleID ?? game.title)", .bold) + ".")
+        }
+    }
+
+    struct Libcrypt: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "libcrypt",
+            abstract: "Lägg LibCrypt-datan som ett PAL-PS1-spel behöver i /dev_hdd0/tmp/lsd.",
+            discussion: "Datan kommer från webMAN MOD på GitHub. Utan den stannar skyddade PAL-spel tidigt på HEN."
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Del av titeln, ett title ID eller sökvägen.")
+        var name: [String] = []
+
+        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        var dryRun = false
+
+        func validate() throws { try Games.requireName(name) }
+
+        func run() async throws {
+            let host = try await Console.host(global)
+            let game = try await Games.find(name, host: host)
+            guard let exe = LibCrypt.exe(for: game) else {
+                throw PS3Error.refused("\(game.title) har inget LibCrypt-skydd som PS3 Center känner till.")
+            }
+            let installed = try await TransferService(host: host).withFTP { try await LibCrypt.isInstalled(exe: exe, game: game, ftp: $0) }
+            if installed { UI.skip("LibCrypt-datan för \(game.title) finns redan på PS3:an."); return }
+            try await LibCrypt.install(exe: exe, host: host, dryRun: dryRun) { UI.ok($0) }
         }
     }
 

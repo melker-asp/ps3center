@@ -51,6 +51,11 @@ struct Send: AsyncParsableCommand {
         UI.header(dryRun ? "Förhandsvisning" : "Skickar till PS3", detail: "\(routes.count) fil\(routes.count == 1 ? "" : "er") · \(Format.bytes(total))")
 
         let host = try await Console.host(global)
+        // A plain PS2 ISO does not start on HEN; say so before sending gigabytes.
+        if routes.contains(where: { $0.kind == .ps2ISO && !PS2Classic.isClassic($0.remote) }),
+           let snapshot = try? await WebMAN(host: host).snapshot(), ConsoleProfile(snapshot: snapshot).exploit == .hen {
+            UI.warn(PlayCheck.Finding.ps2NeedsClassic.message)
+        }
         var options = TransferOptions()
         options.force = force
         options.refresh = !noRefresh

@@ -55,6 +55,19 @@ enum Snapshot {
             render(.games, name: "games-detail-installed", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
             games.selectedID = nil
         }
+        // A PS2 ISO on HEN (Shadow of the Colossus in the fixtures): it will not start there.
+        if let ps2 = games.games.first(where: { $0.platform == .ps2 }) {
+            await games.checkCompatibility(of: ps2, console: console.snapshot.map(ConsoleProfile.init(snapshot:)))
+            games.selectedID = ps2.id
+            render(.games, name: "games-detail-ps2", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+            games.selectedID = nil
+        }
+        // A copied disc in GAMES (Demon's Souls), checked against its IRD.
+        if let copy = games.games.first(where: { $0.platform == .ps3 && $0.isFolder && !$0.isInstalled }) {
+            games.selectedID = copy.id
+            render(.games, name: "games-detail-ird", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+            games.selectedID = nil
+        }
         // The Mac's library with two games picked for sending.
         games.source = .mac
         games.selection = Set(games.macGames.filter { games.macStates[$0.id] == .notOnConsole }.prefix(2).map(\.id))

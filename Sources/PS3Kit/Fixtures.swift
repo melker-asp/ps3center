@@ -60,6 +60,8 @@ public enum Fixtures {
             MaintenanceFinding(kind: .missingPlugin, title: "ds45pad.sprx",
                                detail: "boot_plugins.txt pekar på /dev_hdd0/plugins/ds45pad.sprx, som inte finns. PS3 Center ändrar aldrig listan; ta bort raden själv.",
                                path: "/dev_hdd0/plugins/ds45pad.sprx"),
+            MaintenanceFinding(kind: .updates, title: "Systemuppdateringar blockeras inte",
+                               detail: "Uppdaterar PS3:an systemprogramvaran av misstag kan HEN sluta fungera. Blockera uppdateringar här eller med ps3 maintain block-updates; det gäller från nästa start."),
         ],
         passed: ["webMAN:s cache är liten", "Gott om ledigt utrymme"])
 
@@ -113,7 +115,16 @@ public enum Fixtures {
         "managunz": (nil, "v1.41"),
         "ps3health": (nil, "v2.2.1"),
         "ps3loadx": ("01.20", "v1.2.0"),
-        "filemanager": ("01.10", ""),
+        "filemanager": ("01.10", "191-3541f8d"),
+        "yoplayer": ("01.91", "191-3541f8d"),
+        "cellstream": (nil, "191-3541f8d"),
+        "thermalbench": (nil, "191-3541f8d"),
+        "renpy": (nil, "191-3541f8d"),
+        "movian": ("04.08", "Addons"),
+        "jellyfin": (nil, "Addons"),
+        "simplefm": (nil, "Addons"),
+        "teeremoteplay": (nil, "Addons"),
+        "teevanced": (nil, "Addons"),
         "ps2launcher": ("01.00", "1.47.51"),
         "ps2config": ("01.00", "1.47.51"),
         "pspremasters": (nil, "1.47.51"),
@@ -250,6 +261,23 @@ public enum Fixtures {
     }
 
     public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO"]
+
+    /// New on the console since the last import: two recordings and three screenshots.
+    public static let mediaItems: [MediaImport.Item] = [
+        .init(remotePath: "/dev_hdd0/VIDEO/BCES00569_2026.10.24_20_14_03.mp4", size: 412_000_000),
+        .init(remotePath: "/dev_hdd0/VIDEO/BCES01584_2026.10.23_22_40_51.mp4", size: 1_240_000_000),
+        .init(remotePath: "/dev_hdd0/photo/20261024/screenshot_001.jpg", size: 640_000),
+        .init(remotePath: "/dev_hdd0/photo/20261024/screenshot_002.jpg", size: 655_000),
+        .init(remotePath: "/dev_hdd0/photo/20261023/screenshot_001.jpg", size: 612_000),
+    ]
+
+    /// Demon's Souls, copied with `ps3 rip` and checked against its IRD.
+    public static var discReports: [String: DiscVerifier.Report] {
+        var report = DiscVerifier.Report(title: "Demon's Souls")
+        report.checked = 1_204
+        report.matched = 1_204
+        return ["/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]": report]
+    }
 
     /// The send queue halfway through Uncharted 2, set to shut the console down when done.
     public static var queue: TransferQueue {

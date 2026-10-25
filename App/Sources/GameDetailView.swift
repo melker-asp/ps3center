@@ -25,7 +25,10 @@ struct GameDetailView: View {
                 content
             }
         }
-        .task(id: game.id) { await library.loadBackground(for: game) }
+        .task(id: game.id) {
+            await library.checkCompatibility(of: game, console: console.snapshot.map(ConsoleProfile.init(snapshot:)))
+            await library.loadBackground(for: game)
+        }
         .confirmationDialog(switchQuestion, isPresented: $confirmingSwitch, titleVisibility: .visible) {
             Button(pendingStart == .play ? "Avsluta och starta" : "Avsluta och montera") {
                 if pendingStart == .play {
@@ -70,6 +73,12 @@ struct GameDetailView: View {
                 UpdateBanner(game: game, patches: pending)
             }
             cards
+            ForEach(Array((library.findings[game.id] ?? []).enumerated()), id: \.offset) { _, finding in
+                findingBanner(finding)
+            }
+            if let report = library.verifications[game.id] {
+                verificationBanner(report)
+            }
             if let failure = library.failures[game.id] {
                 NoteBanner(text: failure)
             }
@@ -168,11 +177,67 @@ struct GameDetailView: View {
                     }
                 }
             }
+            if canVerify {
+                Button("Kontrollera mot IRD") { library.verify(game) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .help("Jämför varje fil med originalskivan (IRD från FlexBy420:s databas). PS3:an räknar ut MD5, så det tar en stund.")
+            }
             if state != .playing {
                 Button(game.isInstalled ? "Avinstallera" : "Ta bort") { confirmingDelete = true }
                     .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
+    }
+
+    /// A copied PS3 disc in a game folder (from ps3 rip, say), not an installed game.
+    private var canVerify: Bool {
+        game.platform == .ps3 && game.isFolder && !game.isInstalled && game.source == .console
+    }
+
+    // MARK: Compatibility
+
+    @ViewBuilder private func findingBanner(_ finding: PlayCheck.Finding) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: finding.blocksPlay ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
+                .foregroundStyle(finding.blocksPlay ? Theme.warm : Theme.good)
+            Text(finding.message)
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            if finding == .libCrypt(exe: LibCrypt.exe(for: game) ?? "", installed: false) {
+                Button("Lägg datan på PS3:an") {
+                    library.installLibCrypt(for: game, console: console.snapshot.map(ConsoleProfile.init(snapshot:)))
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(library.busy != nil)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill((finding.blocksPlay ? Theme.warm : Theme.good).opacity(0.1)))
+    }
+
+    private func verificationBanner(_ report: DiscVerifier.Report) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: report.isIntact ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(report.isIntact ? Theme.good : Theme.warm)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(report.summary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Array(report.mismatched.prefix(5)) + Array(report.missing.prefix(5)), id: \.self) { path in
+                    Text(path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill((report.isIntact ? Theme.good : Theme.warm).opacity(0.1)))
     }
 
     /// "Varna och vänta" for starting: a running game is only quit after a question.
@@ -195,7 +260,7 @@ struct GameDetailView: View {
     private var deleteMessage: String {
         let freed = game.size.map { "\(Format.bytes($0)) frigörs på PS3:an. " } ?? ""
         if game.isInstalled {
-            return freed + "Spelet tas bort från hårddisken, men sparfilerna ligger kvar. Ikonen kan synas i XMB:n tills PS3:an startats om."
+            return freed + "Spelet tas bort från hårddisken, men sparfilerna ligger kvar. Med Reload XMB installerat laddas XMB:n om så att ikonen försvinner."
         }
         return freed + "Det går inte att ångra, men har du spelet kvar på Macen kan du skicka det igen."
     }

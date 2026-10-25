@@ -41,6 +41,8 @@ final class ConsoleStore {
     /// What the last button (shut down, eject, fan …) did, or why it failed.
     private(set) var actionNote: String?
     private(set) var isActing = false
+    /// webMAN records the running game (`toggleRecording`); it stops when the game ends.
+    private(set) var isRecording = false
 
     let interval: TimeInterval = 3
     private let historyLength = 40
@@ -137,6 +139,7 @@ final class ConsoleStore {
 
     private func record(_ next: ConsoleSnapshot) {
         snapshot = next
+        if !next.isGameRunning { isRecording = false }
         trackPlayTime(next)
         warnIfHot(next)
         func push(_ value: Int?, into array: inout [Double]) {
@@ -205,6 +208,46 @@ final class ConsoleStore {
 
     func setFanTarget(_ celsius: Int) {
         act("Fläkten håller nu max \(celsius) °C") { try await $0.setFanTarget(celsius) }
+    }
+
+    // MARK: Extras (webMAN commands from fas 9)
+
+    func toggleRecording() {
+        guard let host, !isActing, !Snapshot.usesFixtures else { return }
+        isActing = true
+        actionNote = nil
+        Task {
+            do {
+                let recording = try await WebMAN(host: host).toggleRecording()
+                isRecording = recording
+                actionNote = recording
+                    ? "Spelar in. Tryck igen för att sluta."
+                    : "Inspelningen ligger i /dev_hdd0/VIDEO. Hämta den under Underhåll → Filmer och bilder."
+            } catch {
+                actionNote = error.localizedDescription
+            }
+            isActing = false
+        }
+    }
+
+    func reloadXMB() {
+        act("XMB:n laddas om") { webMAN in
+            let running = try await webMAN.isGameRunning()
+            guard !running else { throw PS3Error.gameRunning }
+            try await webMAN.reloadXMB()
+        }
+    }
+
+    func beep() {
+        act("Pip!") { try await $0.beep() }
+    }
+
+    func enableGameScreenshots() {
+        act("Skärmbilder är tillåtna i spel till nästa omstart: PS-knappen → Spara skärmbild.") { try await $0.enableGameScreenshots() }
+    }
+
+    func setGameMusic(_ on: Bool) {
+        act(on ? "Musik från XMB:n spelar under spel" : "Ingen musik från XMB:n under spel") { try await $0.setGameMusic(on) }
     }
 
     func press(_ button: PadButton) async {

@@ -58,6 +58,7 @@ public struct TransferService: Sendable {
         // The FTP session is closed first: webMAN drops one that stays idle for a minute, and
         // both the MD5 check and waiting for a game can take longer.
         if options.verify { try await verify(sent, events: events) }
+        try await installThemes(sent, options: options, events: events)
         guard options.refresh, sent.contains(where: \.refreshesGameList) else { return }
         try await waitUntilIdle(force: options.force, events: events)
         try await webman.refreshGames()
@@ -222,6 +223,38 @@ public struct TransferService: Sendable {
         guard uploaded else { return }
         try await waitUntilIdle(force: options.force, events: events)
         try await install(route, events: events)
+    }
+
+    /// Asks the XMB to install the themes among `sent`: webMAN's /install.ps3 on a .p3t calls the
+    /// XMB's theme installer (installPKG_thread in include/feat/pkg_handler.h). When a theme then
+    /// shows up in /dev_hdd0/theme, the uploaded copy is removed; if nothing shows within two
+    /// minutes it stays, since the XMB may be asking something on the TV. Logged.
+    func installThemes(_ sent: [Route], options: TransferOptions, events: TransferHandler) async throws {
+        let themes = sent.filter { $0.kind == .theme }
+        guard !themes.isEmpty else { return }
+        try await waitUntilIdle(force: options.force, events: events)
+        func installedThemes() async throws -> Set<String> {
+            try await withFTP { Set(try await $0.list("/dev_hdd0/theme").map { "\($0.name):\($0.size)" }) }
+        }
+        for route in themes {
+            let name = route.local.lastPathComponent
+            let before = try await installedThemes()
+            events(.installing(name))
+            OperationLog.record("install-theme", name)
+            try? await webman.long("/install.ps3" + route.remote, timeout: 60)
+            var appeared = false
+            for _ in 0..<30 where !appeared {
+                try await Task.sleep(nanoseconds: 4_000_000_000)
+                if let now = try? await installedThemes(), now != before { appeared = true }
+            }
+            if appeared {
+                _ = try? await withFTP { try await $0.delete(route.remote) }
+                events(.installed(name))
+                events(.note("Välj temat under Inställningar → Teman på PS3:an."))
+            } else {
+                events(.note("Inget nytt tema syntes på två minuter. Titta på TV:n: XMB:n kan fråga något. \(name) ligger kvar i /dev_hdd0/packages och kan installeras under Inställningar → Teman."))
+            }
+        }
     }
 
     /// What the console shows of an install: the package still there, PARAM.SFO's date and the

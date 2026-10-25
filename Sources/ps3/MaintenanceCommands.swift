@@ -195,55 +195,93 @@ struct Backup: AsyncParsableCommand {
 struct Maintain: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Leta efter sådant som tar plats eller kan ställa till det, och städa.",
-        discussion: """
-        Kontrollerar kvarglömda paket, avbrutna överföringar, spel som finns två gånger,
-        webMAN:s cache, boot_plugins som pekar på filer som saknas, HEN:s inställningar och
-        ledigt utrymme. Med --fix tas paket och avbrutna överföringar bort efter en fråga;
-        resten är råd. boot_plugins.txt ändras aldrig.
-        """
+        subcommands: [Check.self, BlockUpdates.self],
+        defaultSubcommand: Check.self
     )
 
-    @OptionGroup var global: GlobalOptions
+    struct Check: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Leta efter sådant som tar plats eller kan ställa till det, och städa.",
+            discussion: """
+            Kontrollerar kvarglömda paket, avbrutna överföringar, spel som finns två gånger,
+            webMAN:s cache, boot_plugins som pekar på filer som saknas, HEN:s inställningar och
+            ledigt utrymme. Med --fix tas paket och avbrutna överföringar bort efter en fråga;
+            resten är råd. boot_plugins.txt ändras aldrig.
+            """
+        )
 
-    @Flag(name: .long, help: "Ta bort det som kan tas bort.")
-    var fix = false
+        @OptionGroup var global: GlobalOptions
 
-    @Flag(name: [.short, .long], help: "Fråga inte.")
-    var yes = false
+        @Flag(name: .long, help: "Ta bort det som kan tas bort.")
+        var fix = false
 
-    @Flag(name: .long, help: "Visa vad som skulle tas bort.")
-    var dryRun = false
+        @Flag(name: [.short, .long], help: "Fråga inte.")
+        var yes = false
 
-    @Flag(name: .long, help: "Skriv ut JSON.")
-    var json = false
+        @Flag(name: .long, help: "Visa vad som skulle tas bort.")
+        var dryRun = false
 
-    func run() async throws {
-        let host = try await Console.host(global, quiet: json)
-        let service = MaintenanceService(host: host)
-        let report = try await service.check { if !json { UI.progress($0) } }
-        if !json { UI.endProgress() }
-        if json { UI.json(report); return }
-        UI.header("Underhåll", detail: host)
-        for passed in report.passed { UI.ok(passed) }
-        for finding in report.findings {
-            let size = finding.size.map { " · " + Format.bytes($0) } ?? ""
-            print("  " + UI.paint(finding.canFix ? "●" : "○", finding.canFix ? .yellow : .gray) + " " + finding.title + UI.paint(size, .gray))
-            print("    " + UI.paint(finding.detail, .gray))
+        @Flag(name: .long, help: "Skriv ut JSON.")
+        var json = false
+
+        func run() async throws {
+            let host = try await Console.host(global, quiet: json)
+            let service = MaintenanceService(host: host)
+            let report = try await service.check { if !json { UI.progress($0) } }
+            if !json { UI.endProgress() }
+            if json { UI.json(report); return }
+            UI.header("Underhåll", detail: host)
+            for passed in report.passed { UI.ok(passed) }
+            for finding in report.findings {
+                let size = finding.size.map { " · " + Format.bytes($0) } ?? ""
+                print("  " + UI.paint(finding.canFix ? "●" : "○", finding.canFix ? .yellow : .gray) + " " + finding.title + UI.paint(size, .gray))
+                print("    " + UI.paint(finding.detail, .gray))
+            }
+            let fixable = report.findings.filter(\.canFix)
+            guard !fixable.isEmpty else { return }
+            let total = fixable.compactMap(\.size).reduce(0, +)
+            guard fix || dryRun else {
+                print("\n  " + UI.paint("ps3 maintain --fix", .bold) + " tar bort \(fixable.count) filer (\(Format.bytes(total))).")
+                return
+            }
+            if dryRun {
+                for finding in fixable { UI.step("Skulle ta bort \(finding.path ?? finding.title)") }
+                return
+            }
+            guard yes || UI.confirm("Ta bort \(fixable.count) filer (\(Format.bytes(total))) från PS3:an?") else { return }
+            for result in try await service.fix(fixable) {
+                if let skipped = result.skipped { UI.skip("\(result.finding.title): \(skipped)") } else { UI.ok("Borttaget: \(result.finding.title)") }
+            }
         }
-        let fixable = report.findings.filter(\.canFix)
-        guard !fixable.isEmpty else { return }
-        let total = fixable.compactMap(\.size).reduce(0, +)
-        guard fix || dryRun else {
-            print("\n  " + UI.paint("ps3 maintain --fix", .bold) + " tar bort \(fixable.count) filer (\(Format.bytes(total))).")
-            return
-        }
-        if dryRun {
-            for finding in fixable { UI.step("Skulle ta bort \(finding.path ?? finding.title)") }
-            return
-        }
-        guard yes || UI.confirm("Ta bort \(fixable.count) filer (\(Format.bytes(total))) från PS3:an?") else { return }
-        for result in try await service.fix(fixable) {
-            if let skipped = result.skipped { UI.skip("\(result.finding.title): \(skipped)") } else { UI.ok("Borttaget: \(result.finding.title)") }
+    }
+
+    struct BlockUpdates: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "block-updates",
+            abstract: "Hindra att PS3:an laddar ner en systemuppdatering av misstag.",
+            discussion: """
+            Lägger webMAN MOD:s egen /dev_hdd0/ps3-updatelist.txt på PS3:an. webMAN pekar då
+            XMB:ns uppdateringskoll på den vid varje start, och den skickar uppdateringen till
+            127.0.0.1. Inget i dev_flash rörs. Gäller från nästa start; --off tar bort filen.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Flag(name: .long, help: "Sluta blockera (ta bort filen).")
+        var off = false
+
+        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        var dryRun = false
+
+        func run() async throws {
+            let host = try await Console.host(global)
+            let installed = try await UpdateBlock.isInstalled(host: host)
+            if installed != off {
+                UI.skip(off ? "Systemuppdateringar blockeras inte." : "Systemuppdateringar blockeras redan.")
+                return
+            }
+            try await UpdateBlock.set(!off, host: host, dryRun: dryRun) { UI.ok($0) }
         }
     }
 }

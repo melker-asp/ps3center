@@ -23,12 +23,16 @@ make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar 
 Appen har fyra flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
   löpande kurvor och historiken från `ps3 history`. Under korten: Fjärrkontroll (styrkors och
-  knappar, piltangenter och Retur/Esc; titta på TV:n), Avsluta spelet, Mata ut skivan, Starta om och
-  Stäng av. I dynamiskt fläktläge flyttar − och + webMAN:s måltemperatur (60–75 °C).
+  knappar, piltangenter och Retur/Esc; titta på TV:n; där finns också Ladda om XMB, Pip,
+  Skärmbilder i spel och Musik i spel), Avsluta spelet och Spela in medan ett spel körs, Mata ut
+  skivan, Starta om och Stäng av. I dynamiskt fläktläge flyttar − och + webMAN:s måltemperatur
+  (60–75 °C).
 - **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform och sök.
   Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort,
   avinstallera (installerade spel; sparfilerna ligger kvar) eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
-  banderoll för att byta omslag. Under **Macen** visas spelen i dina kopplade spelmappar, med vad
+  banderoll för att byta omslag. PS1- och PS2-spel säger om något hindrar dem: en PS2-ISO startar
+  inte på HEN (bara PS2 Classics gör det), och ett PAL-PS1-spel med LibCrypt får sin data på en
+  knapptryckning. En spelmapp i GAMES kan kontrolleras mot originalskivans IRD. Under **Macen** visas spelen i dina kopplade spelmappar, med vad
   som redan finns på PS3:an; markera spel och tryck Skicka. Filer som dras till fönstret går samma väg.
   **Spelservern** (under Macen) låter PS3:an spela ISO:erna direkt från Macen utan att kopiera dem.
   "Ställ in webMAN åt mig" fyller i en ledig nätverksserver i webMAN och lämnar resten av
@@ -45,7 +49,9 @@ Appen har fyra flikar i Mole-stil:
 - **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
   kan läggas tillbaka, och en sparfil kan tas bort från PS3:an (en kopia sparas först); systemfilerna kopieras på begäran; Städning hittar kvarglömda paket,
   avbrutna överföringar, dubbletter, en stor cache och saknade plugins och tar bort det som går;
-  Lagring visar vad som tar plats; Skivan kopierar PS3-skivan i spelaren till hårddisken.
+  Lagring visar vad som tar plats; Skivan kopierar PS3-skivan i spelaren till hårddisken; Filmer
+  och bilder hämtar inspelningar och skärmbilder till `~/Pictures/PS3 Center`. Städning säger
+  också om systemuppdateringar blockeras, med en knapp som blockerar dem.
 
 **Menyraden** visar temperaturer, vad som spelas, kön och spelservern, med Skicka filer…,
 Uppdatera spellistan, Avsluta spelet och Stäng av; appen fortsätter där när fönstret är stängt
@@ -75,6 +81,7 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 games updates` | Officiella uppdateringar (patchar) från Sony för spelen |
 | `ps3 games update <namn>` | Hämtar, kontrollerar och installerar ett spels patchar (`--all`, `--dry-run`, `-y`). Aldrig systemprogramvara |
 | `ps3 games mac` | Spelen i Macens spelmappar och om de redan finns på PS3:an (`--missing`) |
+| `ps3 games libcrypt <namn>` | Lägger LibCrypt-datan som ett PAL-PS1-spel behöver i `/dev_hdd0/tmp/lsd` (från webMAN MOD, `--dry-run`) |
 | `ps3 config folder add PS3ISO ~/Spel/PS3` | Kopplar en spelmapp på Macen per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) |
 | `ps3 config folder watch ~/Spel/PS3` | Bevakar en kopplad mapp; `ps3 watch` (eller appen) lägger nya spel i kön (`--send` skickar direkt) |
 | `ps3 queue add <filer eller spel>` | Lägger spel i kön som appen också använder; `ps3 queue start` skickar ett i taget (`--when-done shutdown`, `--verify`) |
@@ -86,11 +93,17 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 fan [70]` | Fläktens hastighet och läge; med ett tal flyttas målet i webMAN:s dynamiska läge (60–75 °C) |
 | `ps3 pad down down ok` | Trycker på knappar med webMAN:s virtuella handkontroll (`ps3 pad off` kopplar bort den) |
 | `ps3 screenshot [fil]` | Sparar en bild av XMB:n på Macen |
+| `ps3 record` | Startar eller stoppar inspelning av spelet som körs (720p MP4 i `/dev_hdd0/VIDEO`) |
+| `ps3 media [pull\|screenshots]` | Nya filmer och skärmbilder på PS3:an; `pull` kopierar dem till `~/Pictures/PS3 Center`, `screenshots` tillåter skärmbilder i alla spel |
+| `ps3 beep [1–3]` | PS3:an piper, så att du hittar den |
+| `ps3 music on\|off` | Låter musik från XMB:n spela under spel, eller inte (till nästa omstart, `--dry-run`) |
 | `ps3 send <filer/mappar>` | Laddar upp till rätt mapp via `.part`-filer, fortsätter avbrutna uppladdningar, hoppar över spel som redan finns, uppdaterar spellistan och visar en popup. Håller Macen vaken; `--verify` jämför MD5, `--shutdown-when-done` stänger av PS3:an efteråt |
 | `ps3 saves [backup\|local\|restore <namn>]` | Sparfilerna på PS3:an, kopiera dem till Macen, lägg tillbaka en (inte under spel; det som låg där sparas först) |
 | `ps3 saves delete <namn>` | Tar bort en sparfil från PS3:an efter att den kopierats till Macen (`--dry-run`, `-y`) |
 | `ps3 backup` | Sparfiler och systemfiler (xRegistry.sys, webMAN:s inställningar, boot_plugins) till Macen; läser bara konsolen |
-| `ps3 maintain [--fix]` | Kvarglömda paket, avbrutna överföringar, dubbletter, cache, saknade plugins; `--fix` tar bort paket och `.part`-filer |
+| `ps3 maintain [--fix]` | Kvarglömda paket, avbrutna överföringar, dubbletter, cache, saknade plugins och om systemuppdateringar blockeras; `--fix` tar bort paket och `.part`-filer |
+| `ps3 maintain block-updates` | Lägger webMAN MOD:s `ps3-updatelist.txt` på PS3:an, så att ingen systemuppdatering hämtas av misstag (`--off`, `--dry-run`) |
+| `ps3 verify <iso, mapp eller spel>` | Kontrollerar en skivkopia fil för fil mot originalets IRD (från FlexBy420:s databas, eller `--ird fil`) |
 | `ps3 analyze` | Vad som tar plats på `/dev_hdd0`, räknat på konsolen |
 | `ps3 rip` | Kopierar PS3-skivan i spelaren till `/dev_hdd0/GAMES` (`--abort` stoppar) |
 | `ps3 apps` | Installerade program jämförda med senaste versionen på GitHub |
@@ -101,7 +114,8 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps uninstall <namn>` | Avinstallerar ett program (mappen i /dev_hdd0/game); inte HEN, webMAN eller plugins (`--dry-run`, `-y`) |
 | `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |
-| `ps3 refresh` | Uppdaterar spellistan (som SELECT + L3) |
+| `ps3 refresh [--xmb]` | Uppdaterar spellistan (som SELECT + L3); `--xmb` laddar om XMB:n också |
+| `ps3 error <kod>` | Förklarar en felkod som 80010006 |
 | `ps3 history` | Vad verktyget har ändrat (`~/Library/Logs/ps3center/operations.log`) |
 | `ps3 discover` | Letar upp PS3:an på nätverket och sparar adressen |
 | `ps3 config [set host/root …]` | Inställningar i `~/.config/ps3center/config.json` |

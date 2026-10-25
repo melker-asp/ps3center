@@ -41,8 +41,11 @@ xcodebuild den inte.
   så varken `swift build` eller `swift test` fungerar på Linux.
 - **CI kontrollerar varje commit** i en pull request och på main. GitHub Actions
   (`.github/workflows/ci.yml`, macos-15) kör `swift test`, bygger CLI:t och bygger appen. Pusha
-  och läs CI-resultatet i stället för att bygga lokalt. Med repo-variabeln `CI_RUNNER=self-hosted`
-  går jobbet på användarens egen Mac i stället för GitHubs, och då kostar det inga Actions-minuter.
+  och läs CI-resultatet i stället för att bygga lokalt. Är repot publikt kostar GitHubs runners
+  inget. Är det privat kan repo-variabeln `CI_RUNNER=self-hosted` köra jobbet på användarens egen
+  Mac, men aldrig i ett publikt repo (en pull request från en fork skulle kunna köra kod där).
+  Repot innehåller inget som inte tål att vara publikt: ingen PSID/IDPS, inga nycklar eller
+  lösenord. Håll det så.
 - **Skärmbilder:** CI renderar varje skärm från `Fixtures` (`PS3CENTER_FIXTURES=1`) och laddar upp
   dem som artefakten `screenshots`. Granska designändringar där. Nya skärmar läggs till i
   `Snapshot.run`, och data som behövs för dem i `Fixtures.swift`.
@@ -116,6 +119,16 @@ xcodebuild den inte.
   <mapp>` med en manifest per mapp, förra kopian i `.tidigare`), `SystemFiles`, `MaintenanceService`
   (rapport + `fix` som bara tar bort paket och `.part`), `StorageAnalyzer` (`/stat.ps3`) och
   `DiscRipper` (`/copy.ps3`, förlopp över FTP). Appen: `MaintenanceStore` och `MaintenanceView`.
+- **Fas 9** (idéer från aldostools/Resources):
+  - `ConsoleExtras.swift`: XMB-omladdning, inspelning, skärmbilder i spel, pip, musik i spel,
+    `UpdateBlock` och `MediaImport` (filmer och bilder till Macen, `imported.json`).
+  - `PlayCompatibility.swift`: `PlayCheck`, `LibCrypt` (225 ID:n ur webMAN MOD) och `PS2Classic`
+    (bara `.BIN.ENC` på HEN).
+  - `IRD.swift`: `IRD`, `DiscVerifier` och `IRDLibrary` (FlexBy420 på GitHub). `ISOImage` läser
+    Joliet för det.
+  - `ErrorCodes.swift`: 0x8001xxxx ur RPCS3. `TitleDatabase.swift`: aldostools titleid.txt.
+  - I appen finns knapparna i Status-fliken (Spela in), Fjärrkontroll (Ladda om XMB, Pip,
+    Skärmbilder, Musik), på spelsidan och i Underhåll.
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -146,5 +159,11 @@ xcodebuild den inte.
 - **webMAN:s inställningar ändras bara via `WebMANSetup`:** hela formuläret som Safari skulle
   skicka, en kopia av inställningarna först och en kontroll efteråt. Ett ofullständigt anrop till
   `/setup.ps3` nollställer alla andra inställningar.
+- **Klockan ställs aldrig av PS3 Center:** webMAN:s `/fixclock.ps3` skriver den säkra klockan.
+  USB-diskar "matas inte ut" via webMAN; det är bara en låtsad händelse.
+- **Systemuppdateringar blockeras bara via `UpdateBlock`,** på begäran: webMAN MOD:s egen fil i
+  `/dev_hdd0`, aldrig något i dev_flash.
+- **Inget hämtas från ps3.aldostools.org** (självsignerat certifikat, bara HTTP) eller psdevwiki
+  (Cloudflare). Använd kopiorna på GitHub.
 - **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i
   appens historiktabell, och har `--dry-run` i CLI:t.

@@ -325,6 +325,32 @@ Kvar att prova hemma: test 12.
 - **`ps3 analyze`:** lagringskarta över `/dev_hdd0`.
 - **`ps3 rip`:** kopiera skivan i spelaren med `/copy.ps3/dev_bdvd` (redan planerat).
 
+### Fas 9 – Det som aldostools/Resources gav idéer till
+
+**Läge 25 okt 2026:** byggt, oprovat på konsolen: test 14.
+
+- **Ladda om XMB** (`ps3 refresh --xmb`, Fjärrkontroll → Ladda om XMB), och av sig själv efter en
+  avinstallation när webMAN kan göra det med Reload XMB.
+- **Fler program i Appar:** mohasis File Manager, Yo! Player, Cell Stream, Thermal Bench och
+  Ren'Py Player (`mohasi/ps3-dev`), samt Movian, JellyFin, Simple File Manager MOD, TEE Remote
+  Play och TEE Vanced (aldostools Addons). Inte Swarm (torrentklient) eller multiMAN (delar mapp
+  med webMAN:s omslagspaket).
+- **Omslag** för PSP-spel, och aldostools PS1/PS2-omslag när xlenores saknas.
+- **Inspelning och bilder:** `ps3 record` och Spela in i Status-fliken; `ps3 media` och Filmer och
+  bilder i Underhåll hämtar filmer och skärmbilder till `~/Pictures/PS3 Center`; Skärmbilder i
+  spel slår på XMB:ns skärmbilder.
+- **PS1 och PS2:** spelsidan och `ps3 games info` säger när en PS2-ISO inte startar på HEN (bara
+  PS2 Classics gör det), om PS2 CONFIG har en rättning, och när ett PAL-PS1-spel behöver
+  LibCrypt-data (`ps3 games libcrypt`). Granskningsvyn varnar innan en PS2-ISO skickas till HEN.
+  `.lsd`/`.sbi` bredvid en PS1-avbild skickas med.
+- **Kontroll mot IRD:** `ps3 verify` och Kontrollera mot IRD på spelsidan för en spelmapp i GAMES.
+- **Teman:** en `.p3t` som skickas installeras av XMB:n.
+- **Småsaker:** `ps3 beep`, `ps3 music on|off`, `ps3 error <kod>` och förklarade felkoder i
+  appen, namn ur aldostools titellista när PARAM.SFO saknas, och `ps3 maintain block-updates` med
+  Blockera i Städning.
+- **Byggdes inte:** att ställa klockan (webMAN skriver den säkra klockan) och säker utmatning av
+  USB (webMAN:s är en låtsad händelse).
+
 ## Ordning och storlek
 
 | Fas | Storlek | Bygger på | Varför i den ordningen |
@@ -337,6 +363,7 @@ Kvar att prova hemma: test 12.
 | 6 ps3netsrv | L | 3 | Löser väntetiden på ett annat sätt |
 | 7 Styr konsolen | M | 1 | Små delar som kan tas i valfri ordning |
 | 8 Underhåll | M | – | Kan göras när som helst |
+| 9 Idéer från aldostools | L | 1–8 | Byggt när resten fungerade |
 
 ## Prova på konsolen
 
@@ -398,6 +425,18 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     (fortsätter kön själv?), avinstallera ett program du kan installera igen, ta bort en sparfil
     och lägg tillbaka den. Kör hastighetstestet med `"ftpWindow": 1` och sedan `4` i
     config.json och säg vilket som gick fortast.
+14. Fas 9:
+    - Avinstallera ett program med Reload XMB installerat: försvinner ikonen av sig själv?
+    - Spela in en halv minut av ett spel (Spela in i Status-fliken) och hämta filmen under
+      Underhåll → Filmer och bilder. Slå på Skärmbilder i spel, ta en bild med PS-knappen →
+      Spara skärmbild, och se om den också kommer med. Säg var på PS3:an den hamnade.
+    - Öppna ett PS2-spel i Spel-fliken: stämmer varningen om HEN?
+    - Har du ett PAL-PS1-spel med LibCrypt (t.ex. Ape Escape): visar spelsidan det?
+    - `ps3 verify` på en mapp från `ps3 rip`, och om du har en dekrypterad ISO på Macen.
+    - Skicka ett tema (.p3t) och se om XMB:n installerar det.
+    - `ps3 beep`, `ps3 music on` under ett spel med musik i XMB:n, och
+      `ps3 maintain block-updates` följt av en omstart: säger Inställningar → Systemuppdatering
+      att ingen uppdatering finns?
 
 ## Beslut (24 okt 2026)
 

@@ -21,9 +21,11 @@ struct PS3: AsyncParsableCommand {
           ps3 apps install X.pkg       Installera ett paket utan USB-sticka
           ps3 backup                   Sparfiler och systemfiler till Macen
           ps3 maintain                 Städa: kvarglömda paket, avbrutna överföringar m.m.
+          ps3 record / ps3 media pull  Spela in spelet och hämta filmer och bilder till Macen
+          ps3 verify Spel.dec.iso      Kontrollera en skivkopia mot originalet (IRD)
         """,
         version: "0.1.0",
-        subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Serve.self,
-                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
+        subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Record.self, Media.self, Beep.self, Music.self, Serve.self,
+                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }
