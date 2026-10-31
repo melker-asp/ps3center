@@ -127,12 +127,18 @@ final class GamesStore {
     /// Starts a Mac game through the game server, as webMAN sees it (/net0/PS3ISO/…).
     /// `slot` is webMAN's network server that points at the Mac (0 for /net0).
     func playFromMac(_ game: Game, slot: Int, exitingRunning: Bool) {
-        guard let netPath = game.netPath else { return }
+        guard let netPath = game.netPath, busy == nil else { return }
+        for mac in macGames { failures[mac.id] = nil }
         var copy = game
         copy.path = "/net\(slot)" + netPath
         copy.source = .console
         let net = copy
         perform(.starting, on: game) { try await $0.play(net, exitingRunning: exitingRunning) }
+    }
+
+    /// Why the last start from the Mac failed. Mac games have no page of their own to show it on.
+    var macFailure: String? {
+        macGames.lazy.compactMap { game in self.failures[game.id].map { "\(game.title): \($0)" } }.first
     }
 
     func toggleSelection(_ game: Game) {

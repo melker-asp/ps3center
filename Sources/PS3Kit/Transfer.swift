@@ -364,15 +364,36 @@ public struct TransferService: Sendable {
 
     // MARK: Game guard
 
-    /// "Varna och vänta": blocks until no game/app is running, unless forced.
+    /// "Varna och vänta": blocks until no game/app is running, unless forced. Throws when the
+    /// console stops answering, so nothing that follows runs on the guess that no game is running.
     public func waitUntilIdle(force: Bool, events: TransferHandler, pollSeconds: UInt64 = 10) async throws {
         guard !force else { return }
+        let webman = self.webman
+        try await Self.waitForNoGame(pollSeconds: pollSeconds, check: { try await webman.runningProcess() }, announce: { process in
+            let mounted = try? await webman.snapshot().mountedGameName
+            events(.waitingForGame((mounted ?? nil) ?? process))
+        })
+    }
+
+    /// Polls `check` until it says nothing runs. webMAN can be slow during a game, so a few
+    /// failed checks in a row are only waited out; an error never counts as "no game".
+    static func waitForNoGame(pollSeconds: UInt64, allowedFailures: Int = 6, check: () async throws -> String?,
+                              announce: (String) async -> Void) async throws {
         var announced = false
-        while let process = try? await webman.runningProcess() {
-            if !announced {
-                let mounted = try? await webman.snapshot().mountedGameName
-                events(.waitingForGame((mounted ?? nil) ?? process))
-                announced = true
+        var failures = 0
+        while true {
+            do {
+                guard let process = try await check() else { return }
+                failures = 0
+                if !announced {
+                    await announce(process)
+                    announced = true
+                }
+            } catch {
+                failures += 1
+                if failures >= allowedFailures {
+                    throw PS3Error.timeout("PS3:an svarar inte, så det går inte att se om ett spel körs. Inget mer gjordes.")
+                }
             }
             try await Task.sleep(nanoseconds: pollSeconds * 1_000_000_000)
         }

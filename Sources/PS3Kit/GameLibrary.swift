@@ -299,7 +299,7 @@ enum GameListing {
         for file in files.sorted(by: { $0.name < $1.name }) {
             let lower = file.name.lowercased()
             guard let ext = folder.extensions.first(where: { lower.hasSuffix($0) }) else { continue }
-            if ext == ".bin", cues.contains(where: { lower.hasPrefix($0) }) { continue }
+            if ext == ".bin", cues.contains(where: { isTrack(lower, ofCue: $0) }) { continue }
 
             var size = file.size
             var companions: [String] = []
@@ -311,7 +311,7 @@ enum GameListing {
                 }
             } else if ext == ".cue" {
                 let base = String(lower.dropLast(4))
-                for track in files where track.name.lowercased().hasSuffix(".bin") && track.name.lowercased().hasPrefix(base) {
+                for track in files where isTrack(track.name.lowercased(), ofCue: base) {
                     companions.append(dir + "/" + track.name)
                     size += track.size
                 }
@@ -332,6 +332,15 @@ enum GameListing {
                                     cacheKey: "\(path)|\(size)|\(file.modified)"))
         }
         return result
+    }
+
+    /// Whether a lowercase .bin name is a track of the .cue with this lowercase stem: "game.bin" or
+    /// "game (track 2).bin". "game 2.bin" is another game: tracks are deleted with their game, so
+    /// a name that is not clearly a track never counts as one.
+    static func isTrack(_ bin: String, ofCue cue: String) -> Bool {
+        guard bin.hasSuffix(".bin"), bin.hasPrefix(cue) else { return false }
+        let rest = String(bin.dropFirst(cue.count).dropLast(4))
+        return rest.isEmpty || rest.range(of: #"^[ ._-]*\(?track[ ._-]*\d+\)?$"#, options: .regularExpression) != nil
     }
 
     /// "game.dec.iso" → ["game.dec.iso", "game.dec", "game"]: the names webMAN and covers use.

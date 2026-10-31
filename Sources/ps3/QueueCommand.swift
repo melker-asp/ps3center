@@ -87,9 +87,7 @@ struct Queue: AsyncParsableCommand {
                     throw PS3Error.invalidFile("Hittar varken filen eller spelet \(names.joined(separator: " ")) i Macens spelmappar (se `ps3 games mac`).")
                 }
             }
-            var queue = TransferQueue.load()
-            let added = queue.add(routes)
-            queue.save()
+            let added = TransferQueue.edit { $0.add(routes) }
             guard !added.isEmpty else {
                 UI.skip("Det ligger redan i kön.")
                 return
@@ -114,15 +112,18 @@ struct Queue: AsyncParsableCommand {
             guard let lock = QueueLock() else {
                 throw PS3Error.refused("Kön skickas redan, från appen eller ett annat `ps3 queue start`.")
             }
-            var queue = TransferQueue.load()
+            var choice: TransferQueue.WhenDone?
             if let whenDone {
-                guard let choice = TransferQueue.WhenDone(rawValue: whenDone) else {
+                guard let parsed = TransferQueue.WhenDone(rawValue: whenDone) else {
                     throw ValidationError("--when-done tar nothing, popup eller shutdown.")
                 }
-                queue.whenDone = choice
+                choice = parsed
             }
-            if let verify { queue.verify = verify }
-            queue.save()
+            var queue = TransferQueue.edit { latest -> TransferQueue in
+                if let choice { latest.whenDone = choice }
+                if let verify { latest.verify = verify }
+                return latest
+            }
             guard !queue.pending.isEmpty else {
                 UI.skip("Inget i kön att skicka.")
                 return
@@ -135,28 +136,35 @@ struct Queue: AsyncParsableCommand {
             let printer = TransferPrinter(dryRun: false)
             var sentTitles: [String] = []
             var refreshes = false
-            for item in queue.pending {
-                queue.update(item.id) { $0.state = .sending }
-                queue.save()
+            // Read again each round, since the app and `ps3 queue add` may have changed the queue.
+            // Each item gets one try per run, even if queue.json cannot be written.
+            var tried = Set<UUID>()
+            while let item = queue.pending.first(where: { !tried.contains($0.id) }) {
+                tried.insert(item.id)
+                TransferQueue.edit { $0.update(item.id) { $0.state = .sending } }
                 UI.step(item.title)
                 do {
                     try await runner.send(item, verify: queue.verify) { printer.handle($0) }
-                    queue.update(item.id) {
-                        $0.state = .done
-                        $0.sent = $0.total
-                        $0.finishedAt = Date()
-                        $0.message = nil
+                    TransferQueue.edit {
+                        $0.update(item.id) {
+                            $0.state = .done
+                            $0.sent = $0.total
+                            $0.finishedAt = Date()
+                            $0.message = nil
+                        }
                     }
                     sentTitles.append(item.title)
                     refreshes = refreshes || item.routes.contains(where: \.refreshesGameList)
                 } catch {
-                    queue.update(item.id) {
-                        $0.state = .failed
-                        $0.message = error.localizedDescription
+                    TransferQueue.edit {
+                        $0.update(item.id) {
+                            $0.state = .failed
+                            $0.message = error.localizedDescription
+                        }
                     }
                     UI.fail("\(item.title): \(error.localizedDescription)")
                 }
-                queue.save()
+                queue = TransferQueue.load()
             }
             try await runner.finish(sent: sentTitles, refresh: refreshes, whenDone: queue.whenDone) { printer.handle($0) }
             withExtendedLifetime(lock) {}
@@ -171,10 +179,10 @@ struct Queue: AsyncParsableCommand {
         var number: Int
 
         func run() throws {
-            var queue = TransferQueue.load()
-            guard queue.items.indices.contains(number - 1) else { throw ValidationError("Kön har ingen rad \(number).") }
-            let item = queue.items.remove(at: number - 1)
-            queue.save()
+            let item = try TransferQueue.edit { queue -> TransferQueue.Item in
+                guard queue.items.indices.contains(number - 1) else { throw ValidationError("Kön har ingen rad \(number).") }
+                return queue.items.remove(at: number - 1)
+            }
             UI.ok("\(item.title) är borttaget ur kön")
         }
     }
@@ -186,9 +194,9 @@ struct Queue: AsyncParsableCommand {
         var all = false
 
         func run() throws {
-            var queue = TransferQueue.load()
-            if all { queue.items.removeAll() } else { queue.removeFinished() }
-            queue.save()
+            TransferQueue.edit { queue in
+                if all { queue.items.removeAll() } else { queue.removeFinished() }
+            }
             UI.ok(all ? "Kön är tömd" : "Klara rader är borttagna")
         }
     }
@@ -370,7 +378,8 @@ struct Serve: AsyncParsableCommand {
         En egen ps3netsrv som bara läser, på port 38008. Ställ in den en gång i webMAN:
         Inställningar (http://<ps3>/setup.ps3) → nätverksserver 1 = Macens adress och 38008.
         Spelen syns sedan under webMAN:s spel och startas som vanligt, eller med
-        `ps3 games play` på /net0-sökvägen. Ctrl-C stoppar servern.
+        `ps3 games play` på /net0-sökvägen. Ctrl-C stoppar servern. Bara PS3:an släpps in, så
+        konsolen måste kunna hittas när servern startar (eller anges med --host).
         PS3-spel bör gå över kabel. PS2-ISO:er kopieras till hårddisken när de startas, och
         spelmappar (GAMES) går inte över nätet, bara ISO:er.
         """
@@ -386,7 +395,15 @@ struct Serve: AsyncParsableCommand {
         guard !folders.isEmpty else {
             throw PS3Error.refused("Inga spelmappar är kopplade. Koppla en med `ps3 config folder add PS3ISO ~/Spel/PS3`.")
         }
-        let console = anyClient ? nil : (try? await Console.host(global, quiet: true))
+        var console: String?
+        if !anyClient {
+            do {
+                console = try await Console.host(global, quiet: true)
+            } catch {
+                // Only the console is let in, so without its address the server does not start.
+                throw PS3Error.refused("Hittar inte PS3:an, så spelservern vet inte vem den ska släppa in. Slå på PS3:an och aktivera HEN, ange --host <ip>, eller släpp in alla på nätverket med --any-client.")
+            }
+        }
         let server = NetServer(folders: folders, allowedHost: console) { status in
             if let error = status.error { UI.fail(error) }
         }
@@ -436,12 +453,10 @@ struct WatchFolders: AsyncParsableCommand {
         while true {
             let games = FolderWatch.routes(for: watch.poll(FolderWatch.watched()))
             if !games.isEmpty {
-                var queue = TransferQueue.load()
-                for game in games {
-                    _ = queue.add(game.routes)
-                    UI.ok("\(game.title) ligger i kön")
+                TransferQueue.edit { queue in
+                    for game in games { queue.add(game.routes) }
                 }
-                queue.save()
+                for game in games { UI.ok("\(game.title) ligger i kön") }
                 if send {
                     // The app or another `ps3 queue start` may already be sending; keep watching.
                     do {

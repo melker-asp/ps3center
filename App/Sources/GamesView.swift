@@ -26,6 +26,9 @@ struct GamesView: View {
                     .transition(.opacity)
             } else {
                 toolbar
+                if onMac, let failure = library.macFailure {
+                    NoteBanner(text: failure)
+                }
                 content
                 if onMac, !library.selection.isEmpty {
                     selectionBar
@@ -331,8 +334,23 @@ struct GameTile: View {
     let game: Game
     var showCover = true
     @State private var hovering = false
+    @State private var confirmingSwitch = false
 
     private var isSelected: Bool { library.selection.contains(game.id) }
+
+    /// "Varna och vänta" for starting: a running game is only quit after a question.
+    private func playFromMac() {
+        if console.snapshot?.isGameRunning == true {
+            confirmingSwitch = true
+        } else {
+            library.playFromMac(game, slot: netServer.slot, exitingRunning: false)
+        }
+    }
+
+    private var switchQuestion: String {
+        let running = console.snapshot?.mountedGameName ?? console.snapshot?.runningProcess ?? "Ett spel"
+        return "\(running) körs. Avsluta det och starta \(game.title)?"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -392,10 +410,14 @@ struct GameTile: View {
         .help(game.title)
         .contextMenu {
             if game.isOnMac {
-                Button("Spela från Macen") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
+                Button("Spela från Macen") { playFromMac() }
                     .disabled(!netServer.status.isRunning || game.netPath == nil || game.isFolder)
                 Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
             }
+        }
+        .confirmationDialog(switchQuestion, isPresented: $confirmingSwitch, titleVisibility: .visible) {
+            Button("Avsluta och starta") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
+            Button("Avbryt", role: .cancel) {}
         }
     }
 

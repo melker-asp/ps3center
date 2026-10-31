@@ -107,11 +107,23 @@ final class TransferStore {
 
     // MARK: Queue
 
+    /// Changes queue.json and shows the result. This copy is never written back as it is, since
+    /// `ps3 queue` may have changed the file since it was read.
+    private func edit(_ change: (inout TransferQueue) -> Void) {
+        guard !isFixture else {
+            change(&queue)
+            return
+        }
+        queue = TransferQueue.edit { latest in
+            change(&latest)
+            return latest
+        }
+    }
+
     func add(_ routes: [Route]) {
         guard !isFixture else { return }
-        queue = TransferQueue.load()
-        let added = queue.add(routes)
-        queue.save()
+        var added: [TransferQueue.Item] = []
+        edit { added = $0.add(routes) }
         if !added.isEmpty { start() }
     }
 
@@ -135,34 +147,29 @@ final class TransferStore {
 
     func remove(_ id: UUID) {
         guard id != current else { return }
-        queue = TransferQueue.load()
-        queue.items.removeAll { $0.id == id }
-        queue.save()
+        edit { latest in latest.items.removeAll { $0.id == id } }
     }
 
     func retry(_ id: UUID) {
-        queue.update(id) {
-            $0.state = .waiting
-            $0.message = nil
+        edit {
+            $0.update(id) {
+                $0.state = .waiting
+                $0.message = nil
+            }
         }
-        queue.save()
         start()
     }
 
     func clearFinished() {
-        queue = TransferQueue.load()
-        queue.removeFinished()
-        queue.save()
+        edit { $0.removeFinished() }
     }
 
     func setWhenDone(_ choice: TransferQueue.WhenDone) {
-        queue.whenDone = choice
-        if !isFixture { queue.save() }
+        edit { $0.whenDone = choice }
     }
 
     func setVerify(_ on: Bool) {
-        queue.verify = on
-        if !isFixture { queue.save() }
+        edit { $0.verify = on }
     }
 
     /// Five seconds of sending, then reading back what arrived: 10–15 seconds in all.
@@ -207,38 +214,48 @@ final class TransferStore {
         let runner = QueueRunner(host: host)
         while !Task.isCancelled {
             // Read again each round: `ps3 queue add` may have added something.
-            let latest = TransferQueue.load()
-            queue.items = latest.items
+            queue = TransferQueue.load()
             guard let item = queue.pending.first else { break }
             current = item.id
-            queue.update(item.id) {
-                $0.state = .sending
-                $0.message = nil
+            edit {
+                $0.update(item.id) {
+                    $0.state = .sending
+                    $0.message = nil
+                }
             }
-            queue.save()
             do {
                 try await runner.send(item, verify: queue.verify) { event in
                     Task { @MainActor [weak self] in self?.handle(event, item: item.id) }
                 }
-                queue.update(item.id) {
-                    $0.state = .done
-                    $0.sent = $0.total
-                    $0.finishedAt = Date()
+                edit {
+                    $0.update(item.id) {
+                        $0.state = .done
+                        $0.sent = $0.total
+                        $0.finishedAt = Date()
+                    }
                 }
                 titles.append(item.title)
                 refresh = refresh || item.routes.contains(where: \.refreshesGameList)
             } catch {
+                // The file's progress can be some seconds behind what this copy has seen.
+                let sent = queue.items.first { $0.id == item.id }?.sent ?? item.sent
                 if Task.isCancelled || error is CancellationError {
-                    queue.update(item.id) { $0.state = .paused }
-                    queue.save()
+                    edit {
+                        $0.update(item.id) {
+                            $0.state = .paused
+                            $0.sent = sent
+                        }
+                    }
                     break
                 }
-                queue.update(item.id) {
-                    $0.state = .failed
-                    $0.message = error.localizedDescription
+                edit {
+                    $0.update(item.id) {
+                        $0.state = .failed
+                        $0.message = error.localizedDescription
+                        $0.sent = sent
+                    }
                 }
             }
-            queue.save()
         }
         current = nil
         rate = 0
@@ -281,9 +298,9 @@ final class TransferStore {
             return
         }
         // Progress is saved now and then, so a crash loses little.
-        if Date().timeIntervalSince(lastSave) > 5 {
+        if let id, Date().timeIntervalSince(lastSave) > 5, let sent = queue.items.first(where: { $0.id == id })?.sent {
             lastSave = Date()
-            queue.save()
+            edit { $0.update(id) { $0.sent = sent } }
         }
     }
 

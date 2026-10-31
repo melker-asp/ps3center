@@ -98,7 +98,8 @@ xcodebuild den inte.
   fråga; `UninstallGuard` skyddar det HEN behöver). `GamesStore` och `GamesView` är Spel-fliken.
 - **Macens spel och kön:** `GameFolders` (mappar per typ i config.json plus spegelmappen),
   `LocalLibrary` (samma `GameListing`-regler som konsolen, metadata ur avbilderna) och
-  `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`;
+  `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`:
+  alla ändringar går via `TransferQueue.edit`, som läser om filen under ett lås, och
   `QueueLock` ser till att bara en process skickar. Allt skickas via `TransferService.send`, som
   laddar upp till `.part` och döper om. `QueueRunner.send` och `ps3 send` försöker igen efter
   nätverksfel (`RetryPolicy`). `FolderWatch` (watch.json) hittar nya spel i bevakade mappar;

@@ -103,19 +103,38 @@ public struct TransferQueue: Codable, Equatable, Sendable {
             .appendingPathComponent("Library/Application Support/ps3center/queue.json")
     }
 
-    public static func load() -> TransferQueue {
+    public static func load(from file: URL = TransferQueue.file) -> TransferQueue {
         guard let data = try? Data(contentsOf: file) else { return TransferQueue() }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return (try? decoder.decode(TransferQueue.self, from: data)) ?? TransferQueue()
     }
 
-    public func save() {
+    /// The only way to change the queue: reads the file, applies `change` and writes it back under
+    /// a short lock, so what the app and `ps3 queue` do at the same time is all kept. (`QueueLock`
+    /// is another lock, held by whichever process sends.) If `change` throws, nothing is written.
+    @discardableResult
+    public static func edit<T>(at file: URL = TransferQueue.file, _ change: (inout TransferQueue) throws -> T) rethrows -> T {
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fd = open(file.path + ".lock", O_CREAT | O_RDWR, 0o644)
+        if fd >= 0 { flock(fd, LOCK_EX) }
+        defer {
+            if fd >= 0 {
+                flock(fd, LOCK_UN)
+                close(fd)
+            }
+        }
+        var queue = load(from: file)
+        let result = try change(&queue)
+        queue.save(to: file)
+        return result
+    }
+
+    private func save(to file: URL) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        try? FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? encoder.encode(self).write(to: Self.file, options: .atomic)
+        try? encoder.encode(self).write(to: file, options: .atomic)
     }
 }
 

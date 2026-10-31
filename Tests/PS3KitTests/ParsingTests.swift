@@ -178,6 +178,17 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(ps1[1].game.size == 750)
     #expect(ps1[1].game.companions.count == 2)
 
+    // Another game whose name starts the same is not a track, and is not deleted with this one.
+    let similar = GameListing.candidates(
+        in: "/dev_hdd0/PSXISO", folder: psx,
+        entries: [entry("Crash.cue", 1), entry("Crash.bin", 10), entry("Crash (Track 2).bin", 20),
+                  entry("Crash 2.cue", 1), entry("Crash 2.bin", 30), entry("Crash Bandicoot.bin", 40)],
+        nested: [:], wmtmp: [:])
+    #expect(similar.map(\.game.path) == ["/dev_hdd0/PSXISO/Crash 2.cue", "/dev_hdd0/PSXISO/Crash Bandicoot.bin", "/dev_hdd0/PSXISO/Crash.cue"])
+    #expect(similar[0].game.companions == ["/dev_hdd0/PSXISO/Crash 2.bin"])
+    #expect(similar[2].game.companions == ["/dev_hdd0/PSXISO/Crash (Track 2).bin", "/dev_hdd0/PSXISO/Crash.bin"])
+    #expect(similar[2].game.size == 31)
+
     let folders = try #require(GameListing.folders.first { $0.name == "GAMES" })
     let folderGames = GameListing.candidates(in: "/dev_hdd0/GAMES", folder: folders,
                                              entries: [entry("BLUS30443-[Demon's Souls]", dir: true), entry("readme.txt")],
@@ -581,6 +592,56 @@ private func rawCD(_ iso: Data) -> Data {
     queue.removeFinished()
     #expect(queue.items.map(\.title) == ["GT5"])
     #expect(Fixtures.queue.items.contains { $0.state == .sending })
+}
+
+@Test func queueEditsKeepWhatOthersChanged() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let file = folder.appendingPathComponent("queue.json")
+    let route = { (name: String) in
+        Route(local: URL(fileURLWithPath: "/m/\(name).iso"), remote: "/dev_hdd0/PS3ISO/\(name).iso", kind: .ps3ISO, size: 1, title: nil)
+    }
+    let first = try #require(TransferQueue.edit(at: file) { $0.add([route("A")]) }.first)
+
+    // Another process adds a game while this one holds an older copy of the queue.
+    let older = TransferQueue.load(from: file)
+    TransferQueue.edit(at: file) { $0.add([route("B")]) }
+    #expect(older.items.count == 1)
+    TransferQueue.edit(at: file) { $0.update(first.id) { $0.state = .sending } }
+
+    let latest = TransferQueue.load(from: file)
+    #expect(latest.items.map(\.title) == ["A", "B"])
+    #expect(latest.items[0].state == .sending)
+
+    // A change that throws writes nothing.
+    struct Stop: Error {}
+    #expect(throws: Stop.self) {
+        try TransferQueue.edit(at: file) { queue in
+            queue.items.removeAll()
+            throw Stop()
+        }
+    }
+    #expect(TransferQueue.load(from: file).items.count == 2)
+}
+
+@Test func anErrorIsNeverTakenForNoGameRunning() async throws {
+    struct Slow: Error {}
+    // Slow answers are waited out, and only the answer that nothing runs ends the wait.
+    var answers: [Result<String?, Error>] = [.success("EBOOT.BIN"), .failure(Slow()), .failure(Slow()), .success("EBOOT.BIN"), .success(nil)]
+    var announced: [String] = []
+    try await TransferService.waitForNoGame(pollSeconds: 0, check: { try answers.removeFirst().get() }, announce: { announced.append($0) })
+    #expect(answers.isEmpty)
+    #expect(announced == ["EBOOT.BIN"])
+
+    // A console that keeps not answering is an error, so no shutdown or refresh follows.
+    var calls = 0
+    await #expect(throws: PS3Error.self) {
+        try await TransferService.waitForNoGame(pollSeconds: 0, allowedFailures: 3, check: {
+            calls += 1
+            throw Slow()
+        }, announce: { _ in })
+    }
+    #expect(calls == 3)
 }
 
 // MARK: Game server
