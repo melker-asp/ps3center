@@ -129,11 +129,12 @@ public enum LibCrypt {
         URL(string: "https://raw.githubusercontent.com/aldostools/webMAN-MOD/master/_Projects_/updater/pkgfiles/USRDIR/lsd/\(exe).lsd")
     }
 
-    /// "SCES-01431", "SCES01431" or "SCES_014.31" → "SCES_014.31".
+    /// "SCES-01431", "SCES01431" or "SCES_014.31" → "SCES_014.31". Nil for PSN's "NPEA00418":
+    /// a game bought on PSN has no disc, and so no boot file named after its ID.
     public static func exeName(fromTitleID id: String) -> String? {
         let letters = id.prefix(4).uppercased()
         let digits = id.dropFirst(4).filter(\.isNumber)
-        guard letters.count == 4, letters.allSatisfy(\.isLetter), digits.count == 5 else { return nil }
+        guard letters.count == 4, letters.allSatisfy(\.isLetter), !letters.hasPrefix("NP"), digits.count == 5 else { return nil }
         return "\(letters)_\(digits.prefix(3)).\(digits.suffix(2))"
     }
 
