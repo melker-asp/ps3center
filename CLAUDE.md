@@ -28,6 +28,8 @@ swift test --filter parsesSysInfoAndStatusPage   # ett test
 make install                    # release-CLI → ~/.local/bin/ps3
 make app                        # xcodegen + xcodebuild (kräver `brew install xcodegen`)
 make run-app                    # bygg och öppna appen
+make install-app                # Release-bygge → /Applications/PS3 Center.app (uppdaterar en befintlig)
+make icon                       # rendera appikonen igen från scripts/make_icon.swift
 make snapshot DIR=/tmp/shots    # rendera varje flik till PNG och avsluta (kräver nåbar PS3)
 make snapshot-fixtures DIR=/tmp/shots   # samma sak från PS3Kit:s Fixtures, utan PS3
 ```

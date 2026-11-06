@@ -17,8 +17,12 @@ Kräver Xcode (Swift 6). `make build` uppdaterar en redan installerad version.
 
 ```bash
 brew install xcodegen   # en gång
-make run-app            # genererar App/PS3Center.xcodeproj, bygger och öppnar appen
+make install-app        # bygger en Release-version och lägger den i /Program
 ```
+
+Sedan öppnas PS3 Center som vilken app som helst: från Launchpad, Spotlight eller Dock. Kör
+`make install-app` igen för att uppdatera (en öppen app avslutas först). `make run-app` bygger en
+Debug-version och öppnar den direkt från `.build`, utan att installera.
 
 Appen har fyra flikar i Mole-stil:
 - **Status:** hälsa, CPU, RSX, fläkt, ledigt utrymme, nätverk, vad som spelas och versioner, med
