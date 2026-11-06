@@ -221,6 +221,72 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(GameListing.isGame(titleID: "BLES01200"))
 }
 
+@Test func sortsGamesByNameSizeAndDateAdded() throws {
+    // webMAN's listing leaves the year out: the latest such date that is not in the future.
+    let calendar = Calendar.current
+    let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 6, hour: 12)))
+    let june = try #require(GameListing.listedDate("Jun 05 18:33", now: now))
+    #expect(calendar.dateComponents([.year, .month, .day, .hour, .minute], from: june)
+            == DateComponents(year: 2026, month: 6, day: 5, hour: 18, minute: 33))
+    let december = try #require(GameListing.listedDate("Dec 24 09:00", now: now))
+    #expect(calendar.component(.year, from: december) == 2025)
+    let older = try #require(GameListing.listedDate("Jun 05  2024", now: now))
+    #expect(calendar.component(.year, from: older) == 2024)
+    #expect(GameListing.listedDate("1792670400") == Date(timeIntervalSince1970: 1_792_670_400))
+    #expect(GameListing.listedDate("") == nil)
+    #expect(GameListing.candidates(in: "/dev_hdd0/PS2ISO", folder: try #require(GameListing.folders.first { $0.name == "PS2ISO" }),
+                                   entries: [entry("Game.iso", 10)], nested: [:], wmtmp: [:]).first?.game.added != nil)
+
+    let games = Fixtures.games
+    #expect(GameOrder.name.sorted(games) == games)
+    let bySize = GameOrder.size.sorted(games)
+    #expect(bySize.first?.title == "The Last of Us")
+    // Folders and installed games, whose size is not known, come last, in name order.
+    #expect(bySize.suffix(2).map(\.title) == ["Demon's Souls", "Journey"])
+    let byDate = GameOrder.added.sorted(games)
+    #expect(byDate.prefix(2).map(\.title) == ["Test Drive Unlimited 2", "Shadow of the Colossus"])
+    #expect(byDate.last?.title == "Journey")
+    // Sorting keeps what the scan attached, such as installed updates.
+    #expect(byDate.first { $0.titleID == "BCES00569" }?.updateVersion == "02.11")
+    #expect(GameOrder(argument: "Tillagt") == .added)
+    #expect(GameOrder(argument: "storlek") == .size)
+    #expect(GameOrder(argument: "ålder") == nil)
+}
+
+@Test func sendRemembersWhereItsGamesShowUp() throws {
+    let iso = try #require(SentGames.location(of: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso"))
+    #expect(iso.dir == "/dev_hdd0/PS2ISO")
+    #expect(iso.folder.name == "PS2ISO")
+    #expect(iso.game == "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso")
+    let nested = try #require(SentGames.location(of: "/dev_hdd0/PS3ISO/Racing/GT5.iso"))
+    #expect(nested.dir == "/dev_hdd0/PS3ISO/Racing")
+    let folder = try #require(SentGames.location(of: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]/PS3_GAME/PARAM.SFO"))
+    #expect(folder.dir == "/dev_hdd0/GAMES")
+    #expect(folder.game == "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]")
+    #expect(SentGames.location(of: "/dev_hdd0/packages/Apollo.pkg") == nil)
+
+    let routes = [
+        Route(local: URL(fileURLWithPath: "/Users/m/Spel/Demon's Souls/PS3_GAME/PARAM.SFO"),
+              remote: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]/PS3_GAME/PARAM.SFO", kind: .ps3Folder, size: 1, title: nil),
+        Route(local: URL(fileURLWithPath: "/Users/m/Spel/PS1/Spyro.cue"), remote: "/dev_hdd0/PSXISO/Spyro.cue",
+              kind: .psxISO, size: 1, title: nil),
+    ]
+    #expect(SentGames.localPath(of: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", routes: routes) == "/Users/m/Spel/Demon's Souls")
+    #expect(SentGames.localPath(of: "/dev_hdd0/PSXISO/Spyro.cue", routes: routes) == "/Users/m/Spel/PS1/Spyro.cue")
+    #expect(SentGames.localPath(of: "/dev_hdd0/PSXISO/Crash.cue", routes: routes) == nil)
+}
+
+@Test func estimatesTheTimeWithACable() {
+    // No measurement over LAN: what others report, 10–40 MB/s.
+    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: [:]) == "ca 4–16 min")
+    #expect(SpeedTest.cableEstimate(bytes: 50_000_000_000, measured: [:]) == "ca 20 min–1 h 23 min")
+    // A measurement with a cable wins, also while the console is back on Wi-Fi.
+    let lan = SpeedResult(upload: 25_000_000, download: nil, network: "LAN", measuredAt: Date())
+    let wifi = SpeedResult(upload: 3_000_000, download: nil, network: "Wi-Fi", measuredAt: Date())
+    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: ["LAN": lan, "Wi-Fi": wifi]) == "ca 6 min")
+    #expect(SpeedTest.cableEstimate(bytes: 500_000_000, measured: ["LAN": lan]) == "under en minut")
+}
+
 @Test func readsSonysUpdateList() {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>

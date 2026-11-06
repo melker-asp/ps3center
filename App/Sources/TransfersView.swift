@@ -182,7 +182,13 @@ struct TransfersView: View {
                 }
             }
             if (transfers.lastSpeed?.network ?? console.snapshot?.network) == "Wi-Fi" {
-                Text("PS3:an är på Wi-Fi, som bara klarar 2,4 GHz. Med nätverkskabel brukar det gå flera gånger fortare. Macen hålls vaken medan kön går, och PS3:an stängs inte av mitt i en överföring.")
+                Text("PS3:an är på Wi-Fi, som bara klarar 2,4 GHz. Med nätverkskabel tar 10 GB \(SpeedTest.cableEstimate(bytes: 10_000_000_000)). Macen hålls vaken medan kön går, och PS3:an stängs inte av mitt i en överföring.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.warm)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if KeepAwake.isOnBattery, !transfers.queue.pending.isEmpty {
+                Text(KeepAwake.batteryTip)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.warm)
                     .fixedSize(horizontal: false, vertical: true)

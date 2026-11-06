@@ -43,6 +43,12 @@ enum Snapshot {
 
         render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { StatusView(scrolls: false) }
         render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+        // Sorted by Senast tillagt: one list across platforms, with the dates. The viewer's own
+        // choice is put back afterwards.
+        let savedOrder = UserDefaults.standard.string(forKey: "gamesOrder")
+        UserDefaults.standard.set(GameOrder.added.rawValue, forKey: "gamesOrder")
+        render(.games, name: "games-added", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+        UserDefaults.standard.set(savedOrder, forKey: "gamesOrder")
         // Gran Turismo 5 has an update installed; live, the first game.
         if let game = games.games.first(where: { $0.titleID == "BCES00569" }) ?? games.games.first {
             games.selectedID = game.id

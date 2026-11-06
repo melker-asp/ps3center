@@ -31,7 +31,8 @@ Appen har fyra flikar i Mole-stil:
   Skärmbilder i spel och Musik i spel), Avsluta spelet och Spela in medan ett spel körs, Mata ut
   skivan, Starta om och Stäng av. I dynamiskt fläktläge flyttar − och + webMAN:s måltemperatur
   (60–75 °C).
-- **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform och sök.
+- **Spel:** spelen på PS3:an som rutnät med fodral eller XMB-ikoner, filter per plattform, sök och
+  sortering på namn, storlek eller senast tillagt.
   Klicka på ett spel för title ID, region, storlek och version, och för att starta, montera, ta bort,
   avinstallera (installerade spel; sparfilerna ligger kvar) eller uppdatera det. "Sök uppdateringar" frågar Sony efter nya patchar. Dra en bild till spelets
   banderoll för att byta omslag. PS1- och PS2-spel säger om något hindrar dem: en PS2-ISO startar
@@ -46,6 +47,9 @@ Appen har fyra flikar i Mole-stil:
   och kön pausas rent när Macen somnar och fortsätter när den vaknar. Bryts anslutningen försöker
   kön igen (efter 15 s, 30 s, 1, 2 och 4 minuter) och fortsätter där filen slutade. I Spelmappar
   kan en mapp **bevakas**: nya spel i den läggs i kön och skickas när de har kopierats klart.
+  Är PS3:an på Wi-Fi visar granskningen hur lång tid det skulle ta med kabel, och går Macen på
+  batteri sägs det att kön stannar om locket stängs. Spel som skickas från Macen behåller sin
+  titel, sitt title ID och sin ikon på PS3:an direkt, innan webMAN har läst dem.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
   Ett installerat program kan avinstalleras från sin sida.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
@@ -75,8 +79,9 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 
 | Kommando | Gör |
 |---|---|
+| `ps3` | En meny med de vanligaste kommandona när det körs i en terminal; skriv en siffra eller ett kommando. I ett skript visas hjälpen |
 | `ps3 status` | Hälsa, temperaturer, fläkt, ledigt utrymme och vad som körs. `--watch` uppdaterar löpande, `--json` ger JSON |
-| `ps3 games` | Spelen på PS3:an per plattform: title ID, region, storlek, version och installerade uppdateringar (`--platform ps2`, `--json`) |
+| `ps3 games` | Spelen på PS3:an per plattform: title ID, region, storlek, version och installerade uppdateringar (`--platform ps2`, `--sort storlek\|tillagt`, `--json`) |
 | `ps3 games info <namn>` | Allt om ett spel. Namnet kan vara en del av titeln, ett title ID eller sökvägen |
 | `ps3 games play <namn>` | Startar spelet. Körs ett annat spel frågar den först om det ska avslutas (`-y`, `--dry-run`) |
 | `ps3 games mount\|unmount\|exit` | Monterar ett spel som skiva, avmonterar det eller avslutar spelet som körs |

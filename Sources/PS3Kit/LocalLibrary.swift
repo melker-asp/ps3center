@@ -88,6 +88,7 @@ public struct LocalLibrary: Sendable {
                 game.source = .mac
                 game.remotePath = remoteFolder + "/" + (game.path as NSString).lastPathComponent
                 game.netPath = "/" + kind.name + String(game.path.dropFirst(url.path.count))
+                game.added = Self.addedDate(of: URL(fileURLWithPath: game.path)) ?? game.added
                 let info = cache[candidate.cacheKey] ?? LocalGameReader.read(game)
                 fresh[candidate.cacheKey] = info
                 if let title = info.title { game.title = title }
@@ -102,6 +103,13 @@ public struct LocalLibrary: Sendable {
         cache = fresh
         LocalGameReader.Cache.save(cache)
         return GameListing.attach([:], to: games)
+    }
+
+    /// When the file was put in its folder (Finder's Date Added), else when it was created. A
+    /// copy keeps the original's modification date, which would say when the image was made.
+    static func addedDate(of url: URL) -> Date? {
+        let values = try? url.resourceValues(forKeys: [.addedToDirectoryDateKey, .creationDateKey])
+        return values?.addedToDirectoryDate ?? values?.creationDate
     }
 
     /// A local folder listed like webMAN's FTP lists one; nil when it cannot be read.

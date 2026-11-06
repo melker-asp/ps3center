@@ -27,6 +27,42 @@ public enum SpeedTest {
         encoder.dateEncodingStrategy = .iso8601
         try? FileManager.default.createDirectory(at: ConfigStore.directory, withIntermediateDirectories: true)
         try? encoder.encode(result).write(to: file, options: .atomic)
+        if let network = result.network {
+            var all = byNetwork()
+            all[network] = result
+            try? encoder.encode(all).write(to: networksFile, options: .atomic)
+        }
+    }
+
+    static var networksFile: URL { ConfigStore.directory.appendingPathComponent("speeds.json") }
+
+    /// The latest measurement per network ("Wi-Fi", "LAN"), so a measurement with a cable still
+    /// counts while the console is back on Wi-Fi.
+    public static func byNetwork() -> [String: SpeedResult] {
+        guard let data = try? Data(contentsOf: networksFile) else { return [:] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([String: SpeedResult].self, from: data)) ?? [:]
+    }
+
+    /// What forum reports give for a PS3 on a cable, 10–40 MB/s (PLAN.md); used until there is
+    /// a measurement over LAN.
+    public static let typicalCable: ClosedRange<Double> = 10e6...40e6
+
+    /// "ca 7 min" from a measurement over LAN, else "ca 4–16 min" from typical cable speeds.
+    public static func cableEstimate(bytes: Int64, measured: [String: SpeedResult] = byNetwork()) -> String {
+        if let lan = measured["LAN"], lan.upload > 0 {
+            let seconds = Double(bytes) / lan.upload
+            return seconds < 60 ? Format.playTime(seconds) : "ca \(Format.playTime(seconds))"
+        }
+        let fast = Double(bytes) / typicalCable.upperBound
+        let slow = Double(bytes) / typicalCable.lowerBound
+        let fastMinutes = max(1, Int((fast / 60).rounded()))
+        let slowMinutes = max(1, Int((slow / 60).rounded()))
+        if slowMinutes < 60 {
+            return fastMinutes == slowMinutes ? "ca \(fastMinutes) min" : "ca \(fastMinutes)–\(slowMinutes) min"
+        }
+        return "ca \(Format.playTime(fast))–\(Format.playTime(slow))"
     }
 
     /// Seconds to send `bytes` at the last measured upload speed, or nil before a measurement.

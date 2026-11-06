@@ -202,50 +202,55 @@ public enum Fixtures {
 
     // MARK: Games
 
+    /// A fixed day, so that dates in the screenshots stay the same between runs.
+    static func daysAgo(_ days: Int) -> Date {
+        Date(timeIntervalSince1970: 1_792_670_400 - TimeInterval(days) * 86_400)
+    }
+
     /// The console's games as `GameLibraryService.scan` returns them: Test Drive Unlimited 2 is
     /// the one mounted in `snapshot`, Gran Turismo 5 and The Last of Us have updates installed.
     public static let games: [Game] = GameListing.attach(["BCES00569": "02.11", "BCES01584": "01.11"], to: [
         Game(path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", title: "Test Drive Unlimited 2",
-             titleID: "BLES01200", platform: .ps3, size: 9_642_180_608, version: "01.00"),
+             titleID: "BLES01200", platform: .ps3, size: 9_642_180_608, version: "01.00", added: daysAgo(1)),
         Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
-             platform: .ps3, size: 13_481_082_880, version: "01.00"),
+             platform: .ps3, size: 13_481_082_880, version: "01.00", added: daysAgo(120)),
         Game(path: "/dev_hdd0/PS3ISO/The Last of Us (Europe).iso", title: "The Last of Us", titleID: "BCES01584",
-             platform: .ps3, size: 27_525_120_000, version: "01.00"),
+             platform: .ps3, size: 27_525_120_000, version: "01.00", added: daysAgo(9)),
         Game(path: "/dev_hdd0/PS3ISO/Red Dead Redemption (Europe).iso", title: "Red Dead Redemption", titleID: "BLES00680",
-             platform: .ps3, size: 7_331_643_392, version: "01.00"),
+             platform: .ps3, size: 7_331_643_392, version: "01.00", added: daysAgo(64)),
         Game(path: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", title: "Demon's Souls", titleID: "BLUS30443",
-             platform: .ps3, isFolder: true, version: "01.00"),
+             platform: .ps3, isFolder: true, version: "01.00", added: daysAgo(31)),
         Game(path: "/dev_hdd0/game/NPEA00418", title: "Journey", titleID: "NPEA00418", platform: .psn, isFolder: true,
-             version: "01.03"),
+             version: "01.03", added: daysAgo(200)),
         Game(path: "/dev_hdd0/PS2ISO/Shadow of the Colossus [SCES-53326].iso", title: "Shadow of the Colossus",
-             titleID: "SCES-53326", platform: .ps2, size: 4_352_016_384),
+             titleID: "SCES-53326", platform: .ps2, size: 4_352_016_384, added: daysAgo(4)),
         Game(path: "/dev_hdd0/PS2ISO/Ratchet & Clank [SCES-50916].iso", title: "Ratchet & Clank", titleID: "SCES-50916",
-             platform: .ps2, size: 3_120_562_176),
+             platform: .ps2, size: 3_120_562_176, added: daysAgo(88)),
         Game(path: "/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).cue", title: "Final Fantasy VII", titleID: "SCES-00867",
              platform: .ps1, size: 698_496_000,
-             companions: ["/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).bin"]),
+             companions: ["/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).bin"], added: daysAgo(45)),
         Game(path: "/dev_usb000/PSXISO/Crash Bandicoot (Europe).cue", title: "Crash Bandicoot", titleID: "SCES-00344",
-             platform: .ps1, size: 529_221_552, companions: ["/dev_usb000/PSXISO/Crash Bandicoot (Europe).bin"]),
+             platform: .ps1, size: 529_221_552, companions: ["/dev_usb000/PSXISO/Crash Bandicoot (Europe).bin"], added: daysAgo(150)),
         Game(path: "/dev_hdd0/PSPISO/Patapon (Europe).iso", title: "Patapon", titleID: "UCES-00995", platform: .psp,
-             size: 312_475_648),
+             size: 312_475_648, added: daysAgo(17)),
     ])
 
     /// Games in the Mac's game folders: Gran Turismo 5 is on the console too, the others are not.
     public static let macGames: [Game] = GameListing.attach([:], to: [
         Game(path: "/Users/melker/Spel/PS3/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
              platform: .ps3, size: 13_481_082_880, version: "01.00", source: .mac,
-             remotePath: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso"),
+             remotePath: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", added: daysAgo(120)),
         Game(path: "/Users/melker/Spel/PS3/Uncharted 2 - Among Thieves (Europe).iso", title: "Uncharted 2: Among Thieves",
              titleID: "BCES00757", platform: .ps3, size: 24_830_115_840, version: "01.00", source: .mac,
-             remotePath: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso"),
+             remotePath: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso", added: daysAgo(0)),
         Game(path: "/Users/melker/Spel/PS3/LittleBigPlanet 2 (Europe).iso", title: "LittleBigPlanet 2", titleID: "BCES00850",
              platform: .ps3, size: 6_754_975_744, version: "01.00", source: .mac,
-             remotePath: "/dev_hdd0/PS3ISO/LittleBigPlanet 2 (Europe).iso"),
+             remotePath: "/dev_hdd0/PS3ISO/LittleBigPlanet 2 (Europe).iso", added: daysAgo(3)),
         Game(path: "/Users/melker/Spel/PS2/God of War [SCES-53133].iso", title: "God of War", titleID: "SCES-53133",
-             platform: .ps2, size: 4_389_634_048, source: .mac, remotePath: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso"),
+             platform: .ps2, size: 4_389_634_048, source: .mac, remotePath: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso", added: daysAgo(12)),
         Game(path: "/Users/melker/Spel/PS1/Spyro the Dragon (Europe).cue", title: "Spyro the Dragon", titleID: "SCES-01438",
              platform: .ps1, size: 621_455_088, companions: ["/Users/melker/Spel/PS1/Spyro the Dragon (Europe).bin"],
-             source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue"),
+             source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue", added: daysAgo(40)),
     ])
 
     /// Spelmappar: the folders behind `macGames`, the PS3 one watched, and one on a drive that is

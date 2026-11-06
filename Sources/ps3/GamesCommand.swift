@@ -8,6 +8,7 @@ struct Games: AsyncParsableCommand {
         abstract: "Spelen på PS3:an: lista, starta, avsluta och ta bort.",
         discussion: """
         ps3 games                    Alla spel, grupperade per plattform
+        ps3 games --sort tillagt     Senast tillagda först (eller storlek, störst först)
         ps3 games info gran          Title ID, region, storlek, version och var det ligger
         ps3 games play gran turismo  Starta ett spel (frågar först om ett annat spel körs)
         ps3 games exit               Avsluta spelet som körs
@@ -34,6 +35,9 @@ struct Games: AsyncParsableCommand {
         @Option(name: .long, help: "Bara en plattform: ps3, psn, ps2, ps1, psp, bluray eller dvd.")
         var platform: String?
 
+        @Option(name: .long, help: "Ordning: namn (per plattform, standard), storlek (störst först) eller tillagt (senast tillagda först).")
+        var sort = "namn"
+
         @Flag(name: .long, help: "Läs om alla spels PARAM.SFO i stället för att använda cachen.")
         var refresh = false
 
@@ -42,6 +46,9 @@ struct Games: AsyncParsableCommand {
 
         func run() async throws {
             let asJSON = json || !UI.isTTY
+            guard let order = GameOrder(argument: sort) else {
+                throw ValidationError("Okänd ordning: \(sort). Använd namn, storlek eller tillagt.")
+            }
             var only: Game.Platform?
             if let platform {
                 guard let match = Game.Platform.allCases.first(where: { $0.rawValue.lowercased() == platform.lowercased() || $0.label.lowercased() == platform.lowercased() }) else {
@@ -55,10 +62,11 @@ struct Games: AsyncParsableCommand {
                 if !asJSON { UI.progress("Läser \(dir)…") }
             }
             if let only { games = games.filter { $0.platform == only } }
+            games = order.sorted(games)
             if asJSON { UI.json(games); return }
             let snapshot = try? await WebMAN(host: host).snapshot()
             UI.endProgress()
-            Games.render(games, snapshot: snapshot)
+            Games.render(games, snapshot: snapshot, order: order)
         }
     }
 
@@ -567,29 +575,43 @@ struct Games: AsyncParsableCommand {
         return true
     }
 
-    static func render(_ games: [Game], snapshot: ConsoleSnapshot?) {
+    /// By name: a group per platform. By size or date: one list across platforms, as in the app,
+    /// with the platform (and the date) on each line.
+    static func render(_ games: [Game], snapshot: ConsoleSnapshot?, order: GameOrder = .name) {
         guard !games.isEmpty else {
             UI.skip("Inga spel hittades i PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO eller /dev_hdd0/game.")
             return
         }
-        for platform in Game.Platform.allCases {
-            let rows = games.filter { $0.platform == platform }
-            guard !rows.isEmpty else { continue }
+        func header(_ title: String, _ rows: [Game]) {
             let total = rows.compactMap(\.size).reduce(0, +)
-            UI.header(platform.label, detail: "\(rows.count) st" + (total > 0 ? " · \(Format.bytes(total))" : ""))
-            for game in rows {
-                var marker = " "
-                if snapshot?.mountedGamePath == game.path {
-                    marker = snapshot?.isGameRunning == true ? UI.paint("▶", .green) : UI.paint("◉", .cyan)
-                }
-                let title = game.title.count > 44 ? String(game.title.prefix(43)) + "…" : game.title
-                let id = (game.titleID ?? "").padding(toLength: 12, withPad: " ", startingAt: 0)
-                let size = (game.size.map(Format.bytes) ?? (game.isInstalled ? "installerat" : "mapp"))
-                    .padding(toLength: 12, withPad: " ", startingAt: 0)
-                let detail = [game.region?.label, game.version, game.updateVersion.map { "uppdaterat till \($0)" },
-                              game.isOnUSB ? "USB" : nil].compactMap { $0 }.joined(separator: " · ")
-                print("  \(marker) \(title.padding(toLength: 46, withPad: " ", startingAt: 0))" + UI.paint(id, .gray) + size + UI.paint(detail, .gray))
+            UI.header(title, detail: "\(rows.count) st" + (total > 0 ? " · \(Format.bytes(total))" : ""))
+        }
+        func line(_ game: Game) {
+            var marker = " "
+            if snapshot?.mountedGamePath == game.path {
+                marker = snapshot?.isGameRunning == true ? UI.paint("▶", .green) : UI.paint("◉", .cyan)
             }
+            let title = game.title.count > 44 ? String(game.title.prefix(43)) + "…" : game.title
+            let id = (game.titleID ?? "").padding(toLength: 12, withPad: " ", startingAt: 0)
+            let size = (game.size.map(Format.bytes) ?? (game.isInstalled ? "installerat" : "mapp"))
+                .padding(toLength: 12, withPad: " ", startingAt: 0)
+            let detail = [order == .name ? nil : game.platform.label,
+                          order == .added ? game.added.map { "tillagt \(Format.day($0))" } : nil,
+                          game.region?.label, game.version, game.updateVersion.map { "uppdaterat till \($0)" },
+                          game.isOnUSB ? "USB" : nil].compactMap { $0 }.joined(separator: " · ")
+            print("  \(marker) \(title.padding(toLength: 46, withPad: " ", startingAt: 0))" + UI.paint(id, .gray) + size + UI.paint(detail, .gray))
+        }
+        if order == .name {
+            for platform in Game.Platform.allCases {
+                let rows = games.filter { $0.platform == platform }
+                guard !rows.isEmpty else { continue }
+                header(platform.label, rows)
+                rows.forEach(line)
+                print()
+            }
+        } else {
+            header(order == .size ? "Störst först" : "Senast tillagda", games)
+            games.forEach(line)
             print()
         }
         if let running = games.first(where: { $0.path == snapshot?.mountedGamePath }) {

@@ -4,22 +4,27 @@ Den här planen tar PS3 Center från "status och homebrew" till ett ställe där
 görs från Macen: se och starta spelen, skicka spel från Macens mappar, spela direkt från Macen,
 styra konsolen och ta säkerhetskopior. Principerna i [DESIGN.md](DESIGN.md) gäller för allt nytt.
 
-## Var vi står (oktober 2026)
+## Var vi står (6 november 2026)
 
-Klart:
-- **CLI:** `status`, `send`, `apps` (19 program, säkerhetsspärr, detaljsida), `popup`, `refresh`,
-  `history`, `discover`, `config`.
-- **Appen:** flikarna Status och Appar i PS-utseende, skärmbilder från fixturer i CI.
-- **Motorn:** webMAN-HTTP, FTP med `APPE`, ISO/SFO/PKG-läsning, `FileRouter` som vet var varje
-  filtyp ska ligga, "varna och vänta", `OperationLog`.
+Alla nio faser nedan är byggda och har tester i `swift test`, men det mesta är inte provat på
+konsolen än (se Prova på konsolen). Appen har flikarna Status, Spel, Appar och Underhåll,
+Överföringar, menyraden och en egen ikon. `ps3` utan argument öppnar en meny.
 
-Saknas för en kommandocentral:
-1. Se vilka spel som finns på PS3:an, med omslag, och starta dem.
-2. Koppla Macens spelmappar (PS3ISO, PS2ISO …) och skicka därifrån.
-3. Överföringar som tål avbrott, en kö och besked om hur lång tid det tar.
-4. Spela utan att kopiera (ps3netsrv).
-5. Ström, avsluta spel, fjärrkontroll, menyraden och notiser.
-6. Säkerhetskopior av sparfiler och underhåll av hårddisken.
+Kvar att bygga, och vad det väntar på:
+- `mygames.xml` som källa för spellistan: test 1.
+- Läsa titel och ikon direkt i en ISO på konsolen (`REST`, en `ByteSource` för `ISOImage`): test 2.
+- Två uppladdningar samtidigt: test 5. Bara om det mäts som snabbare.
+
+Kvar utanför koden:
+- CI har inte kunnat köra sedan 24 oktober: GitHub startar inte macOS-jobben förrän betalningen
+  är ordnad (repot är privat). Alternativen står i CLAUDE.md: repo-variabeln
+  `CI_RUNNER=self-hosted` eller ett publikt repo. Till dess körs `swift test` och `make app` på
+  Macen före varje commit.
+- Proven 1–14 under Prova på konsolen.
+
+Byggt sist (6 nov): sortering på namn, storlek och senast tillagt (Spel-fliken och
+`ps3 games --sort`), att `send` sparar titel, title ID och ikon för spelen den skickar, tiden med
+kabel i granskningen, ett tips när Macen går på batteri och menyn i `ps3`.
 
 ## Målbild
 
@@ -108,8 +113,9 @@ och har `--dry-run` i CLI:t.
 
 **Läge 24 okt 2026:** byggt utan tester på konsolen, med reservvägar där fakta saknas. Klart är
 listningen (steg 2 nedan plus wmtmp-cachen), ikoner och bakgrunder, starta/montera/avsluta/ta bort,
-`ps3 games` och Spel-fliken med detaljsida. Kvar: `mygames.xml` (väntar på test 1), läsning i ISO:n
-via `REST` (väntar på test 2), sortering på storlek och datum, och att `send` sparar det den vet.
+`ps3 games` och Spel-fliken med detaljsida. Sortering på storlek och datum och att `send` sparar det
+den vet är byggda (6 nov). Kvar: `mygames.xml` (väntar på test 1) och läsning i ISO:n via `REST`
+(väntar på test 2).
 
 PS3Kit:
 - `Game.swift`: `Game` (titel, title ID, plattform, region, storlek, sökväg) med `Game.Platform`
@@ -235,8 +241,9 @@ viloläge, `KeepAwake`, MD5 via `/md5.ps3`, "När kön är klar" och notiser; `p
 
 **Läge 24 okt 2026:** `ps3 speedtest` (och knappen i Överföringar) och `ps3 usb prepare` är byggda.
 Finjusteringen är byggd (25 okt): 1 MB-bitar och två i luften, inställbart med `ftpChunkKB` och
-`ftpWindow` i config.json för att jämföra med hastighetstestet (test 13). Två filer samtidigt är
-inte byggt.
+`ftpWindow` i config.json för att jämföra med hastighetstestet (test 13). Tiden med kabel visas i
+granskningen (6 nov): från en mätning över LAN om det finns en, annars 10–40 MB/s. Två filer
+samtidigt är inte byggt (test 5).
 
 - `ps3 speedtest` (och en knapp i Överföringar): skickar 256 MB från minnet till `/dev_hdd0/tmp`,
   hämtar tillbaka och tar bort filen. Visar MB/s åt båda hållen och om det är Wi-Fi eller kabel.

@@ -74,7 +74,13 @@ struct SendReviewView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if console.snapshot?.network == "Wi-Fi", total > 2_000_000_000 {
-                    Text("PS3:an är på Wi-Fi (bara 2,4 GHz). Med nätverkskabel brukar det gå flera gånger fortare.")
+                    Text("PS3:an är på Wi-Fi (bara 2,4 GHz). Med nätverkskabel tar det \(SpeedTest.cableEstimate(bytes: total))\(cableSource).")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.warm)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if KeepAwake.isOnBattery {
+                    Text(KeepAwake.batteryTip)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
@@ -164,7 +170,13 @@ struct SendReviewView: View {
         guard let speed = transfers.lastSpeed, speed.upload > 0 else {
             return "mät hastigheten under Överföringar"
         }
-        return "ca \(Format.duration(Double(total) / speed.upload)) (\(Format.rate(speed.upload)))"
+        let network = speed.network.map { ", \($0)" } ?? ""
+        return "ca \(Format.duration(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
+    }
+
+    /// Where the cable time comes from: a measurement over LAN, or what others report.
+    private var cableSource: String {
+        SpeedTest.byNetwork()["LAN"] == nil ? ", räknat på 10–40 MB/s som andra har mätt" : " enligt din mätning med kabel"
     }
 }
 

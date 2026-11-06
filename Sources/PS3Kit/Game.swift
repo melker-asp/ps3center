@@ -54,10 +54,13 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     /// For a game on the Mac: its path on the Mac's game server ("/PS3ISO/Game.iso"), which
     /// webMAN reaches as /net0/PS3ISO/Game.iso.
     public var netPath: String?
+    /// When the file or folder came to where it is, for "Senast tillagt": the listing's date on
+    /// the console, the date it was added to the folder on the Mac.
+    public var added: Date?
 
     init(path: String, title: String, titleID: String? = nil, platform: Platform, size: Int64? = nil,
          isFolder: Bool = false, version: String? = nil, iconPath: String? = nil, backgroundPath: String? = nil,
-         companions: [String] = [], source: Source = .console, remotePath: String? = nil) {
+         companions: [String] = [], source: Source = .console, remotePath: String? = nil, added: Date? = nil) {
         self.path = path
         self.title = title
         self.titleID = titleID
@@ -70,6 +73,7 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
         self.companions = companions
         self.source = source
         self.remotePath = remotePath
+        self.added = added
     }
 
     public var id: String { path }
@@ -83,6 +87,56 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     public var isOnUSB: Bool { source == .console && path.hasPrefix("/dev_usb") }
 
     public var isOnMac: Bool { source == .mac }
+}
+
+/// How the Spel tab and `ps3 games --sort` order the games.
+public enum GameOrder: String, CaseIterable, Codable, Sendable, Identifiable {
+    case name, size, added
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .name: return "Namn"
+        case .size: return "Storlek"
+        case .added: return "Senast tillagt"
+        }
+    }
+
+    /// The word `ps3 games --sort` takes.
+    public var argument: String {
+        switch self {
+        case .name: return "namn"
+        case .size: return "storlek"
+        case .added: return "tillagt"
+        }
+    }
+
+    public init?(argument: String) {
+        let word = argument.lowercased()
+        guard let match = Self.allCases.first(where: { $0.argument == word || $0.rawValue == word }) else { return nil }
+        self = match
+    }
+
+    /// Name: by platform and title, as the console lists them. Size: largest first, and folders
+    /// and installed games, whose size is not known, last. Added: newest first, and games without
+    /// a date last. Ties keep the name order.
+    public func sorted(_ games: [Game]) -> [Game] {
+        let byName = games.sorted(by: GameListing.byName)
+        switch self {
+        case .name:
+            return byName
+        case .size:
+            return byName.enumerated().sorted { a, b in
+                (a.element.size ?? -1, -a.offset) > (b.element.size ?? -1, -b.offset)
+            }.map(\.element)
+        case .added:
+            let never = Date.distantPast
+            return byName.enumerated().sorted { a, b in
+                (a.element.added ?? never, -a.offset) > (b.element.added ?? never, -b.offset)
+            }.map(\.element)
+        }
+    }
 }
 
 public enum Region: String, Codable, Sendable {

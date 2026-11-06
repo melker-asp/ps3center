@@ -9,6 +9,7 @@ struct PS3: AsyncParsableCommand {
         abstract: "PS3 Center – styr din PS3 (PS3HEN + webMAN MOD) från Macen.",
         discussion: """
         Exempel:
+          ps3                          En meny med de vanligaste kommandona (i en terminal)
           ps3 status                   Temperatur, fläkt, utrymme och vad som körs
           ps3 send Spel.dec.iso        Ladda upp ett spel, uppdatera spellistan, visa popup
           ps3 games                    Spelen på PS3:an, med title ID, storlek och version

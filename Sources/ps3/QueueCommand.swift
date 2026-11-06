@@ -132,6 +132,7 @@ struct Queue: AsyncParsableCommand {
             let awake = KeepAwake(reason: "Skickar spel till PS3:an")
             defer { withExtendedLifetime(awake) {} }
             UI.header("Skickar kön", detail: "\(queue.pending.count) st · \(Format.bytes(queue.remainingBytes))")
+            if KeepAwake.isOnBattery { UI.warn(KeepAwake.batteryTip) }
             let runner = QueueRunner(host: host)
             let printer = TransferPrinter(dryRun: false)
             var sentTitles: [String] = []

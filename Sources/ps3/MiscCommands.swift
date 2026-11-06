@@ -61,9 +61,11 @@ struct History: ParsableCommand {
         if json || !UI.isTTY { UI.json(entries); return }
         guard !entries.isEmpty else { UI.skip("Ingen historik än."); return }
         UI.header("Historik", detail: OperationLog.file.path)
+        // As wide as the longest action ("uninstall", "webman-setup"), so none runs into its detail.
+        let width = (entries.map(\.action.count).max() ?? 0) + 2
         for e in entries {
             print("  " + UI.paint(String(e.date.prefix(16)).replacingOccurrences(of: "T", with: " "), .gray) + "  "
-                  + e.action.padding(toLength: 8, withPad: " ", startingAt: 0) + e.detail)
+                  + e.action.padding(toLength: width, withPad: " ", startingAt: 0) + e.detail)
         }
     }
 }

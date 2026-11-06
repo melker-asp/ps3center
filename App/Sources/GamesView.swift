@@ -11,6 +11,8 @@ struct GamesView: View {
     @Environment(NetServerStore.self) private var netServer
     /// Box art (Fodral) or XMB icons (Ikoner); remembered between launches.
     @AppStorage("gamesShowCovers") private var showCovers = true
+    /// Namn (per platform, as the console lists them), Storlek or Senast tillagt.
+    @AppStorage("gamesOrder") private var order: GameOrder = .name
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views or text fields.
     var scrolls = true
     @State private var showsFolders = false
@@ -61,6 +63,7 @@ struct GamesView: View {
             }
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
+            .fixedSize()
 
             HStack(spacing: 2) {
                 ForEach(GamesStore.Filter.allCases) { item in
@@ -81,6 +84,7 @@ struct GamesView: View {
                             .padding(.vertical, 8)
                             .background(Capsule().fill(library.filter == item ? Color.white.opacity(0.14) : .clear))
                             .contentShape(Capsule())
+                            .fixedSize()
                         }
                         .buttonStyle(.plain)
                     }
@@ -89,6 +93,7 @@ struct GamesView: View {
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
 
+            // The search field gives way when the row gets tight, never the pills.
             SearchField(text: Bindable(library).search, interactive: scrolls)
 
             Button {
@@ -107,11 +112,14 @@ struct GamesView: View {
             HStack(spacing: 2) {
                 modeButton(covers: true, symbol: "rectangle.portrait.fill", help: "Fodral")
                 modeButton(covers: false, symbol: "rectangle.fill", help: "XMB-ikoner")
+                Rectangle().fill(Color.white.opacity(0.15)).frame(width: 1, height: 16).padding(.horizontal, 2)
+                orderMenu
             }
             .padding(3)
             .background(Capsule().fill(Color.black.opacity(0.45)))
+            .fixedSize()
 
-            Spacer()
+            Spacer(minLength: 0)
 
             if onMac {
                 Button {
@@ -169,6 +177,34 @@ struct GamesView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+
+    /// The sort order, beside Fodral and Ikoner, as a button that opens a menu. Lit while it is
+    /// not by name.
+    @ViewBuilder private var orderMenu: some View {
+        let label = Image(systemName: "arrow.up.arrow.down")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(order == .name ? Theme.tertiaryText : Theme.primaryText)
+            .frame(width: 34, height: 28)
+            .background(Capsule().fill(order == .name ? .clear : Color.white.opacity(0.14)))
+            .contentShape(Capsule())
+        if scrolls {
+            Menu {
+                Picker("Sortera", selection: $order) {
+                    ForEach(GameOrder.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                label
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Sortera: \(order.label)")
+        } else {
+            label
+        }
     }
 
     /// "Sök uppdateringar" until Sony has been asked; then how many games have newer patches.
@@ -264,27 +300,38 @@ struct GamesView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// By name: a section per platform. By size or date: one list across platforms, like the PS
+    /// app's library, since the point is what is largest or newest of all.
     private var grid: some View {
-        let visible = library.visible
+        let visible = order.sorted(library.visible)
         return LazyVStack(alignment: .leading, spacing: 4) {
             if visible.isEmpty {
                 Text("Inget spel matchar ”\(library.search)”.")
                     .font(.system(size: 14)).foregroundStyle(Theme.secondaryText)
                     .padding(14)
             }
-            ForEach(Game.Platform.allCases, id: \.self) { platform in
-                let rows = visible.filter { $0.platform == platform }
-                if !rows.isEmpty {
-                    SectionHeader(title: platform.label, count: rows.count)
-                    LazyVGrid(columns: [GridItem(showCovers ? .adaptive(minimum: 170, maximum: 220) : .adaptive(minimum: 200, maximum: 280), spacing: 16)],
-                              alignment: .leading, spacing: 16) {
-                        ForEach(rows) { GameTile(game: $0, showCover: showCovers) }
+            if order == .name {
+                ForEach(Game.Platform.allCases, id: \.self) { platform in
+                    let rows = visible.filter { $0.platform == platform }
+                    if !rows.isEmpty {
+                        SectionHeader(title: platform.label, count: rows.count)
+                        tiles(rows)
                     }
-                    .padding(.horizontal, 14)
                 }
+            } else if !visible.isEmpty {
+                SectionHeader(title: order == .size ? "Störst först" : "Senast tillagda", count: visible.count)
+                tiles(visible)
             }
         }
         .padding(.bottom, 12)
+    }
+
+    private func tiles(_ rows: [Game]) -> some View {
+        LazyVGrid(columns: [GridItem(showCovers ? .adaptive(minimum: 170, maximum: 220) : .adaptive(minimum: 200, maximum: 280), spacing: 16)],
+                  alignment: .leading, spacing: 16) {
+            ForEach(rows) { GameTile(game: $0, showCover: showCovers, showsAdded: order == .added) }
+        }
+        .padding(.horizontal, 14)
     }
 
     /// "3 valda · 24,1 GB" and the white Skicka button, under the Mac's grid.
@@ -333,10 +380,18 @@ struct GameTile: View {
     @Environment(NetServerStore.self) private var netServer
     let game: Game
     var showCover = true
+    /// The date it was added under the title instead of its size (sorted by Senast tillagt).
+    var showsAdded = false
     @State private var hovering = false
     @State private var confirmingSwitch = false
 
     private var isSelected: Bool { library.selection.contains(game.id) }
+
+    /// "13,5 GB", or "Mapp"/"Installerat" when the size is not known; the date when sorted by it.
+    private var footnote: String {
+        if showsAdded, let added = game.added { return Format.day(added) }
+        return game.size.map(Format.bytes) ?? (game.isInstalled ? "Installerat" : "Mapp")
+    }
 
     /// "Varna och vänta" for starting: a running game is only quit after a question.
     private func playFromMac() {
@@ -387,7 +442,7 @@ struct GameTile: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 6) {
-                Text(game.size.map(Format.bytes) ?? (game.isInstalled ? "Installerat" : "Mapp"))
+                Text(footnote)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
@@ -517,7 +572,7 @@ struct SearchField: View {
         .font(.system(size: 13))
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .frame(width: 240)
+        .frame(minWidth: 140, maxWidth: 240)
         .background(Capsule().fill(Color.black.opacity(0.45)))
     }
 }

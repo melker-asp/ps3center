@@ -6,8 +6,8 @@ men med **en** gemensam motor i stället för två kodbaser.
 
 ```
 PS3Kit (Swift-bibliotek)   ← all logik: webMAN, FTP, ISO/SFO/PKG, uppdateringar
- ├── ps3   (CLI)           ← det här, version 0.1
- └── PS3 Center.app        ← SwiftUI, kommer sen – länkar PS3Kit direkt
+ ├── ps3   (CLI)           ← `ps3` utan argument är en meny i terminalen
+ └── PS3 Center.app        ← SwiftUI, länkar PS3Kit direkt
 ```
 
 CLI:t skriver också JSON (`--json`, och automatiskt när utdata skickas vidare), och
@@ -122,6 +122,15 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   `/dev_hdd0/xmlhost/game_plugin/mygames.xml` och sparar titel och ikon för ISO:er som
   `<namn>.SFO`/`<namn>.PNG` i `/dev_hdd0/tmp/wmtmp` (`include/scan/`, bekräftas med test 1 i
   PLAN.md). För nätverksspel hämtar den `<namn>.SFO` bredvid ISO:n från ps3netsrv-servern.
+- **Senast tillagt** bygger på datumet i FTP-listningen, som i svaren från konsolen saknar år
+  ("Jun 05 18:33"). Det tolkas som det senaste sådana datumet som inte ligger i framtiden, så ett
+  spel som är äldre än ett år kan hamna fel. På Macen används Finders "Lades till", eftersom en
+  kopierad fil behåller originalets ändringsdatum.
+- **Det `send` vet (6 nov):** efter uppladdningen listas målmappen en gång, och titel, title ID och
+  version ur avbilden på Macen sparas under samma nyckel (sökväg, storlek och listningens datum)
+  som nästa läsning av konsolen använder. ICON0 sparas per sökväg på konsolen och visas tills
+  webMAN har gjort sin egen kopia i wmtmp. "Läs om spelen" behåller det för spel utan PARAM.SFO
+  på konsolen (PS1, PS2, PSP), eftersom det inte finns något att läsa om där.
 - **ps3netsrv** (aldostools/ps3netsrv, `include/netiso.h` och `src/main.cpp`, läst 24 okt 2026):
   kommandon på 16 byte i big-endian från `OPEN_FILE` = 0x1224 till `READ_DIR` = 0x1232, svar med
   fast storlek. `READ_DIR` ger ett antal och sedan poster på 529 byte (storlek, tid, mapp, namn på
@@ -250,24 +259,15 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
 
 ## Färdplan
 
-Planen framåt, fas för fas, finns i [PLAN.md](PLAN.md).
+Planen fas för fas, med vad som är byggt, vad som återstår och vad som ska provas på konsolen,
+finns i [PLAN.md](PLAN.md). Några beslut som gäller framåt:
 
-- **CLI 0.1 (klart):** `status`, `send`, `apps` (list/available/update/install via namn eller
-  fil), `popup`, `refresh`, `history`, `discover`, `config`. Katalogen har 19 program. Nya
-  kandidater granskas mot hur väletablerade de är; repon som är några veckor gamla med 1–2
-  stjärnor tas inte med automatiskt.
-- **Spel:** bara egna filer via `send`. Ingen inbyggd nedladdning från ROM-/ISO-arkiv.
-  Planerat i stället: `ps3 rip` (kopiera skivan i spelaren med `/copy.ps3/dev_bdvd`),
-  Finder-åtgärden "Skicka till PS3" och en bevakad mapp.
-- **Spelbiblioteket (fas 1, påbörjad):** `ps3 games` (lista, info, starta, montera, avsluta, ta
-  bort) och Spel-fliken med rutnät och detaljsida. Se PLAN.md för vad som återstår.
-- **CLI härnäst:** `maintain`, `analyze`,
-  `backup-saves`, `plugin add/remove` (säker ändring av boot_plugins.txt), en interaktiv meny
-  när `ps3` körs utan argument, och Finder-åtgärden "Skicka till PS3".
-- **App 0.1 (klar):** Xcode-projekt genererat från `App/project.yml` som länkar PS3Kit, Swift 6
-  strikt läge, flikarna Status och Appar, och skärmbildsläget (`PS3CENTER_SNAPSHOT_DIR`).
-- **Skärmbilder utan PS3 (klart):** `PS3CENTER_FIXTURES=1` ger appen data från PS3Kit:s
-  `Fixtures`; CI renderar varje skärm och laddar upp PNG:erna som artefakten `screenshots`.
-- **PS-utseende (klart):** se avsnittet Utseende ovan.
-- **App härnäst:** omslag och Macens spelmappar med dra-och-släpp i Spel-fliken (fas 2 och 3),
-  menyraden och en appikon.
+- **Katalogen:** nya program granskas mot hur väletablerade de är; repon som är några veckor
+  gamla med 1–2 stjärnor tas inte med automatiskt.
+- **Spel:** bara egna filer via `send`, `ps3 rip` och bevakade mappar. Ingen inbyggd nedladdning
+  från ROM- eller ISO-arkiv.
+- **Plugins:** PS3 Center ändrar aldrig `boot_plugins.txt`, så det blir inget `plugin add/remove`.
+  Saknade plugins rapporteras av `ps3 maintain`.
+- **Skärmbilder utan PS3:** `PS3CENTER_FIXTURES=1` ger appen data från PS3Kit:s `Fixtures`; CI
+  renderar varje skärm och laddar upp PNG:erna som artefakten `screenshots`, och
+  `make snapshot-fixtures` gör samma sak på Macen.

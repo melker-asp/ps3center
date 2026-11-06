@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import IOKit.ps
 
 /// Progress events for uploads and installs. The CLI prints them; the app will bind to them.
 public enum TransferEvent: Sendable {
@@ -38,6 +39,17 @@ public final class KeepAwake: @unchecked Sendable {
     }
 
     deinit { ProcessInfo.processInfo.endActivity(activity) }
+
+    /// True when the Mac runs on its battery. Then closing the lid puts it to sleep whatever
+    /// PS3 Center asks for, and the queue waits until it wakes.
+    public static var isOnBattery: Bool {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let type = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() else { return false }
+        return (type as String) == kIOPSBatteryPowerValue
+    }
+
+    /// The tip shown before and during a queue on battery.
+    public static let batteryTip = "Macen går på batteri. Stängs locket somnar den ändå, och kön stannar tills den vaknar. Låt locket vara öppet, eller sätt i laddaren och använd en extern skärm."
 }
 
 /// Uploads files over FTP and runs the follow-up web commands.
@@ -53,7 +65,11 @@ public struct TransferService: Sendable {
     /// Already complete files are skipped, partial ones are resumed. Files go to <name>.part and
     /// are renamed when complete, so webMAN never lists half a game.
     public func send(_ routes: [Route], options: TransferOptions, events: TransferHandler) async throws {
-        let sent = try await withFTP { ftp in try await upload(routes, ftp: ftp, options: options, events: events) }
+        let sent = try await withFTP { ftp in
+            let sent = try await upload(routes, ftp: ftp, options: options, events: events)
+            await SentGames.remember(sent, ftp: ftp)
+            return sent
+        }
         guard !options.dryRun, !sent.isEmpty else { return }
         // The FTP session is closed first: webMAN drops one that stays idle for a minute, and
         // both the MD5 check and waiting for a game can take longer.

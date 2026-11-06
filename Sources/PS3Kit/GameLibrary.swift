@@ -15,9 +15,11 @@ public struct GameLibraryService: Sendable {
     // MARK: Scan
 
     /// All games, sorted by platform and title. `events` gets each folder as it is read;
-    /// `refresh` reads every PARAM.SFO again instead of using the cache.
+    /// `refresh` reads every PARAM.SFO again instead of using the cache. What `send` saved about
+    /// a game that has no PARAM.SFO on the console (a PS2 ISO, say) is kept, since there is
+    /// nothing to read again.
     public func scan(refresh: Bool = false, events: @Sendable (String) -> Void = { _ in }) async throws -> [Game] {
-        let cached = refresh ? [:] : GameCache.load()
+        let cached = GameCache.load()
         var fresh: [String: GameCache.Info] = [:]
         let games = try await TransferService(host: host).withFTP { ftp -> [Game] in
             let root = (try? await ftp.list("/")) ?? []
@@ -48,7 +50,7 @@ public struct GameLibraryService: Sendable {
             var games: [Game] = []
             var updates: [String: String] = [:]
             for candidate in candidates {
-                var info = cached[candidate.cacheKey]
+                var info = refresh && candidate.sfoPath != nil ? nil : cached[candidate.cacheKey]
                 if info == nil, let sfoPath = candidate.sfoPath {
                     let sfo = try await ftp.download(sfoPath, limit: 64 << 10).flatMap(ParamSFO.init(data:))
                     info = GameCache.Info(sfo: sfo)
@@ -74,7 +76,11 @@ public struct GameLibraryService: Sendable {
         var result: [String: Data] = [:]
         var missing: [(id: String, remote: String, file: URL)] = []
         for game in games {
-            guard let remote = game.iconPath else { continue }
+            guard let remote = game.iconPath else {
+                // Sent from the Mac, before webMAN has made its copy: ICON0 from the image there.
+                if let data = try? Data(contentsOf: SentGames.iconFile(for: game.path)), !data.isEmpty { result[game.id] = data }
+                continue
+            }
             let file = cache.appendingPathComponent(AppsService.md5(Data(remote.utf8)) + ".png")
             if !refresh, let data = try? Data(contentsOf: file) {
                 if !data.isEmpty { result[game.id] = data }
@@ -279,7 +285,7 @@ enum GameListing {
                 let path = dir + "/" + entry.name
                 let game = Game(path: path, title: GameName.clean(entry.name), titleID: TitleID.find(in: entry.name, platform: .ps3),
                                 platform: .ps3, isFolder: true, iconPath: path + "/PS3_GAME/ICON0.PNG",
-                                backgroundPath: path + "/PS3_GAME/PIC1.PNG")
+                                backgroundPath: path + "/PS3_GAME/PIC1.PNG", added: listedDate(entry.modified))
                 return Candidate(game: game, sfoPath: path + "/PS3_GAME/PARAM.SFO", cacheKey: path + "|" + entry.modified)
             }
         }
@@ -319,7 +325,8 @@ enum GameListing {
 
             let path = dir + "/" + file.name
             var game = Game(path: path, title: GameName.clean(file.name), titleID: TitleID.find(in: file.name, platform: folder.platform),
-                            platform: folder.platform, size: size, companions: companions.sorted())
+                            platform: folder.platform, size: size, companions: companions.sorted(),
+                            added: listedDate(file.modified))
             // webMAN names its copies after the file without its extension; a picture can also lie beside the file.
             let stems = Self.stems(of: lower)
             if let icon = stems.lazy.compactMap({ wmtmp[$0 + ".png"] }).first {
@@ -363,7 +370,7 @@ enum GameListing {
     static func installedCandidate(_ entry: FTPClient.Entry) -> Candidate {
         let path = "/dev_hdd0/game/" + entry.name
         let game = Game(path: path, title: entry.name, titleID: entry.name, platform: .psn, isFolder: true,
-                        iconPath: path + "/ICON0.PNG", backgroundPath: path + "/PIC1.PNG")
+                        iconPath: path + "/ICON0.PNG", backgroundPath: path + "/PIC1.PNG", added: listedDate(entry.modified))
         return Candidate(game: game, sfoPath: path + "/PARAM.SFO", cacheKey: path + "|" + entry.modified)
     }
 
@@ -400,7 +407,36 @@ enum GameListing {
             if !game.isInstalled, let titleID = game.titleID { game.updateVersion = updates[titleID] }
             return game
         }
-        .sorted { ($0.platform.order, $0.title.lowercased(), $0.path) < ($1.platform.order, $1.title.lowercased(), $1.path) }
+        .sorted(by: byName)
+    }
+
+    /// The console's order: platform, then title, then path.
+    static func byName(_ a: Game, _ b: Game) -> Bool {
+        (a.platform.order, a.title.lowercased(), a.path) < (b.platform.order, b.title.lowercased(), b.path)
+    }
+
+    /// The date in a listing line: "Jun 05 18:33" (the year left out, so the latest such date
+    /// that is not in the future), "Jun 05 2025", or seconds since 1970 from a Mac folder.
+    static func listedDate(_ text: String, now: Date = Date()) -> Date? {
+        if let seconds = TimeInterval(text), !text.isEmpty { return Date(timeIntervalSince1970: seconds) }
+        let parts = text.split(separator: " ", omittingEmptySubsequences: true)
+        guard parts.count == 3 else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        if parts[2].contains(":") {
+            let year = Calendar.current.component(.year, from: now)
+            formatter.dateFormat = "MMM d HH:mm yyyy"
+            for candidate in [year, year - 1] {
+                if let date = formatter.date(from: "\(parts[0]) \(parts[1]) \(parts[2]) \(candidate)"),
+                   date <= now.addingTimeInterval(86_400) {
+                    return date
+                }
+            }
+            return nil
+        }
+        formatter.dateFormat = "MMM d yyyy"
+        return formatter.date(from: parts.joined(separator: " "))
     }
 }
 
@@ -419,6 +455,13 @@ enum GameCache {
             version = sfo?.appVersion
             category = sfo?.category
         }
+
+        init(title: String?, titleID: String?, version: String?, category: String? = nil) {
+            self.title = title
+            self.titleID = titleID
+            self.version = version
+            self.category = category
+        }
     }
 
     static var file: URL {
@@ -433,5 +476,65 @@ enum GameCache {
     static func save(_ cache: [String: Info]) {
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? JSONEncoder().encode(cache).write(to: file, options: .atomic)
+    }
+}
+
+/// What `send` already knows about the games it sends: title, title ID and version read from
+/// the image on the Mac, and its ICON0. Saved under the key the next scan of the console uses,
+/// so those games never have to be read there, and PS1/PS2 games keep the serial from
+/// SYSTEM.CNF that their file name may lack. The icon shows until webMAN has made its own
+/// copy in wmtmp.
+enum SentGames {
+    /// Where a sent file's game shows up in a listing: the folder to list, its rules, and the
+    /// game's path (the folder itself for GAMES, else the file). Nil outside the game folders.
+    static func location(of remote: String) -> (dir: String, folder: GameListing.Folder, game: String)? {
+        let parts = remote.split(separator: "/").map(String.init)
+        guard parts.count >= 3, let folder = GameListing.folders.first(where: { $0.name == parts[1] }) else { return nil }
+        let top = "/" + parts[0] + "/" + parts[1]
+        if folder.holdsFolders { return (top, folder, top + "/" + parts[2]) }
+        return ((remote as NSString).deletingLastPathComponent, folder, remote)
+    }
+
+    /// The Mac file (or GAMES folder) a game on the console was sent from.
+    static func localPath(of game: String, routes: [Route]) -> String? {
+        if let exact = routes.first(where: { $0.remote == game }) { return exact.local.path }
+        guard let inside = routes.first(where: { $0.remote.hasPrefix(game + "/") }) else { return nil }
+        let rest = String(inside.remote.dropFirst(game.count))
+        guard inside.local.path.hasSuffix(rest) else { return nil }
+        return String(inside.local.path.dropLast(rest.count))
+    }
+
+    /// Lists the folders the games went to and saves what the Mac's copies say. Never fails a
+    /// send: whatever cannot be read is read on the console next time, as before.
+    static func remember(_ sent: [Route], ftp: FTPClient) async {
+        let games = sent.filter(\.refreshesGameList)
+        let dirs = Dictionary(grouping: games.compactMap { route in location(of: route.remote).map { ($0, route) } }) { $0.0.dir }
+        guard !dirs.isEmpty else { return }
+        var cache = GameCache.load()
+        for (dir, items) in dirs {
+            guard let folder = items.first?.0.folder, let entries = try? await ftp.list(dir) else { continue }
+            let candidates = folder.holdsFolders
+                ? GameListing.candidates(in: dir, folder: folder, entries: entries, nested: [:], wmtmp: [:])
+                : GameListing.images(in: dir, files: entries.filter { !$0.isDirectory }, folder: folder, wmtmp: [:])
+            let wanted = Set(items.map(\.0.game))
+            for candidate in candidates where wanted.contains(candidate.game.path) {
+                guard let local = localPath(of: candidate.game.path, routes: items.map(\.1)) else { continue }
+                var mac = candidate.game
+                mac.path = local
+                mac.source = .mac
+                let info = LocalGameReader.read(mac)
+                guard info.title != nil || info.titleID != nil else { continue }
+                cache[candidate.cacheKey] = GameCache.Info(title: info.title, titleID: info.titleID, version: info.version)
+                if let icon = info.iconFile, let data = try? Data(contentsOf: URL(fileURLWithPath: icon)), !data.isEmpty {
+                    try? data.write(to: iconFile(for: candidate.game.path), options: .atomic)
+                }
+            }
+        }
+        GameCache.save(cache)
+    }
+
+    /// ICON0 of a game sent from the Mac, by its path on the console.
+    static func iconFile(for consolePath: String) -> URL {
+        GameLibraryService.cacheDirectory("sent-icons").appendingPathComponent(AppsService.md5(Data(consolePath.utf8)) + ".png")
     }
 }
