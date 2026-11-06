@@ -18,6 +18,7 @@ struct GamesView: View {
     @State private var showsFolders = false
     @State private var showsServer = false
     @State private var review: SendReview?
+    @State private var usbCopy: USBCopyRequest?
 
     private var onMac: Bool { library.source == .mac }
 
@@ -52,6 +53,9 @@ struct GamesView: View {
             }
         }
         .sheet(item: $review) { SendReviewView(review: $0) }
+        .sheet(item: $usbCopy) { request in
+            USBCopyView(games: request.games) { library.selection.removeAll() }
+        }
         .sheet(isPresented: $showsServer) { NetServerView() }
     }
 
@@ -344,6 +348,13 @@ struct GamesView: View {
             Spacer()
             Button("Avmarkera") { library.selection.removeAll() }
                 .buttonStyle(PillButtonStyle(prominent: false))
+            Button {
+                usbCopy = USBCopyRequest(games: library.selectedMacGames)
+            } label: {
+                Label("Till USB-disk…", systemImage: "externaldrive")
+            }
+            .buttonStyle(PillButtonStyle(prominent: false))
+            .help("Kopiera till en FAT32-disk för PS3:an. ISO:er över 4 GB delas, och en spelmapp med en så stor fil blir en ISO.")
             Button("Skicka till PS3:an") {
                 let routes = library.selectedMacGames.flatMap { (try? $0.routes()) ?? [] }
                 review = SendReview(routes: routes)
@@ -384,6 +395,7 @@ struct GameTile: View {
     var showsAdded = false
     @State private var hovering = false
     @State private var confirmingSwitch = false
+    @State private var makingClassic = false
 
     private var isSelected: Bool { library.selection.contains(game.id) }
 
@@ -468,8 +480,12 @@ struct GameTile: View {
                 Button("Spela från Macen") { playFromMac() }
                     .disabled(!netServer.status.isRunning || game.netPath == nil || game.isFolder)
                 Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
+                if game.platform == .ps2, !PS2Classic.isClassic(game.path) {
+                    Button("Gör om till PS2 Classic…") { makingClassic = true }
+                }
             }
         }
+        .sheet(isPresented: $makingClassic) { PS2ClassicView(game: game) }
         .confirmationDialog(switchQuestion, isPresented: $confirmingSwitch, titleVisibility: .visible) {
             Button("Avsluta och starta") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
             Button("Avbryt", role: .cancel) {}

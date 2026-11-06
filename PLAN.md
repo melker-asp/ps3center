@@ -4,9 +4,9 @@ Den här planen tar PS3 Center från "status och homebrew" till ett ställe där
 görs från Macen: se och starta spelen, skicka spel från Macens mappar, spela direkt från Macen,
 styra konsolen och ta säkerhetskopior. Principerna i [DESIGN.md](DESIGN.md) gäller för allt nytt.
 
-## Var vi står (6 november 2026)
+## Var vi står (7 november 2026)
 
-Alla nio faser nedan är byggda och har tester i `swift test`, men det mesta är inte provat på
+Alla tio faser nedan är byggda och har tester i `swift test`, men det mesta är inte provat på
 konsolen än (se Prova på konsolen). Appen har flikarna Status, Spel, Appar och Underhåll,
 Överföringar, menyraden och en egen ikon. `ps3` utan argument öppnar en meny.
 
@@ -20,11 +20,11 @@ Kvar utanför koden:
   är ordnad (repot är privat). Alternativen står i CLAUDE.md: repo-variabeln
   `CI_RUNNER=self-hosted` eller ett publikt repo. Till dess körs `swift test` och `make app` på
   Macen före varje commit.
-- Proven 1–14 under Prova på konsolen.
+- Proven 1–16 under Prova på konsolen.
 
-Byggt sist (6 nov): sortering på namn, storlek och senast tillagt (Spel-fliken och
-`ps3 games --sort`), att `send` sparar titel, title ID och ikon för spelen den skickar, tiden med
-kabel i granskningen, ett tips när Macen går på batteri och menyn i `ps3`.
+Byggt sist (7 nov): fas 10, ISO-verktygen från PC:n (`ps3 iso`, Till USB-disk… i Spel-fliken) och
+PS2 Classics (`ps3 ps2`, Gör om till PS2 Classic… på ett PS2-spel under Macen).
+Före det (6 nov): sortering, att `send` sparar det den vet, tiden med kabel och menyn i `ps3`.
 
 ## Målbild
 
@@ -358,6 +358,49 @@ Kvar att prova hemma: test 12.
 - **Byggdes inte:** att ställa klockan (webMAN skriver den säkra klockan) och säker utmatning av
   USB (webMAN:s är en låtsad händelse).
 
+### Fas 10 – PC-verktygen för ISO:er på Macen
+
+**Läge 7 nov 2026:** byggt, provat på Macen (se DESIGN.md), oprovat på konsolen: test 15.
+
+Verktygen på ps3.world/iso-tools är Windows-program. Det här är vad de blev:
+
+| PC-verktyg | I PS3 Center |
+|---|---|
+| PS3 ISO Tools: Generator (mapp → ISO) | `ps3 iso make`, och av sig själv för spelmappar med en fil över 4 GB på USB |
+| PS3 ISO Tools: Extractor (ISO → mapp) | `ps3 iso extract` |
+| PS3 ISO Tools: Splitter och Joiner | `ps3 iso split`/`join`, och av sig själv i `ps3 usb prepare` och Till USB-disk… |
+| PS3 ISO Tools: ISO Patcher, Game Patcher | Inte byggt: sänker firmwarekravet för CFW 4.20 och 3.55, behövs inte på 4.93 |
+| PS3 Disc Dumper | Finns redan: `ps3 rip` kopierar skivan i PS3:an, utan speciell Blu-ray-läsare |
+| PS3 ISO Decryptor GUI (ps3dec) | Inte byggt. webMAN läser inte `.dkey`, så en krypterad Redump-ISO måste dekrypteras först |
+| PS2 Classic GUI | `ps3 ps2 classic` och Gör om till PS2 Classic… (nedan); nycklarna bara på Macen |
+| PS2 Config Database | Delvis: spelsidan säger om PS2 CONFIG har en rättning (fas 9) |
+
+- `ISOTools.swift`: `PS3ISOBuilder` (makeps3iso:s layout, flera extents för filer över 4 GB,
+  `.66600`-delar blir en fil, `PS3_UPDATE` lämnas tom), `PS3ISO.split`/`join`/`extract` och
+  `PartWriter`, som skriver `.part` och döper om när allt är klart.
+- `USBDrive`: ISO:er över 4 GB delas för PS3, Blu-ray och DVD; en spelmapp med en fil över 4 GB
+  blir en PS3-ISO i delar i PS3ISO i stället för att hoppas över. `BDISO`/`DVDISO` listar
+  `.iso.0`.
+- Appen: Till USB-disk… i urvalsraden under Macen öppnar `USBCopyView`: diskarna som piller,
+  vad som händer med varje spel (delar, blir en ISO), ledigt före och efter, förlopp och Mata ut.
+
+**PS2 Classics med nycklarna bara på Macen (byggt 7 nov, oprovat på konsolen: test 16).** Fakta
+och källor står i DESIGN.md. På HEN behövs bara PS2 Classics Launcher (finns i Appar) och en
+`.BIN.ENC` i PS2ISO; PS3HEN gör licensen själv. Så blev det:
+- `PS2Classic.encrypt` i PS3Kit: ISO → `<namn>.BIN.ENC` med LIMG i farten (ISO:n på Macen
+  ändras inte), CommonCrypto för AES-CBC, AES-CMAC ovanpå, CryptoKit för SHA-1. CD-spel i
+  `.bin` (2352 byte) görs först om till 2048-byte-sektorer.
+- Nycklarna i `~/.config/ps3center/ps2classic-keys.json`, aldrig i repot, loggen eller utskrifter.
+  Repot har bara SHA-256 av de sju värdena, så PS3 Center kan säga exakt vilket som är fel.
+- Två sätt att få dem dit: Importera… (`ps2classic.c` och `.rifkey`, som PS2 Classic GUI också
+  har), eller en knapp som hämtar dem ur webMAN MOD:s repo på GitHub och sparar dem på Macen.
+- `ps3 ps2 classic <iso>` och Gör om till PS2 Classic där granskningsvyn och spelsidan i dag
+  varnar för PS2-ISO:er på HEN. Kräver att PS2 Classics Launcher är installerad.
+- Prov: test 16 (en PS2-ISO på konsolen). Krypteringen går att kontrollera fram och tillbaka i
+  `swift test` med testnycklar, men om spelet startar visar bara konsolen.
+- Beslutat 7 nov: nycklarna får ligga på Macen, och PS3 Center får hämta dem (Hämta nycklarna i
+  appen, `ps3 ps2 keys --fetch`). Importera finns också.
+
 ## Ordning och storlek
 
 | Fas | Storlek | Bygger på | Varför i den ordningen |
@@ -371,6 +414,7 @@ Kvar att prova hemma: test 12.
 | 7 Styr konsolen | M | 1 | Små delar som kan tas i valfri ordning |
 | 8 Underhåll | M | – | Kan göras när som helst |
 | 9 Idéer från aldostools | L | 1–8 | Byggt när resten fungerade |
+| 10 ISO-verktygen från PC:n | M | 5 | Du bad om dem 7 nov |
 
 ## Prova på konsolen
 
@@ -444,6 +488,18 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     - `ps3 beep`, `ps3 music on` under ett spel med musik i XMB:n, och
       `ps3 maintain block-updates` följt av en omstart: säger Inställningar → Systemuppdatering
       att ingen uppdatering finns?
+15. Fas 10, med en USB-sticka som är formaterad som "MS-DOS (FAT)":
+    - `ps3 iso split "Blur (Europe) (En,Fr,De,Es,It).iso" /Volumes/<stickan>/PS3ISO` (eller lägg
+      mappen med Blur i Spelmappar och välj Till USB-disk… i Spel-fliken). Sätt stickan i PS3:an:
+      syns Blur i webMAN:s spellista, och startar det?
+    - Har du ett spel som mapp (GAMES, t.ex. från `ps3 rip`): `ps3 iso make <mappen>` och starta
+      ISO:n från PS3ISO. Kör `ps3 verify` på ISO:n om spelet finns i IRD-databasen.
+16. PS2 Classics (fas 10):
+    - Installera PS2 Classics Launcher under Appar → Hämta om den saknas.
+    - Ett eget PS2-spel under Macen: högerklicka → Gör om till PS2 Classic…, Hämta nycklarna, Gör om,
+      Skicka till PS3:an. Syns spelet i webMAN:s lista under PS2, och startar det? Om inte: vad
+      står på TV:n (en felkod, eller svart skärm)?
+    - Gärna både ett DVD-spel (.iso) och ett CD-spel (.cue/.bin).
 
 ## Beslut (24 okt 2026)
 

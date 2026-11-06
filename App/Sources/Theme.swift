@@ -323,6 +323,8 @@ struct PillButtonStyle: ButtonStyle {
     /// Banner colour; nil is the white main action.
     var tint: Color?
     var prominent = true
+    /// A disabled button is faded, so the white main action never looks clickable when it is not.
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -339,6 +341,7 @@ struct PillButtonStyle: ButtonStyle {
                     Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.8 : 1))
                 }
             }
+            .opacity(isEnabled ? 1 : 0.35)
             .contentShape(Capsule())
     }
 

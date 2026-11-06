@@ -258,8 +258,8 @@ enum GameListing {
         Folder(name: "PS2ISO", platform: .ps2, extensions: [".iso", ".bin.enc", ".cue", ".bin", ".img", ".mdf"]),
         Folder(name: "PSXISO", platform: .ps1, extensions: [".cue", ".bin", ".iso", ".img", ".mdf"]),
         Folder(name: "PSPISO", platform: .psp, extensions: [".iso", ".cso"]),
-        Folder(name: "BDISO", platform: .bluRay, extensions: [".iso"]),
-        Folder(name: "DVDISO", platform: .dvd, extensions: [".iso"]),
+        Folder(name: "BDISO", platform: .bluRay, extensions: [".iso", ".iso.0"]),
+        Folder(name: "DVDISO", platform: .dvd, extensions: [".iso", ".iso.0"]),
     ]
 
     /// multiMAN borrows an official-looking title ID.

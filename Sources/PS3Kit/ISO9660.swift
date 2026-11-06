@@ -158,7 +158,13 @@ public final class ISOImage {
     /// size. A file over 4 GB is stored as several records with the same name (multi-extent);
     /// they are joined.
     public func allFiles() throws -> [(path: String, extent: UInt64, size: UInt64)] {
+        try tree().files
+    }
+
+    /// Every file as `allFiles` lists them, and every folder ("PS3_GAME/USRDIR"), empty ones too.
+    public func tree() throws -> (files: [(path: String, extent: UInt64, size: UInt64)], folders: [String]) {
         var result: [(path: String, extent: UInt64, size: UInt64)] = []
+        var folders: [String] = []
         var visited = Set<UInt64>()
         func walk(_ dir: Entry, prefix: String, depth: Int) throws {
             guard depth < 32, visited.insert(dir.extent).inserted else { return }
@@ -166,6 +172,7 @@ public final class ISOImage {
             for entry in try listDirectory(dir) {
                 let path = prefix.isEmpty ? entry.name : prefix + "/" + entry.name
                 if entry.isDirectory {
+                    folders.append(path)
                     try walk(entry, prefix: path, depth: depth + 1)
                     previous = nil
                 } else if path == previous, let last = result.indices.last {
@@ -177,12 +184,24 @@ public final class ISOImage {
             }
         }
         try walk(root, prefix: "", depth: 0)
-        return result
+        return (result, folders)
     }
 
     /// MD5 of `size` bytes from block `extent` on, read in pieces (plain 2048-byte images).
     public func md5(extent: UInt64, size: UInt64, progress: (UInt64) -> Void = { _ in }) throws -> String {
         var hasher = Insecure.MD5()
+        var done: UInt64 = 0
+        try readChunks(extent: extent, size: size) { chunk in
+            hasher.update(data: chunk)
+            done += UInt64(chunk.count)
+            progress(done)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// `size` bytes from block `extent` on, handed to `body` in pieces of at most 4 MB. Stops
+    /// early if the image ends.
+    public func readChunks(extent: UInt64, size: UInt64, _ body: (Data) throws -> Void) throws {
         var done: UInt64 = 0
         if sectorSize == Self.blockSize { try handle.seek(toOffset: extent * Self.blockSize) }
         while done < size {
@@ -194,10 +213,8 @@ public final class ISOImage {
                 chunk = try Self.read(handle, block: extent + done / Self.blockSize, count: count, sectorSize: sectorSize, dataOffset: dataOffset)
             }
             guard !chunk.isEmpty else { break }
-            hasher.update(data: chunk)
+            try body(chunk)
             done += UInt64(chunk.count)
-            progress(done)
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }

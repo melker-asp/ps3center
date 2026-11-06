@@ -81,6 +81,14 @@ enum Snapshot {
         games.source = .console
         games.selection = []
         write(FoldersView(live: false), name: "folders", into: directory)
+        write(USBCopyView(games: [], live: false), name: "usb", into: directory)
+        write(USBCopyView(games: [], live: false, copying: true), name: "usb-copying", into: directory)
+        if let ps2 = Fixtures.macGames.first(where: { $0.platform == .ps2 }) {
+            write(PS2ClassicView(game: ps2, live: false).environment(apps).environment(transfers).environment(games),
+                  name: "ps2classic", into: directory)
+            write(PS2ClassicView(game: ps2, live: false, fixtureKeys: true, working: true).environment(apps).environment(transfers).environment(games),
+                  name: "ps2classic-working", into: directory)
+        }
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)

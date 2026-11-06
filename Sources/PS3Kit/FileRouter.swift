@@ -54,6 +54,14 @@ public struct Route: Equatable, Sendable {
     /// Game title for the popup, when it can be read from the file.
     public let title: String?
 
+    public init(local: URL, remote: String, kind: ContentKind, size: Int64, title: String?) {
+        self.local = local
+        self.remote = remote
+        self.kind = kind
+        self.size = size
+        self.title = title
+    }
+
     static let gameFolders = ["PS3ISO", "PS2ISO", "PSXISO", "PSPISO", "BDISO", "DVDISO", "GAMES"]
         .map { "/dev_hdd0/\($0)/" }
 
@@ -223,7 +231,7 @@ public enum FileRouter {
             .sorted { $0.path < $1.path }
     }
 
-    static func fileSize(_ url: URL) -> Int64 {
+    public static func fileSize(_ url: URL) -> Int64 {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
     }
 }

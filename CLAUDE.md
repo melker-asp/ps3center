@@ -136,6 +136,15 @@ xcodebuild den inte.
   - `ErrorCodes.swift`: 0x8001xxxx ur RPCS3. `TitleDatabase.swift`: aldostools titleid.txt.
   - I appen finns knapparna i Status-fliken (Spela in), Fjärrkontroll (Ladda om XMB, Pip,
     Skärmbilder, Musik), på spelsidan och i Underhåll.
+- **Fas 10** (ISO-verktygen från PC:n, `ISOTools.swift`): `PS3ISOBuilder` gör en ISO av en
+  spelmapp med makeps3iso:s layout (se DESIGN.md), `PS3ISO.split`/`join`/`extract`, och
+  `PartWriter` skriver allt som `.part` och döper om när det är helt. `USBDrive.plan` delar ISO:er
+  över 4 GB och gör en spelmapp med en fil över 4 GB till en ISO i delar. CLI: `ps3 iso`. Appen:
+  Till USB-disk… i Spel-fliken (Macen) öppnar `USBCopyView` med `USBCopyModel`.
+- **PS2 Classics** (`PS2Classics.swift`): `PS2ClassicMaker` krypterar en PS2-ISO (eller .cue/.bin)
+  till `<namn> [ID].BIN.ENC` som ps2classic gör, för platshållaren `PS2U10000` (PS3HEN gör dess
+  licens själv). `PS2ClassicKeys` hämtar, importerar och kontrollerar nycklarna. CLI: `ps3 ps2`.
+  Appen: Gör om till PS2 Classic… i högerklicksmenyn på ett PS2-spel under Macen (`PS2ClassicView`).
 - **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
   appen lägger dem i `AppsStore.operations` på MainActor.
 - **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
@@ -150,6 +159,10 @@ xcodebuild den inte.
   En trasig sprx kan få konsolen att frysa vid start.
 - **Spara eller visa aldrig PSID/IDPS.** `/cpursx.ps3` innehåller dem.
 - **Ingen inbyggd nedladdning av spel från ROM- eller ISO-arkiv.** `send` tar användarens egna filer.
+- **Nycklarna för PS2 Classics finns aldrig i repot** (användarens beslut 7 nov 2026): koden har
+  bara deras SHA-256. De hämtas på begäran ur webMAN MOD:s repo på GitHub (eller importeras) till
+  `~/.config/ps3center/ps2classic-keys.json` med rättigheterna 0600, och skrivs aldrig ut, loggas
+  eller läggs i tester eller Fixtures.
 - **Speluppdateringar** får hämtas från Sonys officiella uppdateringsserver, som RPCS3 gör: bara
   spelpatchar, aldrig firmware (PUP), utan PSN-inloggning, och en patch som kräver nyare
   systemprogramvara än konsolens blockeras. Inget får kunna uppdatera konsolen eller leda till ban

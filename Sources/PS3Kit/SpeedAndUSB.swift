@@ -111,48 +111,109 @@ public enum SpeedTest {
 }
 
 /// Getting many games onto the console without the network: a FAT32 USB drive with webMAN's
-/// folders, PS3 ISOs over 4 GB split into .iso.0, .iso.1 … (equal parts but the last), as
-/// webMAN's wiki describes. macOS writes FAT32 ("MS-DOS (FAT32)" in Disk Utility) but not NTFS.
+/// folders. FAT32 holds no file over 4 GB, so a PS3 ISO or a film over that is split into
+/// .iso.0, .iso.1 … (as webMAN does when it copies to USB), and a game folder with such a file
+/// becomes a PS3 ISO in parts, which plays from the drive (what PS3 ISO Tools does by hand).
+/// macOS writes FAT32 ("MS-DOS (FAT)" in Disk Utility) but not NTFS.
 public enum USBDrive {
-    /// The largest file FAT32 holds is 4 GiB − 1 byte; parts are a multiple of 64 KiB under that.
-    static let partSize: Int64 = 0xFFFF_0000
+    static var partSize: Int64 { PS3ISO.partSize }
 
-    public struct Volume: Sendable {
+    public struct Volume: Sendable, Equatable, Identifiable {
+        public let url: URL
+        public let name: String
         public let format: String
         public let free: Int64
+        public let capacity: Int64
+        public var id: String { url.path }
         public var isFAT32: Bool { format.localizedCaseInsensitiveContains("FAT32") || format.localizedCaseInsensitiveContains("MS-DOS") }
+
+        init(url: URL, name: String, format: String, free: Int64, capacity: Int64) {
+            self.url = url
+            self.name = name
+            self.format = format
+            self.free = free
+            self.capacity = capacity
+        }
     }
+
+    static let volumeKeys: [URLResourceKey] = [.volumeNameKey, .volumeLocalizedFormatDescriptionKey, .volumeAvailableCapacityKey,
+                                               .volumeTotalCapacityKey, .volumeIsInternalKey, .volumeIsReadOnlyKey]
 
     public static func volume(_ url: URL) -> Volume? {
-        guard let values = try? url.resourceValues(forKeys: [.volumeLocalizedFormatDescriptionKey, .volumeAvailableCapacityKey]) else { return nil }
-        return Volume(format: values.volumeLocalizedFormatDescription ?? "", free: Int64(values.volumeAvailableCapacity ?? 0))
+        guard let values = try? url.resourceValues(forKeys: Set(volumeKeys)) else { return nil }
+        return Volume(url: url, name: values.volumeName ?? url.lastPathComponent, format: values.volumeLocalizedFormatDescription ?? "",
+                      free: Int64(values.volumeAvailableCapacity ?? 0), capacity: Int64(values.volumeTotalCapacity ?? 0))
     }
 
-    public struct Copy: Sendable {
+    /// The drives a game can go to: mounted under /Volumes, writable, and not the Mac's own disk.
+    public static func volumes() -> [Volume] {
+        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: volumeKeys, options: [.skipHiddenVolumes]) ?? []
+        return urls.compactMap { url -> Volume? in
+            guard url.path.hasPrefix("/Volumes/"),
+                  let values = try? url.resourceValues(forKeys: Set(volumeKeys)),
+                  values.volumeIsInternal != true, values.volumeIsReadOnly != true else { return nil }
+            return volume(url)
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    public struct Copy: Sendable, Identifiable {
+        public enum Kind: Sendable {
+            /// A file, split in parts when it is over 4 GB.
+            case file
+            /// A game folder that fits as it is (GAMES).
+            case folder
+            /// A game folder with a file over 4 GB, made into a PS3 ISO on the drive (PS3ISO).
+            case isoFromFolder
+        }
+
         public let game: Game
         public let source: URL
-        /// The destination, or the first part for a split ISO.
+        /// The destination, or the first part for a split image.
         public let destination: URL
         public let parts: Int
         public let size: Int64
+        public var kind: Kind = .file
+        var iso: PS3ISOBuilder?
+
+        public var id: String { destination.path }
     }
 
-    /// What `copy` would do with `games` (from the Mac's library) on the drive at `root`; games
-    /// that cannot go on FAT32 come back as skipped with the reason.
-    public static func plan(_ games: [Game], on root: URL) -> (copies: [Copy], skipped: [(Game, String)]) {
-        var copies: [Copy] = []
-        var skipped: [(Game, String)] = []
+    public struct Plan: Sendable {
+        public var copies: [Copy] = []
+        /// Games that cannot go on FAT32, with the reason.
+        public var skipped: [(game: Game, reason: String)] = []
+        public var total: Int64 { copies.reduce(0) { $0 + $1.size } }
+
+        public init() {}
+    }
+
+    /// webMAN mounts parts for PS3 games, Blu-ray and DVD images (`include/mount/mount_cobra.h`).
+    static let splittable: Set<Game.Platform> = [.ps3, .bluRay, .dvd]
+
+    /// What `copy` would do with `games` (from the Mac's library) on the drive at `root`.
+    public static func plan(_ games: [Game], on root: URL) -> Plan {
+        var plan = Plan()
         for game in games {
             guard game.source == .mac, let remotePath = game.remotePath else { continue }
             let folder = ((remotePath as NSString).deletingLastPathComponent as NSString).lastPathComponent
             if game.isFolder {
-                if let big = largestFile(in: URL(fileURLWithPath: game.path)), big > partSize {
-                    skipped.append((game, "spelmappen har en fil över 4 GB, som FAT32 inte rymmer"))
+                let url = URL(fileURLWithPath: game.path)
+                if let big = largestFile(in: url), big > partSize {
+                    do {
+                        let iso = try PS3ISOBuilder(folder: url)
+                        let base = root.appendingPathComponent("PS3ISO/\(PS3ISO.fatName(url.lastPathComponent)).iso")
+                        let parts = PS3ISO.partCount(for: iso.size)
+                        plan.copies.append(Copy(game: game, source: url, destination: parts > 1 ? URL(fileURLWithPath: base.path + ".0") : base,
+                                                parts: parts, size: iso.size, kind: .isoFromFolder, iso: iso))
+                    } catch {
+                        plan.skipped.append((game, "spelmappen har en fil över 4 GB och går inte att göra om till en ISO: \(error.localizedDescription)"))
+                    }
                     continue
                 }
-                copies.append(Copy(game: game, source: URL(fileURLWithPath: game.path),
-                                   destination: root.appendingPathComponent("\(folder)/\((game.path as NSString).lastPathComponent)"),
-                                   parts: 1, size: game.size ?? folderSize(URL(fileURLWithPath: game.path))))
+                plan.copies.append(Copy(game: game, source: url,
+                                        destination: root.appendingPathComponent("\(folder)/\((game.path as NSString).lastPathComponent)"),
+                                        parts: 1, size: game.size ?? folderSize(url), kind: .folder))
                 continue
             }
             for file in [game.path] + game.companions {
@@ -161,27 +222,27 @@ public enum USBDrive {
                 var destination = root.appendingPathComponent("\(folder)/\(url.lastPathComponent)")
                 var parts = 1
                 if size > partSize {
-                    guard game.platform == .ps3, url.pathExtension.lowercased() == "iso" else {
-                        skipped.append((game, "\(url.lastPathComponent) är över 4 GB och kan bara delas för PS3-ISO:er"))
+                    guard splittable.contains(game.platform), url.pathExtension.lowercased() == "iso" else {
+                        plan.skipped.append((game, "\(url.lastPathComponent) är över 4 GB och kan bara delas för PS3-ISO:er och filmer"))
                         break
                     }
-                    parts = Int((size + partSize - 1) / partSize)
+                    parts = PS3ISO.partCount(for: size)
                     destination = root.appendingPathComponent("\(folder)/\(url.lastPathComponent).0")
                 }
-                copies.append(Copy(game: game, source: url, destination: destination, parts: parts, size: size))
+                plan.copies.append(Copy(game: game, source: url, destination: destination, parts: parts, size: size))
             }
         }
-        return (copies, skipped)
+        return plan
     }
 
-    /// Copies (and splits) the planned files, skipping ones already there with the right size.
+    /// Copies (and splits, or makes into an ISO) the planned files, skipping ones already there
+    /// with the right size. Files are written as .part and get their names when they are whole.
     public static func copy(_ copies: [Copy], events: TransferHandler) async throws {
         let fm = FileManager.default
         for copy in copies {
             let route = Route(local: copy.source, remote: copy.destination.path, kind: .other, size: copy.size, title: copy.game.title)
             try fm.createDirectory(at: copy.destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            var isDirectory: ObjCBool = false
-            if fm.fileExists(atPath: copy.source.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            if copy.kind == .folder {
                 if fm.fileExists(atPath: copy.destination.path) {
                     events(.skipped(route, reason: "finns redan på disken"))
                     continue
@@ -191,39 +252,26 @@ public enum USBDrive {
                 events(.finished(route, seconds: 0))
                 continue
             }
-            let base = copy.parts > 1 ? String(copy.destination.path.dropLast(2)) : copy.destination.path
-            let targets = copy.parts > 1 ? (0..<copy.parts).map { "\(base).\($0)" } : [base]
-            let expected = (0..<targets.count).map { index -> Int64 in
-                copy.parts > 1 ? min(partSize, copy.size - Int64(index) * partSize) : copy.size
-            }
-            if zip(targets, expected).allSatisfy({ FileRouter.fileSize(URL(fileURLWithPath: $0)) == $1 }) {
+            let base = URL(fileURLWithPath: copy.parts > 1 ? String(copy.destination.path.dropLast(2)) : copy.destination.path)
+            let targets = copy.parts > 1 ? (0..<copy.parts).map { URL(fileURLWithPath: "\(base.path).\($0)") } : [base]
+            if zip(targets, PS3ISO.partSizes(for: copy.size, parts: copy.parts)).allSatisfy({ FileRouter.fileSize($0) == $1 }) {
                 events(.skipped(route, reason: "finns redan på disken"))
                 continue
             }
             events(.started(route, resumingFrom: 0))
             let start = Date()
             var lastReport = Date.distantPast
-            let input = try FileHandle(forReadingFrom: copy.source)
-            defer { try? input.close() }
-            var written: Int64 = 0
-            for (index, target) in targets.enumerated() {
-                try Task.checkCancellation()
-                fm.createFile(atPath: target, contents: nil)
-                let output = try FileHandle(forWritingTo: URL(fileURLWithPath: target))
-                var remaining = expected[index]
-                while remaining > 0 {
-                    try Task.checkCancellation()
-                    guard let chunk = try input.read(upToCount: Int(min(remaining, 8 << 20))), !chunk.isEmpty else { break }
-                    try output.write(contentsOf: chunk)
-                    remaining -= Int64(chunk.count)
-                    written += Int64(chunk.count)
-                    let now = Date()
-                    if now.timeIntervalSince(lastReport) >= 0.25 {
-                        lastReport = now
-                        events(.progress(route, sent: written, total: copy.size, bytesPerSecond: Double(written) / max(now.timeIntervalSince(start), 0.001)))
-                    }
-                }
-                try output.close()
+            func report(_ written: Int64) {
+                let now = Date()
+                guard now.timeIntervalSince(lastReport) >= 0.25 else { return }
+                lastReport = now
+                events(.progress(route, sent: written, total: copy.size, bytesPerSecond: Double(written) / max(now.timeIntervalSince(start), 0.001)))
+            }
+            if copy.kind == .isoFromFolder, let iso = copy.iso {
+                try iso.write(to: base, split: copy.parts > 1) { report($0) }
+            } else {
+                let writer = PartWriter(base: base, split: copy.parts > 1)
+                try PS3ISO.copy([copy.source], into: writer, total: copy.size) { written, _ in report(written) }
             }
             events(.finished(route, seconds: Date().timeIntervalSince(start)))
         }

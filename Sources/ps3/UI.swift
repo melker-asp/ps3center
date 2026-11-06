@@ -70,6 +70,8 @@ enum UI {
 /// Prints TransferEvents for send/install.
 struct TransferPrinter {
     let dryRun: Bool
+    /// What a finished file is: "uppladdad" to the console, "kopierad" to a USB drive.
+    var done = "uppladdad"
 
     func handle(_ event: TransferEvent) {
         switch event {
@@ -91,7 +93,7 @@ struct TransferPrinter {
             UI.progress("\(UI.bar(fraction)) \(Int(fraction * 100))%  \(Format.bytes(sent)) av \(Format.bytes(total))  \(Format.rate(rate))  \(Format.duration(eta)) kvar  \(UI.paint(route.local.lastPathComponent, .gray))")
         case .finished(let route, let seconds):
             UI.endProgress()
-            UI.ok("\(route.local.lastPathComponent) uppladdad (\(Format.bytes(route.size)) på \(Format.duration(seconds)))")
+            UI.ok("\(route.local.lastPathComponent) \(done) (\(Format.bytes(route.size)) på \(Format.duration(seconds)))")
         case .waitingForGame(let game):
             UI.warn("\(game) körs. Väntar tills du har avslutat spelet… (Ctrl-C avbryter, --force kör ändå)")
         case .installing(let name):

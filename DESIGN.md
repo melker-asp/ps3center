@@ -42,7 +42,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 | Flik | CLI | Innehåll |
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
-| **Spel** | `ps3 games`, `ps3 send`, `ps3 serve` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
+| **Spel** | `ps3 games`, `ps3 send`, `ps3 serve`, `ps3 usb`, `ps3 iso` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
 | **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. "Från Macen" (`apps mac`) visar .pkg-filerna i paketmapparna per mapp, som Macens spel i Spel-fliken; de installeras där de ligger, med samma säkerhetsspärr när title ID:t finns i katalogen. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Sparfiler och systemfiler till Macen, Städning som Moles Optimize (en rapport med Klart och det som återstår, med skälet), Lagring som Moles Analyze (en stapel över /dev_hdd0) och Skivan |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
@@ -256,6 +256,57 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   RPCS3:s `rpcs3/Emu/Cell/ErrorCodes.h`.
 - **Omslag:** PSP från `aldostools/Resources/PSP/<UCES00995>.PNG`, och PS1/PS2 därifrån som
   reserv (`PSX/<SCES_014.38>_COV.JPG`).
+
+### Fas 10: ISO-verktygen från PC:n (7 nov 2026)
+
+- **Delade filer på USB** (webMAN MOD `include/file/file_copy.h`): när webMAN kopierar en fil över
+  0xFFFFFFFF byte till `/dev_usb` blir en `.iso` `.iso.0`, `.iso.1` … och andra filer `.66600`,
+  `.66601` …, i delar om 0xFFFF0000 byte (4 GB − 64 KB). Kopieras en `.66600` från USB till hdd0
+  slår webMAN ihop delarna igen. Bara ISO:er startas i delar: `.iso.0` monteras med de delar som
+  följer för PS3-spel, PS2 (CFW), Blu-ray och DVD (`include/mount/mount_cobra.h`). En spelmapp med
+  `.666`-delar startar inte från USB, så PS3 Center gör den till en ISO i stället.
+- **PS3-ISO:n** (Estwalds makeps3iso, bucanero/ps3iso-utils): sektor 0 har antalet okrypterade
+  regioner och deras första och sista sektor (en region, hela avbilden, när den är dekrypterad),
+  sektor 1 "PlayStation3" och title ID som `BLES-00932`. Primär volymbeskrivning i 16, Joliet
+  (UCS-2, `%/@`) i 17, slut i 18, vägtabeller från 20, kataloger från 32, sedan filerna: en mapps
+  egna filer före undermapparnas. En fil över 4 GB får en post per bit om 0xFFFFF800 byte, med
+  flaggan 0x80 på alla utom den sista (flera extents). Namnen i det primära trädet är versaler.
+  makeps3iso lämnar filerna i `PS3_UPDATE` utanför, och det gör PS3 Center också: ingen firmware
+  följer med.
+- **Krypterade avbilder:** Redump-avbilder har flera regioner i sektor 0, och de krypterade är
+  luckorna mellan dem. Även dekrypterade (ps3dec) behåller tabellen; att `EBOOT.BIN` börjar med
+  `SCE` i en lucka visar att avbilden är dekrypterad. webMAN MOD:s källkod har inget stöd för
+  disknycklar (`.dkey`), så en krypterad avbild måste dekrypteras innan den kan startas på HEN.
+- **Provat på Macen (7 nov):** en ISO från en testmapp monteras av macOS (`hdiutil`) med både
+  Joliet och det primära trädet, och innehållet är identiskt med mappen. En fil på 4 GB + 4 KB
+  fick två poster med rätt start och samma MD5 som källan (kontrollerat med en egen parser,
+  eftersom macOS `cd9660` bara läser den sista biten av en sådan fil). Dela, foga ihop och packa
+  upp gav samma filer. `bsdtar` tar regionstabellen i sektor 0 för LZMA och kan inte läsa ISO:n.
+  Inte provat på konsolen (test 15 i PLAN.md).
+- **PS2 Classics på HEN** (byggt 7 nov, `PS2Classics.swift`; källorna nedan):
+  - webMAN (`include/mount/mount_misc.h`, `ps2_classic.h`) startar `<namn>.BIN.ENC` i PS2ISO genom
+    att länka den som `/dev_hdd0/game/PS2U10000/USRDIR/ISO.BIN.ENC` i PS2 Classics Launcher (som
+    måste vara installerad) och kopiera dit CONFIG och minneskort. CONFIG letas upp av sig själv i
+    PS2CONFIG (`CONFIG/ENC/<SLES_123.45>.ENC`, redan krypterade), så de behöver inte göras här.
+  - PS3HEN (`payload/make_rif.c`) gör licensen för just `2P0001-PS2U10000_00-0000111122223333`
+    av sig själv, med en inbyggd RAP, och skapar `act.dat` om den saknas. Ingen licens behövs från
+    användaren.
+  - Krypteringen (`ps2classic.c`, GPLv3, i webMAN MOD:s `_Projects_/tools/ps2classic_*.7z`):
+    avbilden fylls ut till 16 KB och får ett LIMG-block (`"LIMG"`, 1, sektorer, 0x800). Data- och
+    metanyckeln är `klicensee` krypterad med två fasta CEX-nycklar och en fast IV. Data krypteras
+    med AES-128-CBC i segment om 0x4000, 0x200 segment per block, och före varje block kommer en
+    tabell med SHA-1 och segmentnummer, krypterad med metanyckeln. Huvudet (`PS2\0`, NPD-typ 2,
+    content ID, namnet `ISO.BIN.ENC`) signeras med AES-CMAC och tre NPD-nycklar.
+  - Det som behövs utöver koden är sju värden på 16 byte: två CEX-nycklar, IV:n, tre NPD-nycklar
+    och platshållarens `klicensee` (`…3333.rifkey`, framtagen ur samma RAP som PS3HEN har inbyggd;
+    kontrollerat med SHA-256). IV:n är sexton nollor. `aes128cbc_enc` i ps2classic kopierar IV:n,
+    så varje segment börjar om med den; nyckelhärledningen är därför AES(nyckel, klicensee).
+  - Nycklarna finns i webMAN MOD:s publika repo men inte i PS3 Center (beslut 7 nov): Hämta laddar
+    ner de två arkiven, packar ut `src/ps2classic.c` och `.rifkey` med macOS `bsdtar` till minnet,
+    jämför med SHA-256 i koden och sparar i `~/.config/ps3center/ps2classic-keys.json` (0600).
+  - Provat på Macen 7 nov: CMAC mot RFC 4493, kryptering och dekryptering med påhittade nycklar
+    (huvud, LIMG, tabeller över blockgränsen, råa CD-sektorer), och Hämta plus en PS2 Classic av en
+    egen test-ISO med de riktiga nycklarna. Om spelet startar visar test 16.
 
 ## Färdplan
 

@@ -306,10 +306,11 @@ struct USB: AsyncParsableCommand {
 
     struct Prepare: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Kopiera spel till en FAT32-disk i webMAN:s mappar. PS3-ISO:er över 4 GB delas i .iso.0, .iso.1 …",
+            abstract: "Kopiera spel till en FAT32-disk i webMAN:s mappar. ISO:er över 4 GB delas i .iso.0, .iso.1 …",
             discussion: """
             ps3 usb prepare /Volumes/PS3 gran demon     Två spel från Macens spelmappar
             ps3 usb prepare /Volumes/PS3 --missing      Alla som inte finns på PS3:an
+            En spelmapp med en fil över 4 GB, som FAT32 inte rymmer, blir en PS3-ISO i delar (PS3ISO).
             Formatera disken som "MS-DOS (FAT)" i Skivverktyg först; macOS kan inte skriva NTFS.
             Sätt sedan disken i PS3:an: spelen syns under webMAN:s spel efter en uppdatering av spellistan.
             """
@@ -357,14 +358,15 @@ struct USB: AsyncParsableCommand {
             }
             let plan = USBDrive.plan(games, on: root)
             for (game, reason) in plan.skipped { UI.skip("\(game.title): \(reason)") }
-            let total = plan.copies.reduce(0) { $0 + $1.size }
+            let total = plan.total
             UI.header(dryRun ? "Förhandsvisning" : "Kopierar", detail: "\(plan.copies.count) filer · \(Format.bytes(total)) · ledigt \(Format.bytes(info.free))")
             guard total < info.free else { throw PS3Error.notEnoughSpace(needed: total, free: info.free) }
             for copy in plan.copies {
-                UI.step("\(copy.game.title) → \(copy.destination.path)" + (copy.parts > 1 ? UI.paint("  (\(copy.parts) delar)", .gray) : ""))
+                let notes = [copy.kind == .isoFromFolder ? "görs om till en ISO" : nil, copy.parts > 1 ? "\(copy.parts) delar" : nil].compactMap { $0 }
+                UI.step("\(copy.game.title) → \(copy.destination.path)" + (notes.isEmpty ? "" : UI.paint("  (\(notes.joined(separator: ", ")))", .gray)))
             }
             guard !dryRun else { return }
-            let printer = TransferPrinter(dryRun: false)
+            let printer = TransferPrinter(dryRun: false, done: "kopierad")
             try await USBDrive.copy(plan.copies) { printer.handle($0) }
             UI.ok("Klart. Mata ut disken, sätt den i PS3:an och kör `ps3 refresh`.")
         }

@@ -287,6 +287,46 @@ public enum Fixtures {
     /// APP_VER on the console per title ID of `packages`, as `AppsService.installedVersions` reads it.
     public static let packageVersions: [String: String] = ["NP0APOLLO": "02.40", "SSNE10000": "01.19"]
 
+    /// Two drives plugged in: a FAT32 stick for the console and an exFAT backup drive.
+    public static let usbVolumes: [USBDrive.Volume] = [
+        USBDrive.Volume(url: URL(fileURLWithPath: "/Volumes/PS3"), name: "PS3", format: "MS-DOS (FAT32)",
+                        free: 118_300_000_000, capacity: 128_000_000_000),
+        USBDrive.Volume(url: URL(fileURLWithPath: "/Volumes/Backup"), name: "Backup", format: "ExFAT",
+                        free: 640_000_000_000, capacity: 1_000_000_000_000),
+    ]
+
+    /// A game folder with a file over 4 GB, which becomes an ISO on a FAT32 drive.
+    static let folderGameWithBigFile = Game(path: "/Users/melker/Spel/GAMES/Demon's Souls [BLES00932]", title: "Demon's Souls",
+                                            titleID: "BLES00932", platform: .ps3, size: 7_431_000_000, isFolder: true, source: .mac,
+                                            remotePath: "/dev_hdd0/GAMES/Demon's Souls [BLES00932]", added: daysAgo(2))
+
+    /// What `USBDrive.plan` gives for four of the Mac's games and the folder above on the PS3
+    /// stick: two split ISOs, the folder made into an ISO, a PS1 game as it is, and the PS2 ISO
+    /// over 4 GB left out.
+    public static var usbPlan: USBDrive.Plan {
+        let root = usbVolumes[0].url
+        func game(_ id: String) -> Game { macGames.first { $0.titleID == id }! }
+        let uncharted = game("BCES00757"), lbp = game("BCES00850"), gow = game("SCES-53133"), spyro = game("SCES-01438")
+        var plan = USBDrive.Plan()
+        plan.copies = [
+            USBDrive.Copy(game: uncharted, source: URL(fileURLWithPath: uncharted.path),
+                          destination: root.appendingPathComponent("PS3ISO/Uncharted 2 - Among Thieves (Europe).iso.0"),
+                          parts: PS3ISO.partCount(for: uncharted.size ?? 0), size: uncharted.size ?? 0),
+            USBDrive.Copy(game: lbp, source: URL(fileURLWithPath: lbp.path),
+                          destination: root.appendingPathComponent("PS3ISO/LittleBigPlanet 2 (Europe).iso.0"),
+                          parts: PS3ISO.partCount(for: lbp.size ?? 0), size: lbp.size ?? 0),
+            USBDrive.Copy(game: folderGameWithBigFile, source: URL(fileURLWithPath: folderGameWithBigFile.path),
+                          destination: root.appendingPathComponent("PS3ISO/Demon's Souls [BLES00932].iso.0"),
+                          parts: 2, size: 7_431_602_176, kind: .isoFromFolder),
+            USBDrive.Copy(game: spyro, source: URL(fileURLWithPath: spyro.path),
+                          destination: root.appendingPathComponent("PSXISO/Spyro the Dragon (Europe).cue"), parts: 1, size: 88),
+            USBDrive.Copy(game: spyro, source: URL(fileURLWithPath: spyro.companions[0]),
+                          destination: root.appendingPathComponent("PSXISO/Spyro the Dragon (Europe).bin"), parts: 1, size: 621_455_000),
+        ]
+        plan.skipped = [(gow, "God of War [SCES-53133].iso är över 4 GB och kan bara delas för PS3-ISO:er och filmer")]
+        return plan
+    }
+
     /// New on the console since the last import: two recordings and three screenshots.
     public static let mediaItems: [MediaImport.Item] = [
         .init(remotePath: "/dev_hdd0/VIDEO/BCES00569_2026.10.24_20_14_03.mp4", size: 412_000_000),

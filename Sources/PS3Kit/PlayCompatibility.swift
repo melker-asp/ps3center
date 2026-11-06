@@ -23,7 +23,7 @@ public enum PlayCheck {
             case .libCrypt(let exe, false):
                 return "Kopieringsskyddet LibCrypt: spelet stannar tidigt utan datan \(exe).lsd. Installera den härifrån (ps3 games libcrypt)."
             case .ps2NeedsClassic:
-                return "Startar inte på HEN: webMAN monterar bara PS2-spel som PS2 Classics (.BIN.ENC) där, inte vanliga ISO:er. Gör om ISO:n till en PS2 Classic på datorn (t.ex. med PS2 Classics GUI) eller spela den på CFW."
+                return "Startar inte på HEN: webMAN monterar bara PS2-spel som PS2 Classics (.BIN.ENC) där, inte vanliga ISO:er. Gör om den till en PS2 Classic: högerklicka på spelet under Macen i Spel-fliken (eller `ps3 ps2 classic`)."
             case .ps2Config(true):
                 return "PS2 CONFIG Database har en rättning för spelet, och webMAN använder den när spelet startas."
             case .ps2Config(false):

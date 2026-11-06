@@ -99,7 +99,11 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 queue add <filer eller spel>` | Lägger spel i kön som appen också använder; `ps3 queue start` skickar ett i taget (`--when-done shutdown`, `--verify`) |
 | `ps3 serve` | Spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN:s `/net0` (port 38008, bara läsning, bara PS3:an släpps in) |
 | `ps3 speedtest` | Mäter hur fort det går till och från PS3:an; ger tidsberäkningar i kön |
-| `ps3 usb prepare /Volumes/X <spel>` | Kopierar spel till en FAT32-disk i webMAN:s mappar, PS3-ISO:er över 4 GB delade |
+| `ps3 usb prepare /Volumes/X <spel>` | Kopierar spel till en FAT32-disk i webMAN:s mappar. ISO:er över 4 GB delas, och en spelmapp med en fil över 4 GB blir en ISO |
+| `ps3 iso make <mapp> [mål]` | Gör en PS3-ISO av en spelmapp, som PS3 ISO Tools och makeps3iso (delad på en FAT32-disk) |
+| `ps3 iso split\|join\|extract <fil>` | Delar en ISO för FAT32, fogar ihop `.iso.0` …, packar upp en ISO till en spelmapp |
+| `ps3 ps2 keys --fetch` | Hämtar nycklarna för PS2 Classics ur webMAN MOD:s repo till Macen (`--import` tar egna filer) |
+| `ps3 ps2 classic <iso, cue>` | Gör ett PS2-spel till en PS2 Classic (`.BIN.ENC`), det enda sätt PS2-spel startar på HEN |
 | `ps3 power off\|restart` | Stänger av eller startar om PS3:an (på HEN måste HEN aktiveras igen efter omstart) |
 | `ps3 disc eject\|insert` | Matar ut eller in skivan |
 | `ps3 fan [70]` | Fläktens hastighet och läge; med ett tal flyttas målet i webMAN:s dynamiska läge (60–75 °C) |
