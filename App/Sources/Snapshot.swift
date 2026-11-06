@@ -92,6 +92,10 @@ enum Snapshot {
         }
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
         render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .get, scrolls: false) }
+        // The Mac's packages, one section per package folder.
+        if !usesFixtures { await apps.loadPackages(host: console.host) }
+        render(.apps, name: "apps-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .mac, scrolls: false) }
+        write(PackageFoldersView(live: false), name: "package-folders", into: directory)
         if let entry = Catalog.entry(named: "apollo") {
             apps.selectedID = entry.id
             await apps.loadReadme(for: entry)

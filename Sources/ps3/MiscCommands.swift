@@ -106,20 +106,25 @@ struct Config: ParsableCommand {
             for (kind, url) in linked {
                 UI.row(kind.name, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (inte ansluten)", .yellow)))
             }
+            for url in PackageFolders.linked(config: config) {
+                UI.row(PackageFolders.kindName, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (inte ansluten)", .yellow)))
+            }
         }
     }
 
     struct Folder: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "folder",
-            abstract: "Koppla Macens spelmappar per typ: PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO eller DVDISO.",
+            abstract: "Koppla Macens spelmappar per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) och paketmappar (PKG).",
             discussion: """
             ps3 config folder add PS3ISO ~/Spel/PS3
             ps3 config folder remove PS3ISO ~/Spel/PS3
             ps3 config folder watch ~/Spel/PS3      Skicka nya spel i mappen av sig själva
             ps3 config folder unwatch ~/Spel/PS3
+            ps3 config folder add PKG ~/Paket        En mapp med .pkg-filer
             Spegelmappens dev_hdd0/<TYP> räknas med automatiskt. Spelen i mapparna visas med
-            `ps3 games mac` och skickas med `ps3 queue add`.
+            `ps3 games mac` och skickas med `ps3 queue add`. Paketen visas med `ps3 apps mac`
+            och installeras med `ps3 apps install`; de ligger kvar i mappen.
             """,
             subcommands: [List.self, Add.self, Remove.self, Watch.self, Unwatch.self],
             defaultSubcommand: List.self
@@ -146,27 +151,37 @@ struct Config: ParsableCommand {
                     }
                     UI.row(kind.name, paths.isEmpty ? UI.paint("–", .gray) : paths.joined(separator: "\n" + String(repeating: " ", count: 14)))
                 }
+                let packages = PackageFolders.linked().map {
+                    $0.path + (FileManager.default.fileExists(atPath: $0.path) ? "" : UI.paint("  (inte ansluten)", .yellow))
+                }
+                UI.row(PackageFolders.kindName, packages.isEmpty ? UI.paint("–", .gray) : packages.joined(separator: "\n" + String(repeating: " ", count: 14)))
             }
         }
 
         struct Add: ParsableCommand {
             static let configuration = CommandConfiguration(abstract: "Koppla en mapp, t.ex. ps3 config folder add PS3ISO ~/Spel/PS3.")
 
-            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO eller DVDISO.")
+            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO eller PKG (paket).")
             var kind: String
 
             @Argument(help: "Mappen på Macen.", completion: .directory)
             var path: String
 
             func run() throws {
-                let kind = try Folder.kind(self.kind)
+                let isPackages = PackageFolders.isKind(self.kind)
+                let kind = isPackages ? nil : try Folder.kind(self.kind)
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                     throw ValidationError("\(url.path) är ingen mapp.")
                 }
-                try GameFolders.add(url, as: kind)
-                UI.ok("\(url.path) är kopplad som \(kind.label)")
+                if let kind {
+                    try GameFolders.add(url, as: kind)
+                    UI.ok("\(url.path) är kopplad som \(kind.label)")
+                } else {
+                    try PackageFolders.add(url)
+                    UI.ok("\(url.path) är kopplad som paketmapp. Paketen visas med `ps3 apps mac`.")
+                }
             }
         }
 
@@ -181,6 +196,9 @@ struct Config: ParsableCommand {
 
             func run() throws {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+                if PackageFolders.linked().contains(where: { $0.path == url.path }) {
+                    throw ValidationError("Paketmappar bevakas inte: ett paket installeras bara när du ber om det (`ps3 apps mac`).")
+                }
                 guard GameFolders.linked().contains(where: { $0.url.path == url.path }) else {
                     throw ValidationError("\(url.path) är inte kopplad. Koppla den först med `ps3 config folder add <typ> \(path)`.")
                 }
@@ -205,16 +223,19 @@ struct Config: ParsableCommand {
         struct Remove: ParsableCommand {
             static let configuration = CommandConfiguration(abstract: "Koppla bort en mapp (filerna rörs inte).")
 
-            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO eller DVDISO.")
+            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO eller PKG (paket).")
             var kind: String
 
             @Argument(help: "Mappen på Macen.", completion: .directory)
             var path: String
 
             func run() throws {
-                let kind = try Folder.kind(self.kind)
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
-                try GameFolders.remove(url, from: kind)
+                if PackageFolders.isKind(self.kind) {
+                    try PackageFolders.remove(url)
+                } else {
+                    try GameFolders.remove(url, from: try Folder.kind(self.kind))
+                }
                 UI.ok("\(url.path) är bortkopplad")
             }
         }

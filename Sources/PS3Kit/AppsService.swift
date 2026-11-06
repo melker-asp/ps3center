@@ -240,25 +240,61 @@ public struct AppsService: Sendable {
     /// XMB icons (ICON0.PNG) of installed apps, keyed by catalog id. Cached on disk, since they
     /// rarely change; pass `refresh` after an install.
     public func icons(for entries: [CatalogEntry], refresh: Bool = false) async -> [String: Data] {
+        let pairs = entries.compactMap { entry in entry.titleID.map { (entry.id, $0) } }
+        let byTitleID = await icons(titleIDs: pairs.map(\.1), refresh: refresh)
+        return Dictionary(pairs.compactMap { id, titleID in byTitleID[titleID].map { (id, $0) } }, uniquingKeysWith: { a, _ in a })
+    }
+
+    /// The same icons keyed by title ID, for apps that may not be in the catalog (the Mac's own
+    /// packages).
+    public func icons(titleIDs: [String], refresh: Bool = false) async -> [String: Data] {
         let cache = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Caches/ps3center/icons", isDirectory: true)
         try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
         var result: [String: Data] = [:]
-        var missing: [(CatalogEntry, String)] = []
-        for entry in entries {
-            guard let titleID = entry.titleID else { continue }
+        var missing: [String] = []
+        for titleID in Set(titleIDs) {
             let file = cache.appendingPathComponent("\(titleID).png")
-            if !refresh, let data = try? Data(contentsOf: file) { result[entry.id] = data } else { missing.append((entry, titleID)) }
+            if !refresh, let data = try? Data(contentsOf: file) { result[titleID] = data } else { missing.append(titleID) }
         }
         guard !missing.isEmpty else { return result }
         _ = try? await TransferService(host: host).withFTP { ftp in
-            for (entry, titleID) in missing {
+            for titleID in missing {
                 guard let data = try await ftp.download("/dev_hdd0/game/\(titleID)/ICON0.PNG", limit: 2 << 20) else { continue }
-                result[entry.id] = data
+                result[titleID] = data
                 try? data.write(to: cache.appendingPathComponent("\(titleID).png"))
             }
         }
         return result
+    }
+
+    // MARK: The Mac's packages
+
+    /// APP_VER on the console per title ID, for those of `titleIDs` installed in /dev_hdd0/game
+    /// (an empty string when PARAM.SFO has none). One listing, then a PARAM.SFO per installed one.
+    public func installedVersions(of titleIDs: [String]) async throws -> [String: String] {
+        let wanted = Set(titleIDs.map { $0.uppercased() })
+        guard !wanted.isEmpty else { return [:] }
+        return try await TransferService(host: host).withFTP { ftp in
+            var result: [String: String] = [:]
+            for folder in try await ftp.list("/dev_hdd0/game") where folder.isDirectory && wanted.contains(folder.name.uppercased()) {
+                guard let data = try await ftp.download("/dev_hdd0/game/\(folder.name)/PARAM.SFO", limit: 64 << 10) else { continue }
+                result[folder.name.uppercased()] = ParamSFO(data: data)?.appVersion ?? ""
+            }
+            return result
+        }
+    }
+
+    /// Installs the user's own .pkg from where it lies; the file is not moved or archived. If its
+    /// title ID is in the catalog, the console must meet that program's requirements, as when it
+    /// is installed by name. Logged by `TransferService.installPackage`.
+    public func installOwnPackage(_ file: URL, options: TransferOptions, events: TransferHandler) async throws {
+        guard PKGInfo(url: file) != nil else { throw PS3Error.invalidFile("\(file.lastPathComponent) är inget giltigt PS3-paket.") }
+        if let known = try await checkPackage(file) {
+            try known.compatibility.enforce("\(file.lastPathComponent) (\(known.entry.name))")
+            if known.compatibility.verdict == .untested { events(.note("Obs: \(known.compatibility.summary).")) }
+        }
+        try await TransferService(host: host).installPackage(file, options: options, events: events)
     }
 
     /// The XMB background (PIC1.PNG, 1920×1080) of an installed app, cached on disk like the icons.

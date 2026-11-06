@@ -262,10 +262,30 @@ public enum Fixtures {
             "PSXISO": ["/Users/melker/Spel/PS1"],
         ])
         config.watchedFolders = ["/Users/melker/Spel/PS3"]
+        config.packageFolders = ["/Users/melker/Downloads/PS3", "/Users/melker/PS3/Homebrew", "/Volumes/Spel/Paket"]
         return config
     }
 
-    public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO"]
+    public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO", "/Volumes/Spel/Paket"]
+
+    // MARK: Packages on the Mac
+
+    /// The .pkg files in the package folders of `folderConfig`: Apollo and RetroArch are
+    /// installed on the console (`packageVersions`), PS3 Health (from the catalog) and multiMAN
+    /// (in a folder of its own) are not.
+    public static let packages: [LocalPackage] = [
+        LocalPackage(path: "/Users/melker/Downloads/PS3/apollo-ps3.pkg", folder: "/Users/melker/Downloads/PS3",
+                     contentID: "UP0001-NP0APOLLO_00-0000000000000000", size: 4_718_592, added: daysAgo(2)),
+        LocalPackage(path: "/Users/melker/Downloads/PS3/PS3-Health-v2.2.1.pkg", folder: "/Users/melker/Downloads/PS3",
+                     contentID: "UP0001-HDSH00001_00-0000000000000000", size: 1_153_434, added: daysAgo(0)),
+        LocalPackage(path: "/Users/melker/PS3/Homebrew/RetroArch_1.19.1_CEX.pkg", folder: "/Users/melker/PS3/Homebrew",
+                     contentID: "UP0001-SSNE10000_00-0000000000000002", size: 232_783_872, added: daysAgo(30)),
+        LocalPackage(path: "/Users/melker/PS3/Homebrew/multiMAN/multiMAN_04.93.00_BASE.pkg", folder: "/Users/melker/PS3/Homebrew",
+                     contentID: "EP0001-BLES80608_00-MULTIMANBASE0000", size: 48_496_640, added: daysAgo(90)),
+    ]
+
+    /// APP_VER on the console per title ID of `packages`, as `AppsService.installedVersions` reads it.
+    public static let packageVersions: [String: String] = ["NP0APOLLO": "02.40", "SSNE10000": "01.19"]
 
     /// New on the console since the last import: two recordings and three screenshots.
     public static let mediaItems: [MediaImport.Item] = [

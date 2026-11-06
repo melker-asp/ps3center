@@ -42,7 +42,22 @@ final class AppsStore {
     var selectedID: String?
     var archiveMissing = false
 
+    /// The .pkg files in the Mac's package folders (Från Macen).
+    private(set) var packages: [LocalPackage] = []
+    private(set) var packagesLoaded = false
+    private(set) var isLoadingPackages = false
+    /// APP_VER per title ID of the packages installed on the console ("" without one).
+    private(set) var packageVersions: [String: String] = [:]
+    /// Whether the console has been asked, so that a missing version means "not installed".
+    private(set) var packagesChecked = false
+    /// XMB icons of the installed packages, by title ID.
+    private(set) var packageIcons: [String: NSImage] = [:]
+    /// True while `load` reads the console, which then asks about the packages itself.
+    private var isChecking = false
+
     private var queue: [String] = []
+    /// Queued packages from the Mac by id (their path); other ids in `queue` are catalog ids.
+    private var queuedPackages: [String: LocalPackage] = [:]
     private var runner: Task<Void, Never>?
     private var runnerToken = UUID()
     private var forceNext = false
@@ -73,6 +88,8 @@ final class AppsStore {
     func load(host: String, refreshIcons: Bool = false) async {
         self.host = host
         if statuses.isEmpty { phase = .loading }
+        isChecking = true
+        defer { isChecking = false }
         do {
             let next = try await AppsService(host: host).check()
             statuses = next
@@ -85,6 +102,52 @@ final class AppsStore {
         } catch {
             phase = .failed(error.localizedDescription)
         }
+        // One FTP session at a time: the packages are asked about after the catalog.
+        if packagesLoaded { await checkPackages(host: host, refreshIcons: refreshIcons) }
+    }
+
+    // MARK: Packages on the Mac
+
+    /// Reads the Mac's package folders, then asks the console which of them are installed,
+    /// unless the catalog check or an install is using the console (they ask when done).
+    func loadPackages(host: String?) async {
+        if let host { self.host = host }
+        isLoadingPackages = true
+        packages = await Task.detached { PackageLibrary.scan() }.value
+        packagesLoaded = true
+        isLoadingPackages = false
+        guard let host = self.host, !isChecking, runner == nil else { return }
+        await checkPackages(host: host)
+    }
+
+    private func checkPackages(host: String, refreshIcons: Bool = false) async {
+        let titleIDs = packages.compactMap(\.titleID)
+        guard let versions = try? await AppsService(host: host).installedVersions(of: titleIDs) else { return }
+        packageVersions = versions
+        packagesChecked = true
+        let data = await AppsService(host: host).icons(titleIDs: Array(versions.keys), refresh: refreshIcons)
+        packageIcons = data.compactMapValues { NSImage(data: $0) }
+    }
+
+    /// The installed APP_VER of `package` ("" without one), nil when not installed or not known.
+    func installedVersion(of package: LocalPackage) -> String? {
+        package.titleID.flatMap { packageVersions[$0.uppercased()] }
+    }
+
+    /// The catalog row with the package's title ID: its compatibility applies to the package.
+    func catalogStatus(of package: LocalPackage) -> AppStatus? {
+        guard let id = package.catalogID else { return nil }
+        return statuses.first { $0.id == id }
+    }
+
+    /// Queues `package` for installing from where it lies, after the same safety check as an
+    /// install by name when its title ID is in the catalog.
+    func install(_ package: LocalPackage) {
+        if let op = operations[package.id], !op.isFailed, op.stage != .done { return }
+        queuedPackages[package.id] = package
+        operations[package.id] = Operation(stage: .queued)
+        queue.append(package.id)
+        startRunner()
     }
 
     /// One notice per new version, remembered between launches.
@@ -106,6 +169,10 @@ final class AppsStore {
         phase = .loaded
         lastChecked = Date()
         readmes[Fixtures.readme.repo] = .loaded(Fixtures.readme)
+        packages = Fixtures.packages
+        packageVersions = Fixtures.packageVersions
+        packagesLoaded = true
+        packagesChecked = true
     }
 
     func loadBackground(for entry: CatalogEntry) async {
@@ -192,6 +259,10 @@ final class AppsStore {
     }
 
     private func perform(_ id: String) async {
+        if let package = queuedPackages[id] {
+            await perform(package)
+            return
+        }
         guard let host, let entry = Catalog.entries.first(where: { $0.id == id }) else { return }
         guard let root = MirrorRoot.resolve() else {
             archiveMissing = true
@@ -212,6 +283,29 @@ final class AppsStore {
             // forceWaiting() re-queued it.
         } catch {
             operations[id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
+        }
+    }
+
+    /// A package from the Mac: uploaded and installed, and left in its folder.
+    private func perform(_ package: LocalPackage) async {
+        guard let host else {
+            operations[package.id] = Operation(stage: .failed("PS3:an är inte ansluten"))
+            return
+        }
+        var options = TransferOptions()
+        options.force = forceNext
+        forceNext = false
+        operations[package.id] = Operation(stage: .uploading(0))
+        do {
+            try await AppsService(host: host).installOwnPackage(package.url, options: options) { event in
+                Task { @MainActor [weak self] in self?.handle(event, for: package.id) }
+            }
+            operations[package.id] = Operation(stage: .done)
+            try? await WebMAN(host: host).popup("\(package.title) installerat från Macen")
+        } catch is CancellationError {
+            // forceWaiting() re-queued it.
+        } catch {
+            operations[package.id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
         }
     }
 

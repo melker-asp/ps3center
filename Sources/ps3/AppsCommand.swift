@@ -5,7 +5,7 @@ import PS3Kit
 struct Apps: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Homebrew på PS3:an: versioner, uppdateringar och installation av paket.",
-        subcommands: [List.self, Available.self, Info.self, Update.self, Install.self, Uninstall.self],
+        subcommands: [List.self, Available.self, Mac.self, Info.self, Update.self, Install.self, Uninstall.self],
         defaultSubcommand: List.self
     )
 
@@ -168,14 +168,17 @@ struct Apps: AsyncParsableCommand {
             discussion: """
             ps3 apps install ezremote        Hämtar senaste versionen från GitHub och installerar den
             ps3 apps install X.pkg           Installerar en egen fil
+            ps3 apps install RetroArch.pkg   Ett paket i paketmapparna, via filnamn eller title ID (se ps3 apps mac)
             Paketen arkiveras i _Installerat/Paket (äldre versioner av samma program läggs i papperskorgen).
+            Paket i paketmapparna (ps3 config folder add PKG) ligger kvar där de är.
             Se `ps3 apps available` för vad som finns.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Programnamn (se ps3 apps available) eller .pkg-filer.", completion: .file(extensions: ["pkg"]))
+        @Argument(help: "Programnamn (se ps3 apps available), .pkg-filer eller paket i paketmapparna (se ps3 apps mac).",
+                  completion: .file(extensions: ["pkg"]))
         var items: [String]
 
         @Flag(name: .long, help: "Installera även om samma version redan är installerad.")
@@ -196,18 +199,25 @@ struct Apps: AsyncParsableCommand {
         }
 
         func run() async throws {
-            let resolved: [Item] = try items.map { item in
-                let url = URL(fileURLWithPath: (item as NSString).expandingTildeInPath).standardizedFileURL
-                if item.lowercased().hasSuffix(".pkg") || FileManager.default.fileExists(atPath: url.path) {
-                    guard PKGInfo(url: url) != nil else { throw PS3Error.invalidFile("\(url.lastPathComponent) är inget giltigt PS3-paket.") }
-                    return .file(url)
-                }
-                let entry = try Apps.resolve(item)
+            func catalogItem(_ entry: CatalogEntry) throws -> Item {
                 guard entry.isInstallable else {
                     if case .notifyOnly(let note) = entry.action { throw PS3Error.invalidFile("\(entry.name) installeras inte automatiskt. \(note)") }
                     throw PS3Error.invalidFile("\(entry.name) kan inte installeras automatiskt. Se \(entry.homepage)")
                 }
                 return .catalog(entry)
+            }
+            // A file, then a program in the catalog, then a package in the package folders.
+            let resolved: [Item] = try items.map { item in
+                let url = URL(fileURLWithPath: (item as NSString).expandingTildeInPath).standardizedFileURL
+                if FileManager.default.fileExists(atPath: url.path) {
+                    guard PKGInfo(url: url) != nil else { throw PS3Error.invalidFile("\(url.lastPathComponent) är inget giltigt PS3-paket.") }
+                    return .file(url)
+                }
+                let isFileName = item.lowercased().hasSuffix(".pkg")
+                if !isFileName, case .found(let entry) = Catalog.lookup(item) { return try catalogItem(entry) }
+                if let package = try Apps.localPackage(item) { return .file(package.url) }
+                if isFileName { throw PS3Error.invalidFile("Hittar inte \(item), varken som fil eller i paketmapparna (se ps3 apps mac).") }
+                return try catalogItem(Apps.resolve(item))
             }
 
             let host = try await Console.host(global)
@@ -235,7 +245,8 @@ struct Apps: AsyncParsableCommand {
                     }
                     try await TransferService(host: host).installPackage(file, options: options) { printer.handle($0) }
                     installedNames.append(file.deletingPathExtension().lastPathComponent)
-                    guard !dryRun, !keep, let root else { continue }
+                    // A package in a package folder belongs there, like a game in a game folder.
+                    guard !dryRun, !keep, !PackageFolders.contains(file), let root else { continue }
                     let archive = MirrorRoot.packageArchive(in: root)
                     if file.deletingLastPathComponent().standardizedFileURL != archive.standardizedFileURL {
                         let moved = try apps.archivePackage(file, into: archive)
@@ -341,6 +352,97 @@ struct Apps: AsyncParsableCommand {
             throw PS3Error.invalidFile("\(name) kan betyda flera: \(matches.map(\.id).joined(separator: ", ")).")
         case .missing:
             throw PS3Error.invalidFile("Okänt program: \(name). Se `ps3 apps available` för vad som finns.")
+        }
+    }
+
+    /// A package in the package folders by file name (with or without .pkg) or title ID.
+    static func localPackage(_ name: String) throws -> LocalPackage? {
+        let query = name.lowercased()
+        let matches = PackageLibrary.scan().filter {
+            $0.fileName.lowercased() == query || ($0.fileName as NSString).deletingPathExtension.lowercased() == query
+                || $0.titleID?.lowercased() == query
+        }
+        guard matches.count <= 1 else {
+            throw PS3Error.invalidFile("\(name) kan betyda flera paket: \(matches.map(\.path).joined(separator: ", ")). Ange hela sökvägen.")
+        }
+        return matches.first
+    }
+
+    struct Mac: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "mac",
+            abstract: "Paketen (.pkg) i Macens paketmappar och om de redan är installerade på PS3:an.",
+            discussion: """
+            Koppla en mapp med `ps3 config folder add PKG ~/Paket`. PS3 Center letar i mappen och
+            mapparna direkt under den. Installera med `ps3 apps install <filnamn>`; paketet ligger
+            kvar i mappen.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Flag(name: .long, help: "Bara paket som inte är installerade.")
+        var missing = false
+
+        @Flag(name: .long, help: "Fråga inte PS3:an.")
+        var offline = false
+
+        @Flag(name: .long, help: "Skriv ut JSON.")
+        var json = false
+
+        struct Row: Encodable {
+            let package: LocalPackage
+            /// APP_VER on the console ("" without one), nil when not installed or not asked.
+            let installed: String?
+        }
+
+        func run() async throws {
+            let asJSON = json || !UI.isTTY
+            let folders = PackageFolders.linked()
+            guard !folders.isEmpty else {
+                if asJSON { UI.json([Row]()); return }
+                UI.skip("Inga paketmappar. Koppla en med `ps3 config folder add PKG ~/Paket`.")
+                return
+            }
+            if !asJSON { UI.progress("Läser Macens paketmappar…") }
+            let packages = PackageLibrary.scan(folders: folders)
+            var installed: [String: String]?
+            if !offline, !packages.isEmpty {
+                do {
+                    let host = try await Console.host(global, quiet: true)
+                    if !asJSON { UI.progress("Jämför med PS3:an…") }
+                    installed = try await AppsService(host: host).installedVersions(of: packages.compactMap(\.titleID))
+                } catch {
+                    if !asJSON { UI.endProgress(); UI.warn("PS3:an svarar inte, så det syns inte vad som redan är installerat.") }
+                }
+            }
+            var rows = packages.map { package in
+                Row(package: package, installed: package.titleID.flatMap { installed?[$0.uppercased()] })
+            }
+            if missing, installed != nil { rows = rows.filter { $0.installed == nil } }
+            if asJSON { UI.json(rows); return }
+            UI.endProgress()
+            guard !packages.isEmpty else {
+                UI.skip("Inga .pkg-filer i paketmapparna (\(folders.map { ($0.path as NSString).abbreviatingWithTildeInPath }.joined(separator: ", "))).")
+                return
+            }
+            for folder in folders {
+                let group = rows.filter { $0.package.folder == folder.path }
+                guard !group.isEmpty else { continue }
+                UI.header((folder.path as NSString).abbreviatingWithTildeInPath,
+                          detail: "\(group.count) st · \(Format.bytes(group.map(\.package.size).reduce(0, +)))")
+                for row in group {
+                    let marker = installed == nil ? " " : row.installed == nil ? UI.paint("↑", .cyan) : UI.paint("✓", .green)
+                    let title = row.package.title.count > 34 ? String(row.package.title.prefix(33)) + "…" : row.package.title
+                    print("  \(marker) \(title.padding(toLength: 36, withPad: " ", startingAt: 0))"
+                          + UI.paint((row.package.titleID ?? "").padding(toLength: 12, withPad: " ", startingAt: 0), .gray)
+                          + Format.bytes(row.package.size).padding(toLength: 11, withPad: " ", startingAt: 0)
+                          + (installed == nil ? "" : UI.paint(PackageLibrary.installedLabel(row.installed), .gray)))
+                    print("    " + UI.paint(String(row.package.path.dropFirst(folder.path.count + 1)), .gray))
+                }
+                print()
+            }
+            print("  Installera med " + UI.paint("ps3 apps install <filnamn>", .bold) + ". Paketet ligger kvar i mappen.")
         }
     }
 

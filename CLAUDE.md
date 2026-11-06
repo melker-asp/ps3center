@@ -98,6 +98,10 @@ xcodebuild den inte.
   `GameListing` är den nätverksfria delen som testerna matar med listningar. Installerade spel i
   `/dev_hdd0/game` startas via title ID och avinstalleras bara på begäran (`delete`, efter en
   fråga; `UninstallGuard` skyddar det HEN behöver). `GamesStore` och `GamesView` är Spel-fliken.
+- **Macens paket** (`PackageFolders.swift`): `PackageFolders` (`packageFolders` i config.json,
+  typen PKG i `ps3 config folder`) och `PackageLibrary.scan` (.pkg i mappen och en nivå ner,
+  namn ur katalogen via title ID). `AppsService.installOwnPackage` kör säkerhetsspärren och
+  lämnar filen kvar; `AppsStore` tar paketen i samma kö som katalogen ("Från Macen", `ps3 apps mac`).
 - **Macens spel och kön:** `GameFolders` (mappar per typ i config.json plus spegelmappen),
   `LocalLibrary` (samma `GameListing`-regler som konsolen, metadata ur avbilderna) och
   `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`:

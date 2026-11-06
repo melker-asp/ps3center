@@ -144,3 +144,116 @@ struct FoldersView: View {
         onChange()
     }
 }
+
+/// Paketmappar: the Mac folders with .pkg files, saved as `packageFolders` in config.json like
+/// `ps3 config folder add PKG`. Their packages are listed under Från Macen in the Apps tab.
+struct PackageFoldersView: View {
+    @Environment(\.dismiss) private var dismiss
+    /// Called after a change, so the packages are read again.
+    let onChange: () -> Void
+    /// False when rendered for a snapshot: the folders in Fixtures, and no disk is looked at.
+    private let live: Bool
+    @State private var folders: [URL]
+
+    init(live: Bool = true, onChange: @escaping () -> Void = {}) {
+        self.live = live
+        self.onChange = onChange
+        _folders = State(initialValue: PackageFolders.linked(config: live ? ConfigStore.load() : Fixtures.folderConfig))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Paketmappar")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(Theme.primaryText)
+            Text("Koppla mapparna där du har .pkg-filer, till exempel program du har laddat ner själv. PS3 Center letar i mappen och mapparna direkt under den. Paketen visas under Från Macen i Appar-fliken och installeras på PS3:an med ett klick. Filerna ligger kvar på Macen.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+                .padding(.bottom, 14)
+
+            // ImageRenderer cannot draw a scroll view.
+            if live {
+                ScrollView { list }
+            } else {
+                list
+                Spacer(minLength: 0)
+            }
+
+            HStack {
+                Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
+                    .keyboardShortcut(.cancelAction)
+                    .help("Tillbaka")
+                Spacer()
+            }
+            .padding(.top, 16)
+        }
+        .padding(32)
+        .frame(width: 620, height: 440, alignment: .topLeading)
+        .background(Theme.base)
+    }
+
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if folders.isEmpty {
+                Text("Inga mappar är kopplade än.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.tertiaryText)
+                    .padding(.vertical, 12)
+            }
+            ForEach(folders, id: \.path) { url in
+                HStack(spacing: 8) {
+                    Image(systemName: "folder.fill").foregroundStyle(Theme.accent)
+                    Text((url.path as NSString).abbreviatingWithTildeInPath)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if !isPluggedIn(url) {
+                        Chip(text: "Inte ansluten", color: Theme.warm)
+                    }
+                    Spacer(minLength: 4)
+                    Button { remove(url) } label: { Image(systemName: "minus.circle") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.secondaryText)
+                        .help("Koppla bort (filerna rörs inte)")
+                }
+                .padding(.vertical, 10)
+                Divider().overlay(Theme.cardStroke)
+            }
+            Button { add() } label: { Label("Lägg till…", systemImage: "plus") }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.top, 12)
+        }
+    }
+
+    private func isPluggedIn(_ url: URL) -> Bool {
+        live ? FileManager.default.fileExists(atPath: url.path) : !Fixtures.unpluggedFolders.contains(url.path)
+    }
+
+    private func add() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Koppla"
+        panel.message = "Välj mappar med .pkg-filer."
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls { try? PackageFolders.add(url) }
+        reload()
+    }
+
+    private func remove(_ url: URL) {
+        try? PackageFolders.remove(url)
+        reload()
+    }
+
+    private func reload() {
+        folders = PackageFolders.linked()
+        onChange()
+    }
+}

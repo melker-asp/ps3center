@@ -12,6 +12,10 @@ public struct PKGInfo: Equatable, Sendable {
         return String(parts[1].prefix(9))
     }
 
+    public init(contentID: String) {
+        self.contentID = contentID
+    }
+
     public init?(header: Data) {
         let b = [UInt8](header)
         guard b.count >= 0x54, b[0] == 0x7F, b[1] == 0x50, b[2] == 0x4B, b[3] == 0x47 else { return nil }

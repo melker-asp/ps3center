@@ -18,6 +18,9 @@ public struct PS3Config: Codable, Equatable, Sendable {
     public var netServerSlot: Int?
     /// Linked folders whose new games are queued by themselves (`FolderWatch`), as full paths.
     public var watchedFolders: [String]?
+    /// The Mac's folders with .pkg files, as linked in the app (Appar → Från Macen) or with
+    /// `ps3 config folder add PKG`. See `PackageFolders`.
+    public var packageFolders: [String]?
     /// FTP uploads: piece size in KB and pieces in flight (`FTPClient.Tuning`), to compare with
     /// the speed test. Defaults 1024 and 2.
     public var ftpChunkKB: Int?

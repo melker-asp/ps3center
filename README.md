@@ -51,7 +51,9 @@ Appen har fyra flikar i Mole-stil:
   batteri sägs det att kön stannar om locket stängs. Spel som skickas från Macen behåller sin
   titel, sitt title ID och sin ikon på PS3:an direkt, innan webMAN har läst dem.
 - **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
-  Ett installerat program kan avinstalleras från sin sida.
+  Ett installerat program kan avinstalleras från sin sida. Under Från Macen visas .pkg-filerna i
+  dina paketmappar (knappen Paketmappar), med om de redan är installerade; de installeras med ett
+  klick och ligger kvar på Macen.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 - **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
@@ -92,6 +94,7 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 games mac` | Spelen i Macens spelmappar och om de redan finns på PS3:an (`--missing`) |
 | `ps3 games libcrypt <namn>` | Lägger LibCrypt-datan som ett PAL-PS1-spel behöver i `/dev_hdd0/tmp/lsd` (från webMAN MOD, `--dry-run`) |
 | `ps3 config folder add PS3ISO ~/Spel/PS3` | Kopplar en spelmapp på Macen per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) |
+| `ps3 config folder add PKG ~/Paket` | Kopplar en paketmapp med .pkg-filer (se `ps3 apps mac`) |
 | `ps3 config folder watch ~/Spel/PS3` | Bevakar en kopplad mapp; `ps3 watch` (eller appen) lägger nya spel i kön (`--send` skickar direkt) |
 | `ps3 queue add <filer eller spel>` | Lägger spel i kön som appen också använder; `ps3 queue start` skickar ett i taget (`--when-done shutdown`, `--verify`) |
 | `ps3 serve` | Spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN:s `/net0` (port 38008, bara läsning, bara PS3:an släpps in) |
@@ -119,7 +122,8 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps available` | Hela katalogen: vad du har (✓), vad som har uppdateringar (↑), vad som kan installeras (↓) och vad som inte fungerar på din PS3 (⊘) |
 | `ps3 apps info <namn>` | Version, om programmet fungerar på din PS3 och README från GitHub (`--no-readme`, `--json`) |
 | `ps3 apps install <namn…>` | Hämtar senaste versionen från GitHub och installerar, t.ex. `ps3 apps install ezremote` (`--reinstall`, `--dry-run`) |
-| `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket` |
+| `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket`; ett paket i paketmapparna (filnamn eller title ID räcker) ligger kvar |
+| `ps3 apps mac` | Paketen i Macens paketmappar och om de är installerade (`--missing`, `--offline`, `--json`) |
 | `ps3 apps uninstall <namn>` | Avinstallerar ett program (mappen i /dev_hdd0/game); inte HEN, webMAN eller plugins (`--dry-run`, `-y`) |
 | `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |

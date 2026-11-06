@@ -2,17 +2,25 @@ import PS3Kit
 import SwiftUI
 
 /// Mole's Apps → Updates, for PS3 homebrew: updates first, then what is current, plus a
-/// "Hämta" list of everything the catalog can install.
+/// "Hämta" list of everything the catalog can install, and "Från Macen" with the .pkg files in
+/// the Mac's package folders, like the Mac's games in the Spel tab.
 struct AppsView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case updates, get
+        case updates, get, mac
         var id: String { rawValue }
-        var title: String { self == .updates ? "Uppdateringar" : "Hämta" }
+        var title: String {
+            switch self {
+            case .updates: return "Uppdateringar"
+            case .get: return "Hämta"
+            case .mac: return "Från Macen"
+            }
+        }
     }
 
     @Environment(ConsoleStore.self) private var console
     @Environment(AppsStore.self) private var apps
     @State private var section: Section
+    @State private var showsFolders = false
     var scrolls = true
 
     init(section: Section = .updates, scrolls: Bool = true) {
@@ -39,6 +47,15 @@ struct AppsView: View {
         .task(id: console.host) {
             guard let host = console.host, apps.phase == .idle || apps.statuses.isEmpty else { return }
             await apps.load(host: host)
+        }
+        .task(id: section) {
+            guard section == .mac, !apps.packagesLoaded, !apps.isLoadingPackages else { return }
+            await apps.loadPackages(host: console.host)
+        }
+        .sheet(isPresented: $showsFolders) {
+            PackageFoldersView {
+                Task { await apps.loadPackages(host: console.host) }
+            }
         }
     }
 
@@ -69,19 +86,29 @@ struct AppsView: View {
             .background(Capsule().fill(Color.black.opacity(0.45)))
 
             Button {
-                guard let host = console.host else { return }
-                Task { await apps.load(host: host, refreshIcons: true) }
+                if section == .mac {
+                    Task { await apps.loadPackages(host: console.host) }
+                } else if let host = console.host {
+                    Task { await apps.load(host: host, refreshIcons: true) }
+                }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .rotationEffect(.degrees(apps.phase == .loading ? 360 : 0))
             }
             .buttonStyle(CircleIconButtonStyle())
-            .help("Kolla igen")
-            .disabled(apps.isBusy)
+            .help(section == .mac ? "Läs om Macens paketmappar" : "Kolla igen")
+            .disabled(apps.isBusy || apps.isLoadingPackages)
 
             Spacer()
 
-            if let checked = apps.lastChecked {
+            if section == .mac {
+                Button {
+                    showsFolders = true
+                } label: {
+                    Label("Paketmappar", systemImage: "folder")
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+            } else if let checked = apps.lastChecked {
                 Text("Kollat \(checked.formatted(date: .omitted, time: .shortened))")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.tertiaryText)
@@ -90,6 +117,57 @@ struct AppsView: View {
     }
 
     @ViewBuilder private var content: some View {
+        if section == .mac {
+            macContent
+        } else {
+            catalogContent
+        }
+    }
+
+    /// The Mac's packages do not wait for the catalog: they are listed even when the console
+    /// does not answer.
+    @ViewBuilder private var macContent: some View {
+        if !apps.packagesLoaded {
+            VStack(spacing: 12) {
+                Spinner()
+                Text("Läser Macens paketmappar…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if apps.packages.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "shippingbox").font(.system(size: 34, weight: .light)).foregroundStyle(Theme.secondaryText)
+                Text("Inga paket i Macens paketmappar").font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
+                Text("Koppla mapparna där du har .pkg-filer. Paketen visas här och installeras på PS3:an med ett klick, och filerna ligger kvar på Macen.")
+                    .font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 440)
+                Button("Koppla paketmappar…") { showsFolders = true }
+                    .buttonStyle(PillButtonStyle())
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if scrolls {
+            ScrollView { packageList }.scrollIndicators(.hidden)
+        } else {
+            packageList
+        }
+    }
+
+    /// One section per linked folder, in the order they were linked.
+    private var packageList: some View {
+        LazyVStack(alignment: .leading, spacing: 4) {
+            let folders = apps.packages.reduce(into: [String]()) { if !$0.contains($1.folder) { $0.append($1.folder) } }
+            ForEach(folders, id: \.self) { folder in
+                let rows = apps.packages.filter { $0.folder == folder }
+                SectionHeader(title: (folder as NSString).lastPathComponent, count: rows.count,
+                              detail: (folder as NSString).abbreviatingWithTildeInPath)
+                ForEach(rows) { PackageRow(package: $0) }
+            }
+        }
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder private var catalogContent: some View {
         let firstLoad = apps.statuses.isEmpty && (apps.phase == .idle || apps.phase == .loading)
         switch apps.phase {
         case _ where firstLoad:
@@ -119,6 +197,7 @@ struct AppsView: View {
             switch section {
             case .updates: updatesList
             case .get: getList
+            case .mac: EmptyView()
             }
         }
         .padding(.bottom, 12)
@@ -160,12 +239,22 @@ struct AppsView: View {
 struct SectionHeader: View {
     let title: String
     let count: Int
+    /// Small text after the count, such as the folder's path.
+    var detail: String?
     var action: (String, () -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title).font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
             Text("\(count)").font(.system(size: 14)).foregroundStyle(Theme.tertiaryText)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.tertiaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.leading, 4)
+            }
             Spacer()
             if let action {
                 Button(action.0, action: action.1).buttonStyle(PillButtonStyle())
@@ -332,6 +421,79 @@ struct AppTile: View {
                 .foregroundStyle(Theme.good)
         } else if status.installable {
             Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
+        }
+    }
+}
+
+/// A .pkg in one of the Mac's package folders: title (the catalog's name when its title ID is
+/// known), file, size and whether it is installed. A package from the catalog opens that
+/// program's page and is blocked like it on a console that does not meet its requirements.
+struct PackageRow: View {
+    @Environment(AppsStore.self) private var apps
+    let package: LocalPackage
+    @State private var hovering = false
+
+    private var status: AppStatus? { apps.catalogStatus(of: package) }
+    private var installed: String? { apps.installedVersion(of: package) }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AppIcon(image: package.titleID.flatMap { apps.packageIcons[$0] } ?? package.catalogID.flatMap { apps.icons[$0] },
+                    name: package.title, category: status?.category ?? .tools,
+                    symbol: status == nil ? "shippingbox.fill" : nil)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(package.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(1)
+                    if let titleID = package.titleID { Chip(text: titleID) }
+                    if let badge = status?.compatibility.badge {
+                        Chip(text: badge, color: status?.compatibility.blocksInstall == true ? Theme.hot : Theme.warm)
+                    }
+                }
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            trailing
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.tertiaryText.opacity(hovering ? 1 : 0.5))
+                .opacity(status == nil ? 0 : 1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(hovering && status != nil ? 0.04 : 0)))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard let status else { return }
+            withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id }
+        }
+        .onHover { hovering = $0 }
+        .help(package.path)
+    }
+
+    private var subtitle: String {
+        var parts = [package.fileName, Format.bytes(package.size)]
+        if apps.packagesChecked { parts.append(PackageLibrary.installedLabel(installed)) }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if let op = apps.operations[package.id] {
+            OperationView(operation: op)
+        } else if status?.compatibility.blocksInstall == true {
+            Label("Fungerar inte", systemImage: "nosign")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.hot)
+        } else if installed != nil {
+            Button("Installera om") { apps.install(package) }.buttonStyle(PillButtonStyle(prominent: false))
+        } else {
+            Button("Installera") { apps.install(package) }.buttonStyle(PillButtonStyle())
         }
     }
 }

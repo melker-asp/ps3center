@@ -19,6 +19,7 @@ enum MainMenu {
         Item(title: "Skicka kön", arguments: ["queue", "start"]),
         Item(title: "Program och uppdateringar", arguments: ["apps"]),
         Item(title: "Uppdatera program (frågar för varje)", arguments: ["apps", "update"]),
+        Item(title: "Paket på Macen", arguments: ["apps", "mac"]),
         Item(title: "Hastighetstest", arguments: ["speedtest"]),
         Item(title: "Säkerhetskopiera sparfiler och systemfiler", arguments: ["backup"]),
         Item(title: "Städning (bara en rapport)", arguments: ["maintain"]),

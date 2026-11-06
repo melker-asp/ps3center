@@ -43,7 +43,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
 | **Spel** | `ps3 games`, `ps3 send`, `ps3 serve` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
-| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
+| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. "Från Macen" (`apps mac`) visar .pkg-filerna i paketmapparna per mapp, som Macens spel i Spel-fliken; de installeras där de ligger, med samma säkerhetsspärr när title ID:t finns i katalogen. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Sparfiler och systemfiler till Macen, Städning som Moles Optimize (en rapport med Klart och det som återstår, med skälet), Lagring som Moles Analyze (en stapel över /dev_hdd0) och Skivan |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
 
