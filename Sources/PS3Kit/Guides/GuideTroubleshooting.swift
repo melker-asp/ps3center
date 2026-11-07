@@ -15,8 +15,9 @@ The screen says *Can't reach the PS3*.
 
 1. Check that the PS3 is on and that HEN is enabled (*Enable HEN* under Game, after every restart). On CFW, check that webMAN MOD is installed.
 2. Check that the Mac and the PS3 are on the same network.
-3. Press **Try Again**. PS3 Center tries the saved address first, then searches the local network, which takes up to half a minute.
-4. If the search still finds nothing, press **Find PS3…** on the same screen (also in Settings → Console). It searches every network the Mac is on, and takes an address you type. You find the address on the PS3 under Settings → Network Settings → Settings and Connection Status List.
+3. Check that macOS lets PS3 Center use the local network: System Settings → Privacy & Security → Local Network, with PS3 Center switched on. macOS asks the first time the app looks for the PS3, and if the answer was no, nothing on your network can be reached.
+4. Press **Try Again**. PS3 Center tries the saved address first, then searches the local network, which takes up to half a minute.
+5. If the search still finds nothing, press **Find PS3…** on the same screen (also in Settings → Console). It searches every network the Mac is on, and takes an address you type. You find the address on the PS3 under Settings → Network Settings → Settings and Connection Status List.
 
 **A cable straight between the Mac and the PS3:** give both a fixed address in the same range, for example 192.168.2.1 on the Mac and 192.168.2.2 on the PS3. The search skips self-assigned addresses that start with 169.254.
 

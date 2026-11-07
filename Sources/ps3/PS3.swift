@@ -29,7 +29,7 @@ struct PS3: AsyncParsableCommand {
           ps3 mcp                      MCP server so Claude can troubleshoot the PS3
           ps3 guide                    How-to guides and the glossary, as Help in the app
         """,
-        version: "0.1.0",
+        version: "1.0.0",  // the same as MARKETING_VERSION in App/project.yml (scripts/dist.sh checks)
         subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, ISO.self, PS2.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Record.self, Media.self, Beep.self, Music.self, Serve.self,
                       WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, GuideCommand.self, MCP.self, Popup.self, Refresh.self, History.self, Discover.self, Connection.self, Config.self]
     )

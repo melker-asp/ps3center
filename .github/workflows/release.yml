@@ -1,0 +1,78 @@
+name: Release
+
+# Pushing a tag like v1.2.0 tests, builds the app and the ps3 command for Apple silicon and Intel
+# (scripts/dist.sh) and publishes them as a GitHub release. The tag must match the version in
+# App/project.yml and Sources/ps3/PS3.swift, or the build stops before anything is published.
+# Run it by hand (Actions → Release → Run workflow) to build the same files as an artifact
+# without publishing anything.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# The repository's default token only reads; creating a release needs write.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Always GitHub's own runner, never vars.CI_RUNNER: this job can write to the repository.
+    runs-on: macos-15
+    # The same pins as ci.yml; bump them together.
+    env:
+      XCODEGEN_VERSION: "2.46.0"
+      XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+
+      - name: Install XcodeGen
+        run: |
+          dir="$RUNNER_TEMP/xcodegen-$XCODEGEN_VERSION"
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dir"
+          echo "$dir/xcodegen/bin" >> "$GITHUB_PATH"
+
+      # From the tag (v1.2.0 → 1.2.0), or for a manual run whatever App/project.yml says.
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -n 's/^ *MARKETING_VERSION: *//p' App/project.yml)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: swift test
+
+      - name: Build the app and the ps3 command
+        run: scripts/dist.sh "${{ steps.version.outputs.version }}"
+
+      - name: Upload the files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: PS3-Center-${{ steps.version.outputs.version }}
+          path: .build/dist/*
+          if-no-files-found: error
+
+      # How to install comes first, then GitHub's list of what changed since the last release.
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed "s/{{VERSION}}/$VERSION/g" .github/release-notes.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag \
+            --title "PS3 Center $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes \
+            .build/dist/PS3-Center.dmg .build/dist/ps3-cli.zip .build/dist/SHA256SUMS.txt

@@ -1,28 +1,65 @@
-# PS3 Center (`ps3`)
+# PS3 Center
 
-Control the PS3 (PS3HEN + webMAN MOD) from the Mac: upload games, install and update
-homebrew and see status, without menus on the console and without a USB stick.
-Architecture and the plans for the Mac app are in [DESIGN.md](DESIGN.md).
+Control your PS3 from your Mac. Upload games, install and update homebrew, back up saves and keep
+an eye on temperatures, all over the network: no menus on the console and no USB stick. PS3 Center
+is a Mac app and a `ps3` command for Terminal that share the same engine.
 
-## Install
+![The Status tab: health, temperatures, fan, free space, network and what is playing](docs/screenshots/status.png)
+
+## Download
+
+**[⬇ Download PS3 Center for Mac](https://github.com/melker-asp/ps3center/releases/latest/download/PS3-Center.dmg)**
+· macOS 14 Sonoma or newer · Apple silicon and Intel · [all versions](https://github.com/melker-asp/ps3center/releases)
+
+1. Open **PS3-Center.dmg** and drag **PS3 Center** to **Applications**.
+2. Open PS3 Center. The first time, macOS stops it because the app isn't notarized by Apple
+   (that needs a paid developer account). Click **Done**, open **System Settings → Privacy &
+   Security**, scroll down to *"PS3 Center" was blocked* and click **Open Anyway**, then confirm.
+   On macOS 14 you can instead Control-click the app in Applications, choose **Open** and confirm.
+3. When macOS asks, **allow** PS3 Center to find devices on your local network. That is how it
+   reaches the PS3. If you said no, turn it on in System Settings → Privacy & Security → Local
+   Network.
+
+The setup guide then finds the PS3 on your network. To update, download the new version and
+replace the app in Applications; your settings stay.
+
+### What the PS3 needs
+
+- **PS3HEN** (or a CFW), enabled. On HEN that means enabling it again after every restart of the
+  console.
+- **[webMAN MOD](https://github.com/aldostools/webMAN-MOD/releases)** installed. PS3 Center talks
+  to its web server and FTP.
+- The PS3 and the Mac on the **same network**. A cable is much faster than Wi-Fi for big games, and
+  the app shows how to connect one straight to the Mac.
+
+No games are included or downloaded: PS3 Center sends your own files.
+
+### The `ps3` command (optional)
+
+Everything the app does, `ps3` can do in Terminal too. This puts it in `~/.local/bin`:
 
 ```bash
-make install    # builds and links ~/.local/bin/ps3
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/melker-asp/ps3center/releases/latest/download/ps3-cli.zip -o /tmp/ps3-cli.zip
+unzip -o /tmp/ps3-cli.zip -d ~/.local/bin
 ```
 
-Requires Xcode (Swift 6). `make build` updates an already installed version.
-`make test` runs the tests.
+Run the same lines again to update. If Terminal says `command not found: ps3`, add the folder to
+your PATH and open a new window:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
+
+If you download **ps3-cli.zip** in the browser instead, macOS quarantines the file; run
+`xattr -d com.apple.quarantine ~/.local/bin/ps3` once.
 
 ## The Mac app
 
-```bash
-brew install xcodegen   # once
-make install-app        # builds a Release version and puts it in /Applications
-```
-
-After that PS3 Center opens like any other app: from Launchpad, Spotlight or the Dock. Run
-`make install-app` again to update (a running app is quit first). `make run-app` builds a
-Debug version and opens it straight from `.build`, without installing.
+<p>
+  <img src="docs/screenshots/games.png" width="49%" alt="The Games tab: the games on the PS3 per platform">
+  <img src="docs/screenshots/apps-updates.png" width="49%" alt="The Apps tab: homebrew updates with Update and Ignore">
+</p>
 
 The app has four tabs in Mole style:
 - **Status:** health, CPU, RSX, fan, free space, network, what is playing and versions, with
@@ -82,9 +119,6 @@ backup, the FTP tuning, which notifications you get, which status cards and tabs
 the text size. It works before a console is connected. The first launch opens a setup guide, the ?
 next to the gear (or ⌘?) opens Help with a guide for each task, and ⓘ on a card explains it.
 From Terminal, `ps3 config set root ~/Documents --create` makes the same empty PS3 folder.
-
-`make snapshot DIR=/tmp/shots` renders the tabs to PNG without opening any window, and
-`make snapshot-fixtures DIR=/tmp/shots` does the same without a PS3.
 
 ## Commands
 
@@ -187,6 +221,28 @@ Then ask, for example, "Why is my PS3 so hot?" or "What does 8001003D mean?".
 `PS3_DEBUG=1 ps3 …` prints the FTP traffic. `PS3_HOST=<ip>` forces a particular address.
 `GITHUB_TOKEN` raises GitHub's rate limit.
 
+## Building from source
+
+Requires Xcode (Swift 6). Architecture and the plans are in [DESIGN.md](DESIGN.md) and
+[PLAN.md](PLAN.md).
+
+```bash
+make install            # the ps3 command: builds and links ~/.local/bin/ps3
+brew install xcodegen   # once, for the app
+make install-app        # builds a Release version of the app and puts it in /Applications
+```
+
+Run them again to update (a running app is quit first). `make test` runs the tests, and
+`make run-app` builds a Debug version and opens it straight from `.build`, without installing.
+`make snapshot DIR=/tmp/shots` renders the tabs to PNG without opening any window, and
+`make snapshot-fixtures DIR=/tmp/shots` does the same without a PS3.
+
+**Releases:** set the version in `App/project.yml` (`MARKETING_VERSION`) and
+`Sources/ps3/PS3.swift` (`version:`), commit, then push a tag such as `v1.0.0`. GitHub Actions
+(`.github/workflows/release.yml`) tests, builds `PS3-Center.dmg` and `ps3-cli.zip` for Apple
+silicon and Intel and publishes the release. `make dist VERSION=1.0.0` builds the same files in
+`.build/dist` on your Mac.
+
 ## Adding an app to the catalog
 
 Add a `CatalogEntry` in `Sources/PS3Kit/Catalog.swift` with:
@@ -205,3 +261,9 @@ but doesn't block). Enter what the README or the release notes say, not guesses.
 When PS3 Center installs an app, the link between tag and `APP_VER` is saved in
 `~/.config/ps3center/installed.json`. After that the tags are compared directly, so `VersionStyle`
 is only needed for apps that were installed some other way.
+
+## License
+
+PS3 Center is free software under the [GNU General Public License v3.0](LICENSE). It is not
+affiliated with or endorsed by Sony Interactive Entertainment; PlayStation and PS3 are their
+trademarks.
