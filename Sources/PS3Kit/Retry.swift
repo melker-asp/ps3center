@@ -17,9 +17,9 @@ public enum RetryPolicy {
             case .ftp(let code, _):
                 // Connection closed, data connection failed or aborted, local error on the console.
                 return [421, 425, 426, 450, 451].contains(code)
-            case .ftpProtocol(let message):
-                // "the connection broke/was closed" and "the size of … does not match" (FTPClient, Transfer).
-                return message.contains("connection") || message.contains("the size of")
+            case .transferInterrupted:
+                // The connection broke or closed, or the size did not match (FTPClient, Transfer).
+                return true
             default:
                 return false
             }

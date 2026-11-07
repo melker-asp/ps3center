@@ -70,6 +70,7 @@ public enum PS3ISO {
         }
         let parts = parts(startingAt: first)
         guard !parts.isEmpty else { throw PS3Error.invalidFile("Can't find \(first.lastPathComponent).") }
+        try checkComplete(parts)
         let target = (folder ?? first.deletingLastPathComponent()).appendingPathComponent(String(first.lastPathComponent.dropLast(2)))
         if FileManager.default.fileExists(atPath: target.path) {
             throw PS3Error.refused("\(target.lastPathComponent) already exists.")
@@ -77,6 +78,41 @@ public enum PS3ISO {
         let writer = PartWriter(base: target, split: false)
         try copy(parts, into: writer, total: parts.map(FileRouter.fileSize).reduce(0, +), progress: progress)
         return target
+    }
+
+    /// Refuses parts that cannot make the whole image: a gap (.iso.2 missing while .iso.3 is
+    /// there), a part that is not as large as the first (still being copied), or parts that
+    /// together hold less than the image's own size in its ISO 9660 descriptor.
+    static func checkComplete(_ parts: [URL]) throws {
+        guard let first = parts.first else { return }
+        let stem = String(first.path.dropLast(2))
+        let name = String(first.lastPathComponent.dropLast(2))  // "Game.iso"
+        if FileManager.default.fileExists(atPath: "\(stem).\(parts.count + 1)") {
+            throw PS3Error.invalidFile("\(name).\(parts.count) is missing, but later parts are there. Copy every part first.")
+        }
+        let sizes = parts.map(FileRouter.fileSize)
+        if let short = sizes.dropLast().firstIndex(where: { $0 != sizes[0] }) {
+            throw PS3Error.invalidFile("\(parts[short].lastPathComponent) is \(Format.bytes(sizes[short])) where the first part is \(Format.bytes(sizes[0])). It may still be copying.")
+        }
+        let total = sizes.reduce(0, +)
+        if let expected = volumeSize(of: first), expected > total {
+            throw PS3Error.invalidFile("The parts hold \(Format.bytes(total)), but the image is \(Format.bytes(expected)). A part is missing or incomplete.")
+        }
+    }
+
+    /// The image's size from its primary volume descriptor (sector 16): sectors × block size.
+    /// Nil when the file has no ISO 9660 descriptor (a UDF-only Blu-ray image, say).
+    static func volumeSize(of file: URL) -> Int64? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard (try? handle.seek(toOffset: 16 * 2048)) != nil,
+              let sector = try? handle.read(upToCount: 2048), sector.count == 2048 else { return nil }
+        let b = [UInt8](sector)
+        guard b[0] == 1, Array(b[1...5]) == Array("CD001".utf8) else { return nil }
+        let sectors = Int64(b[80]) | Int64(b[81]) << 8 | Int64(b[82]) << 16 | Int64(b[83]) << 24
+        let blockSize = Int64(b[128]) | Int64(b[129]) << 8
+        guard sectors > 0, blockSize > 0 else { return nil }
+        return sectors * blockSize
     }
 
     /// Unpacks a PS3 ISO into a game folder (as extractps3iso does), with the names from the
@@ -120,11 +156,17 @@ public enum PS3ISO {
                 }
                 let output = try FileHandle(forWritingTo: url)
                 defer { try? output.close() }
+                var copied: UInt64 = 0
                 try image.readChunks(extent: file.extent, size: file.size) { chunk in
                     try Task.checkCancellation()
                     try output.write(contentsOf: chunk)
+                    copied += UInt64(chunk.count)
                     done += Int64(chunk.count)
                     progress(done, total)
+                }
+                // readChunks stops quietly where the image ends; a short file means a cut-off ISO.
+                guard copied == file.size else {
+                    throw PS3Error.invalidFile("\(iso.lastPathComponent) ends early: \(file.path) got \(Format.bytes(Int64(copied))) of \(Format.bytes(Int64(file.size))). The ISO is incomplete; copy or download it again.")
                 }
             }
         } catch {
@@ -167,6 +209,8 @@ final class PartWriter {
     private(set) var written: Int64 = 0
     private var handle: FileHandle?
     private var inPart: Int64 = 0
+    /// Parts `close` has already given their names, so `discard` can take them back.
+    private var renamed: [URL] = []
 
     init(base: URL, split: Bool, partSize: Int64 = PS3ISO.partSize) {
         self.base = base
@@ -214,14 +258,18 @@ final class PartWriter {
         for file in files {
             if fm.fileExists(atPath: file.path) { try fm.removeItem(at: file) }
             try fm.moveItem(at: Self.partial(file), to: file)
+            renamed.append(file)
         }
     }
 
-    /// Removes what was written, after a failure or a cancel.
+    /// Removes what was written, after a failure or a cancel, also parts that `close` had
+    /// already named before it failed: a lone .iso.0 would show in webMAN as a broken game.
     func discard() {
         try? handle?.close()
         handle = nil
         for file in files { try? FileManager.default.removeItem(at: Self.partial(file)) }
+        for file in renamed { try? FileManager.default.removeItem(at: file) }
+        renamed = []
     }
 }
 

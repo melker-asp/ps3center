@@ -87,6 +87,8 @@ final class USBCopyModel {
         guard live else { return }
         guard let volume = selected, volume.isFAT32 else {
             plan = USBDrive.Plan()
+            // A plan still being made for the drive picked before is dropped when it is done.
+            isPlanning = false
             return
         }
         isPlanning = true
@@ -130,6 +132,8 @@ final class USBCopyModel {
                 self.phase = error is CancellationError ? .review : .failed(error.localizedDescription)
             }
             self.volumes = USBDrive.volumes()
+            // What made it to the drive no longer needs room, so Try Again sees the space it has.
+            if self.phase != .done { self.replan() }
         }
     }
 
@@ -154,8 +158,7 @@ final class USBCopyModel {
             written = finishedBytes
             if let title = route.title, !copied.contains(title) { copied.append(title) }
         case .skipped(let route, _):
-            finishedBytes += route.size
-            written = finishedBytes
+            // Already on the drive: the plan's total leaves it out, so it adds no bytes.
             if let title = route.title, !alreadyThere.contains(title) { alreadyThere.append(title) }
         default:
             break
@@ -305,7 +308,8 @@ struct USBCopyView: View {
         let first = copies[0]
         let root = model.selected?.url.path ?? ""
         let place = String(first.destination.path.dropFirst(root.count + 1))
-        let done = model.copied.contains(title) || model.alreadyThere.contains(title)
+        let onDrive = model.alreadyThere.contains(title) || copies.allSatisfy(\.isOnDrive)
+        let done = model.copied.contains(title) || onDrive
         return HStack(spacing: 12) {
             Image(systemName: done ? "checkmark.circle.fill" : GameArtwork.symbol(for: first.game.platform))
                 .font(.ui(.title3))
@@ -319,7 +323,7 @@ struct USBCopyView: View {
                         .lineLimit(1)
                     if first.kind == .isoFromFolder { Chip(text: "Becomes an ISO", color: Theme.warm) }
                     if first.parts > 1 { Chip(text: "\(first.parts) parts") }
-                    if model.alreadyThere.contains(title) { Chip(text: "Already there", color: Theme.good) }
+                    if onDrive { Chip(text: "Already there", color: Theme.good) }
                 }
                 Text(copies.count == 1 ? place : "\(copies.count) files to \((place as NSString).deletingLastPathComponent)")
                     .font(.ui(.caption, design: .monospaced))
@@ -415,7 +419,7 @@ struct USBCopyView: View {
     }
 
     private func progressText(total: Int64) -> String {
-        let left = model.rate > 0 ? " · \(Format.duration(Double(total - model.written) / model.rate)) left" : ""
+        let left = model.rate > 0 ? " · \(Format.estimate(Double(total - model.written) / model.rate)) left" : ""
         return "\(Format.bytes(model.written)) of \(Format.bytes(total)) · \(Format.rate(model.rate))\(left)"
     }
 

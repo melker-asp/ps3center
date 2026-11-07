@@ -48,15 +48,71 @@ public final class MCPServer: @unchecked Sendable {
         self.version = version
     }
 
-    /// Reads requests from stdin until it closes.
+    /// Reads requests from stdin until it closes. Tool calls run one at a time, in order, since
+    /// webMAN takes one FTP session at a time; everything else (ping, tools/list) is answered
+    /// at once, also while a minute-long maintenance report runs. A tool call the client
+    /// cancels (`notifications/cancelled`) stops and gets no answer, as MCP asks.
     public func run() async {
+        let writer = LineWriter()
+        let calls = CallQueue()
         do {
             for try await line in FileHandle.standardInput.bytes.lines {
-                guard let reply = await handle(line: line) else { continue }
-                FileHandle.standardOutput.write(Data((reply + "\n").utf8))
+                let message = (line.data(using: .utf8)).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+                switch message?["method"] as? String {
+                case "tools/call" where message?["id"] != nil:
+                    let key = "\(message?["id"] ?? "")"
+                    await calls.enqueue(key) { [self] in
+                        guard let reply = await handle(line: line), !Task.isCancelled else { return }
+                        await writer.write(reply)
+                    }
+                case "notifications/cancelled":
+                    let params = message?["params"] as? [String: Any]
+                    if let id = params?["requestId"] { await calls.cancel("\(id)") }
+                default:
+                    if let reply = await handle(line: line) { await writer.write(reply) }
+                }
             }
+            await calls.finish()
         } catch {
             FileHandle.standardError.write(Data("ps3 mcp: \(error.localizedDescription)\n".utf8))
+        }
+    }
+
+    /// Writes whole lines to stdout, one at a time, so answers from tool calls and from the
+    /// read loop never interleave.
+    actor LineWriter {
+        func write(_ line: String) {
+            FileHandle.standardOutput.write(Data((line + "\n").utf8))
+        }
+    }
+
+    /// Tool calls in order, each after the one before, and cancellable by request id.
+    actor CallQueue {
+        private var tail: Task<Void, Never>?
+        private var running: [String: Task<Void, Never>] = [:]
+
+        func enqueue(_ key: String, _ work: @escaping @Sendable () async -> Void) {
+            let previous = tail
+            let task = Task {
+                await previous?.value
+                if !Task.isCancelled { await work() }
+                self.done(key)
+            }
+            running[key] = task
+            tail = task
+        }
+
+        func cancel(_ key: String) {
+            running[key]?.cancel()
+        }
+
+        private func done(_ key: String) {
+            running[key] = nil
+        }
+
+        /// Waits for the calls still running when stdin closes, so their answers are written.
+        func finish() async {
+            await tail?.value
         }
     }
 
@@ -149,6 +205,12 @@ extension MCPServer {
     /// The read-only tools `ps3 mcp` offers. `explicit` is `--host`.
     public static func consoleTools(host explicit: String? = nil) -> [Tool] {
         let host: @Sendable () async throws -> String = { try await consoleHost(explicit) }
+        // For the tools that open an FTP session: not beside a transfer the app or `ps3 queue`
+        // is sending, since webMAN's FTP takes one session at a time.
+        let ftpHost: @Sendable () async throws -> String = {
+            try checkNoTransfer()
+            return try await host()
+        }
         return [
             Tool(name: "ps3_status", title: "Status",
                  description: "The console's status right now: CPU and RSX temperature, fan, free space, network, what is running and mounted, firmware, HEN and webMAN version, and a health score 0–100 with notes. Never shows the PSID or IDPS.") { _ in
@@ -156,15 +218,15 @@ extension MCPServer {
             },
             Tool(name: "ps3_apps", title: "Homebrew and Updates",
                  description: "The apps in PS3 Center's catalog: the installed version compared with the latest release on GitHub, whether there is an update, whether it is ignored, and whether the app works on the console (HEN/CFW, firmware). HEN and plugins are never installed automatically.") { _ in
-                try json(try await AppsService(host: try await host()).check())
+                try json(try await AppsService(host: try await ftpHost()).check())
             },
             Tool(name: "ps3_games", title: "Games on the PS3",
                  description: "The games on the console: PS3 ISOs, folders in GAMES, PSN games, PS2, PS1, PSP and movies on the hard drive and USB, with title, title ID, size, location and installed game update.") { _ in
-                try json(try await GameLibraryService(host: try await host()).scan())
+                try json(try await GameLibraryService(host: try await ftpHost()).scan())
             },
             Tool(name: "ps3_maintenance_report", title: "Maintenance Report",
                  description: "Checks the console without changing anything: leftover packages, unfinished transfers (.part), duplicates, missing plugins in boot_plugins.txt, webMAN's cache, free space and whether system updates are blocked. Takes up to a minute.") { _ in
-                try json(try await MaintenanceService(host: try await host()).check())
+                try json(try await MaintenanceService(host: try await ftpHost()).check())
             },
             Tool(name: "ps3_history", title: "History",
                  description: "What PS3 Center has changed on the console (uploads, installs, uninstalls, cleanup), latest last. Read from the log on the Mac, so the console does not need to answer.",
@@ -182,6 +244,12 @@ extension MCPServer {
                 try explainError(arguments["code"] as? String ?? "")
             },
         ]
+    }
+
+    /// Refuses while the queue is being sent, with what to do instead.
+    static func checkNoTransfer(isHeld: Bool = QueueLock.isHeld) throws {
+        guard isHeld else { return }
+        throw PS3Error.refused("A transfer is running (the PS3 Center app or ps3 queue start), and webMAN's FTP takes one session at a time. Try again when it is done; ps3_status works meanwhile.")
     }
 
     static func explainError(_ text: String) throws -> String {

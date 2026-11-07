@@ -55,6 +55,17 @@ public enum Format {
         return String(format: "%d:%02d", s / 60, s % 60)
     }
 
+    /// Time still to go, in words and rounded to the minute: "under a minute", "4 min",
+    /// "51 min", "1 h 48 min". Estimates use this, so "about 51:17" never reads like a clock
+    /// next to "4–17 min"; a running clock or elapsed time keeps `duration`.
+    public static func estimate(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "–" }
+        let minutes = Int((seconds / 60).rounded())
+        if minutes < 1 { return "under a minute" }
+        if minutes < 60 { return "\(minutes) min" }
+        return minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
+    }
+
     /// Play time in words: "14 h 20 min", "35 min", "under a minute".
     public static func playTime(_ seconds: Double) -> String {
         let minutes = Int(seconds / 60)
@@ -63,9 +74,13 @@ public enum Format {
         return minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
     }
 
+    /// The one language dates and numbers are written in, whatever the Mac's language. The
+    /// app's `Theme.locale` is this one too.
+    public static let locale = Locale(identifier: "en_US")
+
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
+        f.locale = locale
         f.dateFormat = "MMM d, yyyy"
         return f
     }()

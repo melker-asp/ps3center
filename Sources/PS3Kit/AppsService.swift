@@ -37,7 +37,22 @@ public struct AppStatus: Codable, Sendable {
     /// An update the user has not skipped: what the badges count and "Update All" offers.
     public var isPendingUpdate: Bool { state == .updateAvailable && !ignored }
 
-    public var releasedAt: Date? { releaseDate.flatMap { ISO8601DateFormatter().date(from: $0) } }
+    /// A value-type parse: no formatter is made per call, though every tile in Browse asks.
+    public var releasedAt: Date? { releaseDate.flatMap { try? Date($0, strategy: .iso8601) } }
+
+    /// The release tag in the console's own APP_VER form when the catalog knows how they map
+    /// ("v2.4.1" → "02.41"), so "02.40 → 02.41" compares like with like; else the tag itself.
+    /// The Updates list, the review before Update All, its report and the CLI all show this.
+    public var latestForDisplay: String? {
+        guard let latest else { return nil }
+        guard let entry = Catalog.entries.first(where: { $0.id == id }), entry.installedStyle == .appVer,
+              entry.releaseStyle == .semverAsAppVer || entry.releaseStyle == .artemis,
+              let version = Version(latest, style: entry.releaseStyle), version.parts.count == 2 else { return latest }
+        return String(format: "%02d.%02d", version.parts[0], version.parts[1])
+    }
+
+    /// "02.40 → 02.41".
+    public var versionChange: String { "\(installed ?? "?") → \(latestForDisplay ?? "?")" }
 
     /// "New" in Browse: the latest release came out in the last `days` days.
     public func isNewRelease(now: Date = Date(), days: Int = 30) -> Bool {

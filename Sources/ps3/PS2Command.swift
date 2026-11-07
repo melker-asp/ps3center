@@ -99,8 +99,7 @@ struct PS2: AsyncParsableCommand {
             let titleID = try PS2ClassicMaker.check(source)
             let folder = destination.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } ?? source.deletingLastPathComponent()
             let output = folder.appendingPathComponent(PS2ClassicMaker.outputName(for: source, titleID: titleID))
-            let imageSize = FileRouter.fileSize(try PS2ClassicMaker.dataFile(for: source))
-            let size = PS2ClassicMaker.encryptedSize(forImage: imageSize)
+            let size = PS2ClassicMaker.encryptedSize(forImage: try PS2ClassicMaker.imageSize(of: source))
             UI.header(dryRun ? "Preview" : "PS2 Classic", detail: [titleID, Format.bytes(size)].compactMap { $0 }.joined(separator: " · "))
             guard !FileManager.default.fileExists(atPath: output.path) else {
                 throw PS3Error.refused("\(output.lastPathComponent) already exists.")
@@ -108,8 +107,8 @@ struct PS2: AsyncParsableCommand {
             guard let keys = PS2ClassicKeys.load(), keys.isComplete else {
                 throw PS3Error.refused("The keys for PS2 Classics are not on the Mac. Fetch them with `ps3 ps2 keys --fetch`.")
             }
-            if let free = USBDrive.volume(folder)?.free, free < size {
-                throw PS3Error.notEnoughSpace(needed: size, free: free)
+            if let volume = USBDrive.volume(containing: folder), volume.free < size {
+                throw PS3Error.refused("Not enough space on \(volume.name): needs \(Format.bytes(size)), \(Format.bytes(volume.free)) free.")
             }
             UI.step("\(source.lastPathComponent) → \(UI.paint(output.path, .gray))")
             guard !dryRun else { return }

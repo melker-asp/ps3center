@@ -228,21 +228,59 @@ final class LongCommands: @unchecked Sendable {
     func begin() {
         lock.lock()
         running += 1
+        let first = running == 1
         lock.unlock()
+        if first { Self.mark("running") }
     }
 
     func end() {
         lock.lock()
         running = max(0, running - 1)
         lastEnded = Date()
+        let last = running == 0
         lock.unlock()
+        if last { Self.mark("ended") }
     }
 
     /// Also for 20 seconds after one ends: the next one in a series (folder after folder) follows.
+    /// And while another process runs one: `ps3 maintain` or `ps3 mcp` beside the app.
     var isBusy: Bool {
         lock.lock()
-        defer { lock.unlock() }
-        return running > 0 || Date().timeIntervalSince(lastEnded) < 20
+        let local = running > 0 || Date().timeIntervalSince(lastEnded) < 20
+        lock.unlock()
+        return local || Self.otherProcessIsBusy()
+    }
+
+    // MARK: Across processes
+
+    /// One file per process that has run a long command, named by its pid: "running", or
+    /// "ended" with the time it ended as the file's date.
+    static var folder: URL { ConfigStore.directory.appendingPathComponent("busy", isDirectory: true) }
+
+    static func mark(_ state: String, in folder: URL = folder, pid: Int32 = getpid()) {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? Data(state.utf8).write(to: folder.appendingPathComponent("\(pid)"), options: .atomic)
+    }
+
+    /// Whether another living process runs a long command, or ended one under 20 seconds ago.
+    /// Files left by processes that are gone are removed.
+    static func otherProcessIsBusy(in folder: URL = folder, now: Date = Date(), me: Int32 = getpid()) -> Bool {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: folder.path) else { return false }
+        var busy = false
+        for name in names {
+            guard let pid = Int32(name), pid != me else { continue }
+            let file = folder.appendingPathComponent(name)
+            // kill(pid, 0) only asks; EPERM means the process is there but someone else's.
+            guard kill(pid, 0) == 0 || errno == EPERM else {
+                try? fm.removeItem(at: file)
+                continue
+            }
+            let state = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let ended = (try? fm.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
+            if state == "running" || (ended.map { now.timeIntervalSince($0) < 20 } ?? false) { busy = true }
+        }
+        return busy
     }
 }
 

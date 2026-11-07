@@ -36,6 +36,9 @@ final class MaintenanceStore {
     /// "2026-10-22 21.40" (a backup folder's name) → a date.
     nonisolated static func date(of folder: URL) -> Date? {
         let formatter = DateFormatter()
+        // The same fixed format SystemFiles.backup writes: the user's 12-hour setting must not
+        // change how "21.40" is read.
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm"
         return formatter.date(from: folder.lastPathComponent)
     }

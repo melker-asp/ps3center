@@ -171,7 +171,7 @@ struct SendReviewView: View {
             return "measure the speed under Transfers"
         }
         let network = speed.network.map { ", \($0)" } ?? ""
-        return "about \(Format.duration(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
+        return "about \(Format.estimate(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
     }
 
     /// Where the cable time comes from: a measurement over LAN, or what others report.

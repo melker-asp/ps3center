@@ -1,3 +1,4 @@
+import PS3Kit
 import SwiftUI
 
 /// Mole's layout (cards with an uppercase label, a chip in the corner, one big number and a
@@ -75,15 +76,7 @@ enum Theme {
 
     /// Dates and times are always English and never follow the system language, so a Mac set to
     /// Swedish does not mix "7 nov." into an English interface.
-    static let locale = Locale(identifier: "en_US")
-
-    /// "18:12": 24-hour, like the History table.
-    static func time(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
+    static var locale: Locale { Format.locale }
 }
 
 extension Font {

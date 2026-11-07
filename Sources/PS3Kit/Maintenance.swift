@@ -24,6 +24,41 @@ enum BackupFolder {
     }
 }
 
+/// Folders that kept their Swedish name beside the English one. `BackupFolder.migrate` leaves
+/// both alone, which happens when an older PS3 Center (the app or ps3 from before Nov 7, 2026)
+/// makes the Swedish one again after the rename. What lies there is then not seen, so the
+/// maintenance report names it; nothing is moved or merged by itself.
+public enum FolderMigration {
+    public struct Leftover: Equatable, Sendable {
+        public let old: URL
+        public let new: URL
+    }
+
+    public static func leftovers() -> [Leftover] {
+        leftovers(base: BackupFolder.base, mirror: MirrorRoot.resolve(), media: MediaImport.defaultFolder)
+    }
+
+    static func leftovers(base: URL, mirror: URL?, media: URL) -> [Leftover] {
+        var pairs: [(parent: URL, old: String, new: String)] = [
+            (base, "Sparfiler", SaveBackupService.rootName),
+            (base, "Systemfiler", SystemFiles.rootName),
+            (media, "Filmer", MediaImport.videoFolderName),
+            (media, "Bilder", MediaImport.photoFolderName),
+        ]
+        if let mirror {
+            pairs += [(mirror, "_Installerat", MirrorRoot.installedFolder),
+                      (mirror, "_Säkerhetskopior", MirrorRoot.backupsFolder),
+                      (mirror, "_Nödläge", MirrorRoot.emergencyFolder)]
+        }
+        let fm = FileManager.default
+        return pairs.compactMap { pair in
+            let old = pair.parent.appendingPathComponent(pair.old, isDirectory: true)
+            let new = pair.parent.appendingPathComponent(pair.new, isDirectory: true)
+            return fm.fileExists(atPath: old.path) && fm.fileExists(atPath: new.path) ? Leftover(old: old, new: new) : nil
+        }
+    }
+}
+
 // MARK: Saves
 
 /// One save: a folder in /dev_hdd0/home/<user>/savedata, on the console or in the backup.
@@ -348,6 +383,8 @@ public enum SystemFiles {
 public struct MaintenanceFinding: Codable, Equatable, Sendable, Identifiable {
     public enum Kind: String, Codable, Sendable {
         case leftoverPackage, partialUpload, duplicate, cache, missingPlugin, henToggles, space, updates
+        /// A folder on the Mac with its Swedish name beside the English one (`FolderMigration`).
+        case oldFolder
     }
 
     public let kind: Kind
@@ -410,6 +447,15 @@ public struct MaintenanceService: Sendable {
                 detail: "\(Format.bytes(free)) free on /dev_hdd0. Running games and installing updates need room."))
         } else {
             report.passed.append("Plenty of free space")
+        }
+
+        // On the Mac: a Swedish folder name that came back beside the English one.
+        for leftover in FolderMigration.leftovers() {
+            let name = leftover.new.lastPathComponent
+            report.findings.append(MaintenanceFinding(
+                kind: .oldFolder, title: "\(leftover.old.lastPathComponent) on the Mac",
+                detail: "\(leftover.old.path) still has its Swedish name beside \(name), so an older PS3 Center (the app or ps3) probably made it again. PS3 Center now only uses \(name): move what you need from the old folder, delete it, and update both the app and ps3.",
+                path: leftover.old.path))
         }
         return report
     }

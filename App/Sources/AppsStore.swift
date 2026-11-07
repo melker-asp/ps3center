@@ -301,8 +301,9 @@ final class AppsStore {
         return status.note ?? "The release has no package"
     }
 
+    /// "02.40 → 02.41", in the same APP_VER form as the Updates list (`AppStatus.versionChange`).
     static func versionChange(_ status: AppStatus) -> String {
-        "\(status.installed ?? "?") → \(status.latest ?? "?")"
+        status.versionChange
     }
 
     /// Runs the reviewed plan: queues the chosen updates and keeps the rest for the report.
@@ -312,10 +313,20 @@ final class AppsStore {
         let unchecked = plan.installs.filter { !chosenIDs.contains($0.id) }
             .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Unchecked in the review") }
         let skipped = plan.skipped.map { UpdateReport.Line(id: $0.id, name: $0.status.name, detail: $0.reason) }
-        batch = UpdateBatch(installs: chosen.map { UpdateReport.Line(id: $0.id, name: $0.name, detail: Self.versionChange($0)) },
-                            skipped: unchecked + skipped)
+        // The plan is what the sheet showed when it opened. An app that finished updating while
+        // it was open (its own Update button) would otherwise be downloaded and installed again.
+        let stillPending = Set(installableUpdates.map(\.id))
+        let current = chosen.filter { stillPending.contains($0.id) && operations[$0.id]?.stage != .done }
+        let outdated = chosen.filter { status in !current.contains { $0.id == status.id } }
+            .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Already updated") }
+        guard !current.isEmpty else {
+            report = UpdateReport(done: [], failed: [], skipped: outdated + unchecked + skipped, finished: Date())
+            return
+        }
+        batch = UpdateBatch(installs: current.map { UpdateReport.Line(id: $0.id, name: $0.name, detail: Self.versionChange($0)) },
+                            skipped: outdated + unchecked + skipped)
         report = nil
-        chosen.forEach(install)
+        current.forEach(install)
     }
 
     func dismissReport() {

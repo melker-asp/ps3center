@@ -140,6 +140,9 @@ private func decrypt(_ file: Data, values: [PS2ClassicKeys.Name: Data]) throws -
     let source = try PS2ClassicMaker.source(cue)
     #expect(source.sectorSize == 2352)
     #expect(source.size == Int64(sectors * 2048))
+    // The size the CLI and the app show and check space for: data bytes, not the raw file's.
+    #expect(try PS2ClassicMaker.imageSize(of: cue) == Int64(sectors * 2048))
+    #expect(try PS2ClassicMaker.imageSize(of: root.appendingPathComponent("Game.bin")) == Int64(sectors * 2048))
     let rawReader = try PS2ClassicMaker.PreparedReader(source: source)
     let first = try #require(try rawReader.next(0x4000))
     #expect(first.prefix(plain.count) == plain)

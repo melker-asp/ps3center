@@ -180,7 +180,7 @@ public struct TransferService: Sendable {
             }
         }
         guard let size = try await ftp.size(path), size == route.size else {
-            throw PS3Error.ftpProtocol("the size of \(path) does not match after the upload")
+            throw PS3Error.transferInterrupted("the size of \(path) does not match after the upload")
         }
         if path != route.remote { try await ftp.rename(path, to: route.remote) }
         events(.finished(route, seconds: Date().timeIntervalSince(start)))
