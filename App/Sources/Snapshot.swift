@@ -43,7 +43,7 @@ enum Snapshot {
 
         render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { StatusView(scrolls: false) }
         render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
-        // Sorted by Senast tillagt: one list across platforms, with the dates. The viewer's own
+        // Sorted by Recently Added: one list across platforms, with the dates. The viewer's own
         // choice is put back afterwards.
         let savedOrder = UserDefaults.standard.string(forKey: "gamesOrder")
         UserDefaults.standard.set(GameOrder.added.rawValue, forKey: "gamesOrder")
@@ -99,7 +99,7 @@ enum Snapshot {
             MaintenanceView(scrolls: false)
         }
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
-        // The review before "Uppdatera alla", and in the fixtures the report afterwards.
+        // The review before "Update All", and in the fixtures the report afterwards.
         write(UpdateReviewView(plan: apps.updatePlan(), scrolls: false).environment(console).environment(apps), name: "apps-review", into: directory)
         if usesFixtures {
             apps.loadFixtureReport()

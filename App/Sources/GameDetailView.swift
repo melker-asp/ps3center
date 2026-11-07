@@ -3,7 +3,7 @@ import PS3Kit
 import SwiftUI
 
 /// One game up close, opened from its tile: the XMB background as a banner like the PS
-/// Store's, title ID, size and version, and Spela / Montera / Ta bort.
+/// Store's, title ID, size and version, and Play / Mount / Delete.
 struct GameDetailView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
@@ -30,18 +30,18 @@ struct GameDetailView: View {
             await library.loadBackground(for: game)
         }
         .confirmationDialog(switchQuestion, isPresented: $confirmingSwitch, titleVisibility: .visible) {
-            Button(pendingStart == .play ? "Avsluta och starta" : "Avsluta och montera") {
+            Button(pendingStart == .play ? "Quit and Start" : "Quit and Mount") {
                 if pendingStart == .play {
                     library.play(game, exitingRunning: true)
                 } else {
                     library.mount(game, exitingRunning: true)
                 }
             }
-            Button("Avbryt", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         }
-        .confirmationDialog(game.isInstalled ? "Avinstallera \(game.title)?" : "Ta bort \(game.title)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button(game.isInstalled ? "Avinstallera" : "Ta bort", role: .destructive) { library.delete(game) }
-            Button("Avbryt", role: .cancel) {}
+        .confirmationDialog(game.isInstalled ? "Uninstall \(game.title)?" : "Delete \(game.title)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button(game.isInstalled ? "Uninstall" : "Delete", role: .destructive) { library.delete(game) }
+            Button("Cancel", role: .cancel) {}
         } message: {
             Text(deleteMessage)
         }
@@ -53,9 +53,9 @@ struct GameDetailView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
-                Text("Spel")
+                Text("Games")
             }
-            .font(.system(size: 14, weight: .semibold))
+            .font(.ui(.callout, weight: .semibold))
             .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
@@ -83,7 +83,7 @@ struct GameDetailView: View {
                 NoteBanner(text: failure)
             }
             if game.isInstalled {
-                NoteBanner(text: "Spelet är installerat i XMB:n och startas från sin ikon. Avinstallera tar bort det från hårddisken; sparfilerna ligger kvar.")
+                NoteBanner(text: "The game is installed in the XMB and starts from its icon. Uninstall removes it from the hard drive; the saves stay.")
             }
         }
         .padding(.bottom, 16)
@@ -102,7 +102,7 @@ struct GameDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.cardStroke))
         // A picture dropped on the banner becomes the game's cover.
         .droppingFile(scrolls) { library.setCustomCover(from: $0, for: game) }
-        .help(game.titleID == nil ? "" : "Dra en bild hit för att använda den som omslag")
+        .help(game.titleID == nil ? "" : "Drop a picture here to use it as the cover")
     }
 
     private var headerContent: some View {
@@ -112,7 +112,7 @@ struct GameDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Text(game.title)
-                        .font(.system(size: 30, weight: .light))
+                        .font(.ui(.display, weight: .light))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -122,13 +122,13 @@ struct GameDetailView: View {
                     }
                 }
                 Text(game.path)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.ui(.footnote, design: .monospaced))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if let played = console.playLog.record(for: game) {
-                    Text("Spelat \(Format.playTime(played.seconds)) · senast \(Format.day(played.lastPlayed))")
-                        .font(.system(size: 12))
+                    Text("Played \(Format.playTime(played.seconds)) · last \(Format.day(played.lastPlayed))")
+                        .font(.ui(.footnote))
                         .foregroundStyle(Color.white.opacity(0.7))
                 }
                 HStack(spacing: 10) { actions }
@@ -155,36 +155,38 @@ struct GameDetailView: View {
                 Spinner()
             }
             Text(busy.label)
-                .font(.system(size: 13, weight: .medium))
+                .font(.ui(.body, weight: .medium))
                 .foregroundStyle(Theme.secondaryText)
                 .monospacedDigit()
         } else {
             let state = console.playState(of: game)
             if state == .playing {
-                Button("Avsluta spelet") { library.exitGame(game) }
+                Button("Quit Game") { library.exitGame(game) }
                     .buttonStyle(PillButtonStyle())
             } else {
-                Button("Spela") { start(.play) }
+                Button("Play") { start(.play) }
                     .buttonStyle(PillButtonStyle())
                     .disabled(library.busy != nil)
                 if !game.isInstalled {
                     if state == .mounted {
-                        Button("Avmontera") { library.unmount(game) }
+                        Button("Unmount") { library.unmount(game) }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     } else {
-                        Button("Montera") { start(.mount) }
+                        Button("Mount") { start(.mount) }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     }
                 }
             }
             if canVerify {
-                Button("Kontrollera mot IRD") { library.verify(game) }
+                Button("Verify Against IRD") { library.verify(game) }
                     .buttonStyle(PillButtonStyle(prominent: false))
-                    .help("Jämför varje fil med originalskivan (IRD från FlexBy420:s databas). PS3:an räknar ut MD5, så det tar en stund.")
+                    .help("Compares every file with the original disc (IRD from FlexBy420's database). The PS3 computes the MD5s, so it takes a while.")
             }
             if state != .playing {
-                Button(game.isInstalled ? "Avinstallera" : "Ta bort") { confirmingDelete = true }
-                    .buttonStyle(PillButtonStyle(prominent: false))
+                // Apart from Play and Mount, and red, so it never reads as one of them.
+                Spacer(minLength: 24)
+                Button(game.isInstalled ? "Uninstall…" : "Delete…") { confirmingDelete = true }
+                    .buttonStyle(PillButtonStyle(destructive: true))
             }
         }
     }
@@ -201,15 +203,15 @@ struct GameDetailView: View {
             Image(systemName: finding.blocksPlay ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
                 .foregroundStyle(finding.blocksPlay ? Theme.warm : Theme.good)
             Text(finding.message)
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .foregroundStyle(Theme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
             if finding == .libCrypt(exe: LibCrypt.exe(for: game) ?? "", installed: false) {
-                Button("Lägg datan på PS3:an") {
+                Button("Copy the Data to the PS3") {
                     library.installLibCrypt(for: game, console: console.snapshot.map(ConsoleProfile.init(snapshot:)))
                 }
-                .buttonStyle(PillButtonStyle())
+                .buttonStyle(PillButtonStyle(tint: Theme.warm))
                 .disabled(library.busy != nil)
             }
         }
@@ -224,12 +226,12 @@ struct GameDetailView: View {
                 .foregroundStyle(report.isIntact ? Theme.good : Theme.warm)
             VStack(alignment: .leading, spacing: 4) {
                 Text(report.summary)
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(Array(report.mismatched.prefix(5)) + Array(report.missing.prefix(5)), id: \.self) { path in
                     Text(path)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.ui(.caption, design: .monospaced))
                         .foregroundStyle(Theme.secondaryText)
                 }
             }
@@ -240,7 +242,7 @@ struct GameDetailView: View {
             .fill((report.isIntact ? Theme.good : Theme.warm).opacity(0.1)))
     }
 
-    /// "Varna och vänta" for starting: a running game is only quit after a question.
+    /// "Warn and wait" for starting: a running game is only quit after a question.
     private func start(_ kind: Start) {
         if console.snapshot?.isGameRunning == true {
             pendingStart = kind
@@ -253,16 +255,16 @@ struct GameDetailView: View {
     }
 
     private var switchQuestion: String {
-        let running = console.snapshot?.mountedGameName ?? console.snapshot?.runningProcess ?? "Ett spel"
-        return "\(running) körs. Avsluta det och \(pendingStart == .play ? "starta" : "montera") \(game.title)?"
+        let running = console.snapshot?.mountedGameName ?? console.snapshot?.runningProcess ?? "A game"
+        return "\(running) is running. Quit it and \(pendingStart == .play ? "start" : "mount") \(game.title)?"
     }
 
     private var deleteMessage: String {
-        let freed = game.size.map { "\(Format.bytes($0)) frigörs på PS3:an. " } ?? ""
+        let freed = game.size.map { "This frees \(Format.bytes($0)) on the PS3. " } ?? ""
         if game.isInstalled {
-            return freed + "Spelet tas bort från hårddisken, men sparfilerna ligger kvar. Med Reload XMB installerat laddas XMB:n om så att ikonen försvinner."
+            return freed + "The game is removed from the hard drive, but the saves stay. With Reload XMB installed, the XMB reloads so the icon goes away."
         }
-        return freed + "Det går inte att ångra, men har du spelet kvar på Macen kan du skicka det igen."
+        return freed + "This can't be undone, but if the game is still on the Mac you can send it again."
     }
 
     // MARK: Cards
@@ -270,15 +272,15 @@ struct GameDetailView: View {
     private var cards: some View {
         HStack(spacing: 14) {
             Card(icon: "number", title: "Title ID", chip: game.region?.label) {
-                Text(game.titleID ?? "Okänt")
-                    .font(.system(size: 26, weight: .light, design: .monospaced))
+                Text(game.titleID ?? "Unknown")
+                    .font(.ui(.title, weight: .light, design: .monospaced))
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
-                Footnote(text: game.titleID == nil ? "Står inte i filnamnet, och webMAN har inte läst spelet än" : idFootnote)
+                Footnote(text: game.titleID == nil ? "Not in the file name, and webMAN hasn't read the game yet" : idFootnote)
             }
-            Card(icon: "internaldrive", title: "Storlek", chip: game.isOnUSB ? "USB" : "Hårddisk") {
+            Card(icon: "internaldrive", title: "Size", chip: game.isOnUSB ? "USB" : "Hard Drive") {
                 BigValue(value: sizeParts.value, unit: sizeParts.unit)
                 Spacer(minLength: 0)
                 Footnote(text: sizeFootnote)
@@ -293,15 +295,16 @@ struct GameDetailView: View {
     }
 
     private var versionChip: String? {
-        if library.patches[game.id]?.isEmpty == false { return "Uppdatering finns" }
-        return game.updateVersion == nil ? nil : "Uppdaterat"
+        // A pending update has its own banner above the cards; no chip repeats it.
+        if library.patches[game.id]?.isEmpty == false { return nil }
+        return game.updateVersion == nil ? nil : "Updated"
     }
 
     private var idFootnote: String {
-        game.region.map { "\(game.platform.label)-utgåva för \($0.label)" } ?? "\(game.platform.label)-spel"
+        game.region.map { "\(game.platform.label) release for \($0.label)" } ?? "\(game.platform.label) game"
     }
 
-    /// "9,64 GB" as a big number and its unit.
+    /// "9.64 GB" as a big number and its unit.
     private var sizeParts: (value: String, unit: String?) {
         guard let size = game.size else { return ("–", nil) }
         let parts = Format.bytes(size).split(whereSeparator: \.isWhitespace).map(String.init)
@@ -310,22 +313,23 @@ struct GameDetailView: View {
     }
 
     private var sizeFootnote: String {
-        if !game.companions.isEmpty { return "\(game.companions.count + 1) filer" }
-        if game.isInstalled { return "Installerat i /dev_hdd0/game" }
-        return game.isFolder ? "Spelmapp; storleken räknas inte" : "En fil"
+        if !game.companions.isEmpty { return "\(game.companions.count + 1) files" }
+        if game.isInstalled { return "Installed in /dev_hdd0/game" }
+        return game.isFolder ? "Game folder; the size isn't counted" : "One file"
     }
 
     private var versionFootnote: String {
         if let update = game.updateVersion {
-            return "Uppdatering \(update) installerad" + (game.version.map { ", skivan har \($0)" } ?? "")
+            return "Update \(update) installed" + (game.version.map { ", the disc has \($0)" } ?? "")
         }
-        if game.version != nil { return "Ingen uppdatering installerad" }
-        return game.platform == .ps3 || game.platform == .psn ? "Versionen är inte läst än" : "Versioner finns bara för PS3-spel"
+        if game.version != nil { return "No update installed" }
+        return game.platform == .ps3 || game.platform == .psn ? "The version hasn't been read yet" : "Only PS3 games have versions"
     }
 }
 
 /// Sony has newer patches: from what is installed to the latest, how many packages and how
-/// much, and the white Installera button. Says plainly that system software is never touched.
+/// much, and an Install button tinted like the banner (Play is the page's white button). Says
+/// plainly that system software is never touched.
 struct UpdateBanner: View {
     @Environment(GamesStore.self) private var library
     let game: Game
@@ -334,20 +338,20 @@ struct UpdateBanner: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "arrow.down.circle.fill")
-                .font(.system(size: 22))
+                .font(.ui(.title2))
                 .foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Uppdatering \(GameUpdateService.currentVersion(of: game) ?? "?") → \(patches.last?.version ?? "?")")
-                    .font(.system(size: 15, weight: .semibold))
+                Text("Update \(GameUpdateService.currentVersion(of: game) ?? "?") → \(patches.last?.version ?? "?")")
+                    .font(.ui(.headline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
-                Text("\(patches.count) paket från Sony · \(Format.bytes(patches.reduce(0) { $0 + $1.size })). Bara spelet uppdateras, aldrig systemprogramvaran.")
-                    .font(.system(size: 12))
+                Text("\(patches.count) \(patches.count == 1 ? "package" : "packages") from Sony · \(Format.bytes(patches.reduce(0) { $0 + $1.size })). Only the game is updated, never the system software.")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
             }
             Spacer()
             if library.busy?.id != game.id {
-                Button("Installera") { library.installUpdates(for: game) }
-                    .buttonStyle(PillButtonStyle())
+                Button("Install") { library.installUpdates(for: game) }
+                    .buttonStyle(PillButtonStyle(tint: Theme.accent))
                     .disabled(library.busy != nil)
             }
         }

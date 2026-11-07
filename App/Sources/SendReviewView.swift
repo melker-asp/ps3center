@@ -42,11 +42,11 @@ struct SendReviewView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Skicka till PS3:an")
-                .font(.system(size: 30, weight: .light))
+            Text("Send to PS3")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Spelen läggs i kön och skickas ett i taget. Avbryts något fortsätter det där det slutade.")
-                .font(.system(size: 13))
+            Text("The games join the queue and are sent one at a time. If something is interrupted, it resumes where it stopped.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 6)
                 .padding(.bottom, 16)
@@ -61,34 +61,34 @@ struct SendReviewView: View {
             Divider().overlay(Theme.cardStroke).padding(.vertical, 14)
 
             VStack(alignment: .leading, spacing: 8) {
-                fact("Att skicka", Format.bytes(total))
+                fact("To send", Format.bytes(total))
                 if let free = console.snapshot?.freeBytes {
                     let after = free - total
-                    fact("Ledigt på PS3:an", "\(Format.bytes(free)) → \(Format.bytes(max(after, 0)))", warn: after < 1_000_000_000)
+                    fact("Free on the PS3", "\(Format.bytes(free)) → \(Format.bytes(max(after, 0)))", warn: after < 1_000_000_000)
                 }
-                fact("Tid", timeText)
+                fact("Time", timeText)
                 if sendsPS2ISOToHEN {
                     Text(PlayCheck.Finding.ps2NeedsClassic.message)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if console.snapshot?.network == "Wi-Fi", total > 2_000_000_000 {
-                    Text("PS3:an är på Wi-Fi (bara 2,4 GHz). Med nätverkskabel tar det \(SpeedTest.cableEstimate(bytes: total))\(cableSource).")
-                        .font(.system(size: 12))
+                    Text("The PS3 is on Wi-Fi (2.4 GHz only). With a cable it takes \(SpeedTest.cableEstimate(bytes: total))\(cableSource).")
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if KeepAwake.isOnBattery {
                     Text(KeepAwake.batteryTip)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Text("NÄR KÖN ÄR KLAR")
-                .font(.system(size: 11, weight: .bold))
+            Text("WHEN THE QUEUE FINISHES")
+                .font(.ui(.caption, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 18)
@@ -98,10 +98,10 @@ struct SendReviewView: View {
             Spacer(minLength: 16)
             HStack(spacing: 10) {
                 Spacer()
-                Button("Avbryt") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
-                Button(chosen.count == 1 ? "Skicka \(chosen[0].title)" : "Skicka \(chosen.count) spel") {
+                Button(chosen.count == 1 ? "Send \(chosen[0].title)" : "Send \(chosen.count) Games") {
                     transfers.add(chosen.flatMap(\.routes))
                     library.selection.removeAll()
                     dismiss()
@@ -129,22 +129,22 @@ struct SendReviewView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 17))
+                    .font(.ui(.title3))
                     .foregroundStyle(on ? Theme.accent : Theme.tertiaryText)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(group.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.ui(.callout, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
-                    Text(group.routes.count == 1 ? group.routes[0].remote : "\(group.routes.count) filer till \((group.routes[0].remote as NSString).deletingLastPathComponent)")
-                        .font(.system(size: 11, design: .monospaced))
+                    Text(group.routes.count == 1 ? group.routes[0].remote : "\(group.routes.count) files to \((group.routes[0].remote as NSString).deletingLastPathComponent)")
+                        .font(.ui(.caption, design: .monospaced))
                         .foregroundStyle(Theme.tertiaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 Spacer()
                 Text(Format.bytes(group.size))
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .monospacedDigit()
             }
@@ -157,10 +157,10 @@ struct SendReviewView: View {
 
     private func fact(_ label: String, _ value: String, warn: Bool = false) -> some View {
         HStack {
-            Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            Text(label).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(warn ? Theme.hot : Theme.primaryText)
                 .monospacedDigit()
         }
@@ -168,19 +168,19 @@ struct SendReviewView: View {
 
     private var timeText: String {
         guard let speed = transfers.lastSpeed, speed.upload > 0 else {
-            return "mät hastigheten under Överföringar"
+            return "measure the speed under Transfers"
         }
         let network = speed.network.map { ", \($0)" } ?? ""
-        return "ca \(Format.duration(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
+        return "about \(Format.duration(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
     }
 
     /// Where the cable time comes from: a measurement over LAN, or what others report.
     private var cableSource: String {
-        SpeedTest.byNetwork()["LAN"] == nil ? ", räknat på 10–40 MB/s som andra har mätt" : " enligt din mätning med kabel"
+        SpeedTest.byNetwork()["LAN"] == nil ? ", based on the 10–40 MB/s others have measured" : " from your measurement with a cable"
     }
 }
 
-/// "När kön är klar": the PS app's dark segmented control with the queue's three endings.
+/// "When the queue finishes": the PS app's dark segmented control with the queue's three endings.
 struct WhenDonePicker: View {
     @Environment(TransferStore.self) private var transfers
 
@@ -191,7 +191,7 @@ struct WhenDonePicker: View {
                     transfers.setWhenDone(choice)
                 } label: {
                     Text(choice.label)
-                        .font(.system(size: 13, weight: transfers.queue.whenDone == choice ? .bold : .semibold))
+                        .font(.ui(.body, weight: transfers.queue.whenDone == choice ? .bold : .semibold))
                         .foregroundStyle(transfers.queue.whenDone == choice ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)

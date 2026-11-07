@@ -2,16 +2,16 @@ import AppKit
 import PS3Kit
 import SwiftUI
 
-/// The Spel tab: the console's games (or the Mac's game folders) as a grid of box art or XMB
+/// The Games tab: the console's games (or the Mac's game folders) as a grid of box art or XMB
 /// icons like the PS app's library, with a pill per platform and a search field. A click opens
 /// a console game's page, or picks a Mac game for sending.
 struct GamesView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(GamesStore.self) private var library
     @Environment(NetServerStore.self) private var netServer
-    /// Box art (Fodral) or XMB icons (Ikoner); remembered between launches.
+    /// Box art (Covers) or XMB icons (Icons); remembered between launches.
     @AppStorage("gamesShowCovers") private var showCovers = true
-    /// Namn (per platform, as the console lists them), Storlek or Senast tillagt.
+    /// Name (per platform, as the console lists them), Size or Recently Added.
     @AppStorage("gamesOrder") private var order: GameOrder = .name
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views or text fields.
     var scrolls = true
@@ -62,8 +62,8 @@ struct GamesView: View {
     private var toolbar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
-                sourceButton(.console, title: "PS3:an")
-                sourceButton(.mac, title: "Macen")
+                sourceButton(.console, title: "PS3")
+                sourceButton(.mac, title: "Mac")
             }
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
@@ -79,10 +79,10 @@ struct GamesView: View {
                             HStack(spacing: 6) {
                                 Text(item.title)
                                 Text("\(count)")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.ui(.footnote, weight: .semibold))
                                     .foregroundStyle(Theme.tertiaryText)
                             }
-                            .font(.system(size: 14, weight: library.filter == item ? .bold : .semibold))
+                            .font(.ui(.callout, weight: library.filter == item ? .bold : .semibold))
                             .foregroundStyle(library.filter == item ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                             .padding(.horizontal, 13)
                             .padding(.vertical, 8)
@@ -110,12 +110,12 @@ struct GamesView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(CircleIconButtonStyle())
-            .help(onMac ? "Läs om Macens spelmappar" : "Läs om spelen")
+            .iconLabel(onMac ? "Rescan the Mac's game folders" : "Rescan Games")
             .disabled(library.isLoading || library.isLoadingMac)
 
             HStack(spacing: 2) {
-                modeButton(covers: true, symbol: "rectangle.portrait.fill", help: "Fodral")
-                modeButton(covers: false, symbol: "rectangle.fill", help: "XMB-ikoner")
+                modeButton(covers: true, symbol: "rectangle.portrait.fill", help: "Covers")
+                modeButton(covers: false, symbol: "rectangle.fill", help: "XMB Icons")
                 Rectangle().fill(Color.white.opacity(0.15)).frame(width: 1, height: 16).padding(.horizontal, 2)
                 orderMenu
             }
@@ -133,15 +133,15 @@ struct GamesView: View {
                         Circle()
                             .fill(netServer.status.isRunning ? Theme.good : Theme.tertiaryText)
                             .frame(width: 8, height: 8)
-                        Text("Spelserver")
+                        Text("Game Server")
                     }
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
-                .help("Spela ISO:er direkt från Macen utan att kopiera dem")
+                .help("Play ISOs straight from the Mac without copying them")
                 Button {
                     showsFolders = true
                 } label: {
-                    Label("Spelmappar", systemImage: "folder")
+                    Label("Game Folders", systemImage: "folder")
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
             } else {
@@ -158,7 +158,7 @@ struct GamesView: View {
             }
         } label: {
             Text(title)
-                .font(.system(size: 14, weight: library.source == source ? .bold : .semibold))
+                .font(.ui(.callout, weight: library.source == source ? .bold : .semibold))
                 .foregroundStyle(library.source == source ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -173,28 +173,29 @@ struct GamesView: View {
             withAnimation(.easeInOut(duration: 0.2)) { showCovers = covers }
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(.footnote, weight: .semibold))
                 .foregroundStyle(showCovers == covers ? Theme.primaryText : Theme.tertiaryText)
                 .frame(width: 34, height: 28)
                 .background(Capsule().fill(showCovers == covers ? Color.white.opacity(0.14) : .clear))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(help)
+        .iconLabel(help)
+        .accessibilityAddTraits(showCovers == covers ? .isSelected : [])
     }
 
-    /// The sort order, beside Fodral and Ikoner, as a button that opens a menu. Lit while it is
+    /// The sort order, beside Covers and Icons, as a button that opens a menu. Lit while it is
     /// not by name.
     @ViewBuilder private var orderMenu: some View {
         let label = Image(systemName: "arrow.up.arrow.down")
-            .font(.system(size: 12, weight: .semibold))
+            .font(.ui(.footnote, weight: .semibold))
             .foregroundStyle(order == .name ? Theme.tertiaryText : Theme.primaryText)
             .frame(width: 34, height: 28)
             .background(Capsule().fill(order == .name ? .clear : Color.white.opacity(0.14)))
             .contentShape(Capsule())
         if scrolls {
             Menu {
-                Picker("Sortera", selection: $order) {
+                Picker("Sort By", selection: $order) {
                     ForEach(GameOrder.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.inline)
@@ -205,18 +206,18 @@ struct GamesView: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Sortera: \(order.label)")
+            .iconLabel("Sort by \(order.label.lowercased())")
         } else {
             label
         }
     }
 
-    /// "Sök uppdateringar" until Sony has been asked; then how many games have newer patches.
+    /// "Check for Updates" until Sony has been asked; then how many games have newer patches.
     @ViewBuilder private var updatesButton: some View {
         if library.isCheckingUpdates {
             HStack(spacing: 8) {
                 Spinner()
-                Text("Frågar Sony…").font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                Text("Asking Sony…").font(.ui(.footnote)).foregroundStyle(Theme.secondaryText)
             }
         } else {
             Button {
@@ -224,12 +225,12 @@ struct GamesView: View {
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "arrow.down.circle")
-                    Text(library.updatesChecked == nil ? "Sök uppdateringar" : library.updateCount == 0 ? "Inga uppdateringar" : "Uppdateringar")
+                    Text(library.updatesChecked == nil ? "Check for Updates" : library.updateCount == 0 ? "No Updates" : "Updates")
                     if library.updateCount > 0 { CountBadge(count: library.updateCount) }
                 }
             }
             .buttonStyle(PillButtonStyle(prominent: false))
-            .help("Officiella spelpatchar från Sonys uppdateringsserver. Systemprogramvaran rörs aldrig.")
+            .help("Official game patches from Sony's update server. The system software is never touched.")
         }
     }
 
@@ -244,16 +245,16 @@ struct GamesView: View {
     @ViewBuilder private var consoleContent: some View {
         let firstLoad = library.games.isEmpty && (library.phase == .idle || library.phase == .loading)
         if firstLoad {
-            centered(spinner: "Läser spelen på PS3:an…")
+            centered(spinner: "Reading the games on the PS3…")
         } else if case .failed(let message) = library.phase, library.games.isEmpty {
             VStack(spacing: 12) {
-                Text("Kunde inte läsa spelen").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.primaryText)
-                Text(message).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text("Couldn't read the games").font(.ui(.headline, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                Text(message).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if library.games.isEmpty {
-            emptyState(symbol: "opticaldisc", title: "Inga spel på PS3:an än",
-                       detail: "PS3 Center letar i PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO och DVDISO på hårddisken och USB-diskar, och bland installerade spel. Välj Macen ovan för att skicka spel.")
+            emptyState(symbol: "opticaldisc", title: "No games on the PS3 yet",
+                       detail: "PS3 Center looks in PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO and DVDISO on the hard drive and USB drives, and among installed games. Choose Mac above to send games.")
         } else {
             scrolling
         }
@@ -261,13 +262,13 @@ struct GamesView: View {
 
     @ViewBuilder private var macContent: some View {
         if !library.macLoaded {
-            centered(spinner: "Läser Macens spelmappar…")
+            centered(spinner: "Reading the Mac's game folders…")
         } else if library.macGames.isEmpty {
             VStack(spacing: 14) {
-                emptyState(symbol: "folder.badge.plus", title: "Inga spel i Macens spelmappar",
-                           detail: "Koppla mapparna där du har dina spel, en eller flera per typ: PS3ISO, PS2ISO, PSXISO och så vidare. Spelen visas här och kan skickas till PS3:an med ett klick.")
+                emptyState(symbol: "folder.badge.plus", title: "No games in the Mac's game folders",
+                           detail: "Add the folders where you keep your games, one or more per type: PS3ISO, PS2ISO, PSXISO and so on. The games show up here and go to the PS3 with one click.")
                     .frame(maxHeight: 220)
-                Button("Koppla spelmappar…") { showsFolders = true }
+                Button("Add Game Folders…") { showsFolders = true }
                     .buttonStyle(PillButtonStyle())
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -287,17 +288,17 @@ struct GamesView: View {
     private func centered(spinner text: String) -> some View {
         VStack(spacing: 12) {
             Spinner()
-            Text(text).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            Text(text).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func emptyState(symbol: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: symbol).font(.system(size: 34, weight: .light)).foregroundStyle(Theme.secondaryText)
-            Text(title).font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
+            Image(systemName: symbol).font(.ui(.largeTitle, weight: .light)).foregroundStyle(Theme.secondaryText)
+            Text(title).font(.ui(.title2, weight: .light)).foregroundStyle(Theme.primaryText)
             Text(detail)
-                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                .font(.ui(.body)).foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 480)
         }
@@ -310,52 +311,74 @@ struct GamesView: View {
         let visible = order.sorted(library.visible)
         return LazyVStack(alignment: .leading, spacing: 4) {
             if visible.isEmpty {
-                Text("Inget spel matchar ”\(library.search)”.")
-                    .font(.system(size: 14)).foregroundStyle(Theme.secondaryText)
+                Text("No game matches “\(library.search)”.")
+                    .font(.ui(.callout)).foregroundStyle(Theme.secondaryText)
                     .padding(14)
             }
             if order == .name {
-                ForEach(Game.Platform.allCases, id: \.self) { platform in
-                    let rows = visible.filter { $0.platform == platform }
-                    if !rows.isEmpty {
-                        SectionHeader(title: platform.label, count: rows.count)
-                        tiles(rows)
+                // Platforms with a few games share a row instead of leaving most of one empty;
+                // a platform with more keeps its own full-width grid.
+                ForEach(PlatformRun.runs(of: visible)) { run in
+                    if let big = run.big {
+                        SectionHeader(title: big.platform.label, count: big.games.count)
+                        tiles(big.games)
+                    } else {
+                        FlowLayout(spacing: 12) {
+                            ForEach(run.sections, id: \.platform) { compactSection($0) }
+                        }
                     }
                 }
             } else if !visible.isEmpty {
-                SectionHeader(title: order == .size ? "Störst först" : "Senast tillagda", count: visible.count)
+                SectionHeader(title: order == .size ? "Largest First" : "Recently Added", count: visible.count)
                 tiles(visible)
             }
         }
         .padding(.bottom, 12)
     }
 
+    /// A platform with few games: its header and tiles of a fixed width, sized to fit them.
+    private func compactSection(_ section: PlatformRun.Section) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionHeader(title: section.platform.label, count: section.games.count)
+            HStack(alignment: .top, spacing: 16) {
+                ForEach(section.games) {
+                    GameTile(game: $0, showCover: showCovers, showsAdded: false, showsPlatform: false)
+                        // The grid's minimum column width, so these tiles match the full-width grids.
+                        .frame(width: showCovers ? 170 : 200)
+                }
+            }
+            .padding(.horizontal, 14)
+        }
+    }
+
     private func tiles(_ rows: [Game]) -> some View {
         LazyVGrid(columns: [GridItem(showCovers ? .adaptive(minimum: 170, maximum: 220) : .adaptive(minimum: 200, maximum: 280), spacing: 16)],
                   alignment: .leading, spacing: 16) {
-            ForEach(rows) { GameTile(game: $0, showCover: showCovers, showsAdded: order == .added) }
+            // Grouped by platform, the section header already names it; sorted lists mix platforms.
+            ForEach(rows) { GameTile(game: $0, showCover: showCovers, showsAdded: order == .added, showsPlatform: order != .name) }
         }
         .padding(.horizontal, 14)
     }
 
-    /// "3 valda · 24,1 GB" and the white Skicka button, under the Mac's grid.
+    /// "3 selected · 24.1 GB" and the white Send button, under the Mac's grid. Games the console
+    /// already has are counted, since sending them again only resumes or skips them.
     private var selectionBar: some View {
         HStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
-            Text("\(library.selection.count) valda · \(Format.bytes(library.selectedSize))")
-                .font(.system(size: 14, weight: .semibold))
+            Text(selectionSummary)
+                .font(.ui(.callout, weight: .semibold))
                 .foregroundStyle(Theme.primaryText)
             Spacer()
-            Button("Avmarkera") { library.selection.removeAll() }
+            Button("Deselect") { library.selection.removeAll() }
                 .buttonStyle(PillButtonStyle(prominent: false))
             Button {
                 usbCopy = USBCopyRequest(games: library.selectedMacGames)
             } label: {
-                Label("Till USB-disk…", systemImage: "externaldrive")
+                Label("Copy to USB Drive…", systemImage: "externaldrive")
             }
             .buttonStyle(PillButtonStyle(prominent: false))
-            .help("Kopiera till en FAT32-disk för PS3:an. ISO:er över 4 GB delas, och en spelmapp med en så stor fil blir en ISO.")
-            Button("Skicka till PS3:an") {
+            .help("Copy to a FAT32 drive for the PS3. ISOs over 4 GB are split, and a game folder with a file that large becomes an ISO.")
+            Button("Send to PS3") {
                 let routes = library.selectedMacGames.flatMap { (try? $0.routes()) ?? [] }
                 review = SendReview(routes: routes)
             }
@@ -365,13 +388,19 @@ struct GamesView: View {
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.black.opacity(0.5)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.cardStroke))
     }
+
+    private var selectionSummary: String {
+        let already = library.selectedMacGames.filter { library.macStates[$0.id] == .onConsole }.count
+        let base = "\(library.selection.count) selected · \(Format.bytes(library.selectedSize))"
+        return already == 0 ? base : base + " · \(already) already on the PS3"
+    }
 }
 
 /// Whether a game is on the disc icon right now.
 enum GamePlayState {
     case playing, mounted
 
-    var label: String { self == .playing ? "Spelar" : "Monterad" }
+    var label: String { self == .playing ? "Playing" : "Mounted" }
 }
 
 extension ConsoleStore {
@@ -383,7 +412,7 @@ extension ConsoleStore {
 }
 
 /// A tile in the grid: the box art or XMB icon large, the title, platform and region, and a
-/// green "Spelar" while it runs. A Mac game shows whether the console has it, and a click
+/// green "Playing" while it runs. A Mac game shows whether the console has it, and a click
 /// picks it for sending instead of opening a page.
 struct GameTile: View {
     @Environment(ConsoleStore.self) private var console
@@ -391,21 +420,23 @@ struct GameTile: View {
     @Environment(NetServerStore.self) private var netServer
     let game: Game
     var showCover = true
-    /// The date it was added under the title instead of its size (sorted by Senast tillagt).
+    /// The date it was added under the title instead of its size (sorted by Recently Added).
     var showsAdded = false
+    /// The platform chip; off when the grid is grouped by platform.
+    var showsPlatform = true
     @State private var hovering = false
     @State private var confirmingSwitch = false
     @State private var makingClassic = false
 
     private var isSelected: Bool { library.selection.contains(game.id) }
 
-    /// "13,5 GB", or "Mapp"/"Installerat" when the size is not known; the date when sorted by it.
+    /// "13.5 GB", or "Folder"/"Installed" when the size is not known; the date when sorted by it.
     private var footnote: String {
         if showsAdded, let added = game.added { return Format.day(added) }
-        return game.size.map(Format.bytes) ?? (game.isInstalled ? "Installerat" : "Mapp")
+        return game.size.map(Format.bytes) ?? (game.isInstalled ? "Installed" : "Folder")
     }
 
-    /// "Varna och vänta" for starting: a running game is only quit after a question.
+    /// "Warn and wait" for starting: a running game is only quit after a question.
     private func playFromMac() {
         if console.snapshot?.isGameRunning == true {
             confirmingSwitch = true
@@ -415,8 +446,8 @@ struct GameTile: View {
     }
 
     private var switchQuestion: String {
-        let running = console.snapshot?.mountedGameName ?? console.snapshot?.runningProcess ?? "Ett spel"
-        return "\(running) körs. Avsluta det och starta \(game.title)?"
+        let running = console.snapshot?.mountedGameName ?? console.snapshot?.runningProcess ?? "A game"
+        return "\(running) is running. Quit it and start \(game.title)?"
     }
 
     var body: some View {
@@ -435,27 +466,33 @@ struct GameTile: View {
                 .overlay(alignment: .topLeading) {
                     if game.isOnUSB { Chip(text: "USB").padding(8) }
                 }
+                // On the cover, so the size underneath is never cut short by it.
+                .overlay(alignment: .topTrailing) {
+                    if !game.isOnMac, console.playState(of: game) == nil, let latest = library.patches[game.id]?.last {
+                        Chip(text: "Update \(latest.version)", color: Theme.accent).padding(8)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if game.isOnMac {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.ui(.title2, weight: .semibold))
                             .foregroundStyle(isSelected ? Theme.accent : Color.white.opacity(0.7))
                             .background(Circle().fill(Color.black.opacity(0.35)).padding(2))
                             .padding(8)
                     }
                 }
             Text(game.title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.ui(.callout, weight: .semibold))
                 .foregroundStyle(Theme.primaryText)
                 .lineLimit(2, reservesSpace: true)
             HStack(spacing: 6) {
-                Chip(text: game.platform.label)
+                if showsPlatform { Chip(text: game.platform.label) }
                 if let region = game.region { Chip(text: region.label) }
                 Spacer(minLength: 0)
             }
             HStack(spacing: 6) {
                 Text(footnote)
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
                 Spacer(minLength: 4)
@@ -477,18 +514,18 @@ struct GameTile: View {
         .help(game.title)
         .contextMenu {
             if game.isOnMac {
-                Button("Spela från Macen") { playFromMac() }
+                Button("Play from Mac") { playFromMac() }
                     .disabled(!netServer.status.isRunning || game.netPath == nil || game.isFolder)
-                Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: game.path)]) }
                 if game.platform == .ps2, !PS2Classic.isClassic(game.path) {
-                    Button("Gör om till PS2 Classic…") { makingClassic = true }
+                    Button("Convert to PS2 Classic…") { makingClassic = true }
                 }
             }
         }
         .sheet(isPresented: $makingClassic) { PS2ClassicView(game: game) }
         .confirmationDialog(switchQuestion, isPresented: $confirmingSwitch, titleVisibility: .visible) {
-            Button("Avsluta och starta") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
-            Button("Avbryt", role: .cancel) {}
+            Button("Quit and Start") { library.playFromMac(game, slot: netServer.slot, exitingRunning: true) }
+            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -500,14 +537,12 @@ struct GameTile: View {
     @ViewBuilder private var status: some View {
         if game.isOnMac {
             switch library.macStates[game.id] {
-            case .onConsole?: Chip(text: "På PS3:an", color: Theme.good)
-            case .partial?: Chip(text: "Delvis", color: Theme.warm)
+            case .onConsole?: Chip(text: "On PS3", color: Theme.good)
+            case .partial?: Chip(text: "Partial", color: Theme.warm)
             default: EmptyView()
             }
         } else if let state = console.playState(of: game) {
             Chip(text: state.label, color: Theme.good)
-        } else if let latest = library.patches[game.id]?.last {
-            Chip(text: "↑ \(latest.version)", color: Theme.accent)
         }
     }
 }
@@ -576,16 +611,16 @@ struct SearchField: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Theme.tertiaryText)
             if interactive {
-                TextField("Sök spel eller title ID", text: $text)
+                TextField("Search games or title ID", text: $text)
                     .textFieldStyle(.plain)
                     .foregroundStyle(Theme.primaryText)
             } else {
-                Text(text.isEmpty ? "Sök spel eller title ID" : text)
+                Text(text.isEmpty ? "Search games or title ID" : text)
                     .foregroundStyle(Theme.tertiaryText)
                 Spacer(minLength: 0)
             }
         }
-        .font(.system(size: 13))
+        .font(.ui(.body))
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .frame(minWidth: 140, maxWidth: 240)
@@ -593,7 +628,7 @@ struct SearchField: View {
     }
 }
 
-/// Box art for the Fodral grid: the cover fitted on a dark plate, else the XMB icon, else the
+/// Box art for the Covers grid: the cover fitted on a dark plate, else the XMB icon, else the
 /// platform's placeholder.
 struct GameCover: View {
     let cover: NSImage?
@@ -618,5 +653,82 @@ struct GameCover: View {
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
+    }
+}
+
+/// Consecutive platforms with few games, grouped so they can share a row, or one platform with
+/// more games on its own.
+struct PlatformRun: Identifiable {
+    struct Section { let platform: Game.Platform; let games: [Game] }
+
+    /// Up to this many games, a platform is small enough to share a row.
+    static let compactLimit = 3
+
+    let sections: [Section]
+    var id: Game.Platform { sections[0].platform }
+    var big: Section? { sections.count == 1 && sections[0].games.count > Self.compactLimit ? sections[0] : nil }
+
+    static func runs(of games: [Game]) -> [PlatformRun] {
+        var runs: [PlatformRun] = []
+        var small: [Section] = []
+        for platform in Game.Platform.allCases {
+            let rows = games.filter { $0.platform == platform }
+            guard !rows.isEmpty else { continue }
+            if rows.count > compactLimit {
+                if !small.isEmpty { runs.append(PlatformRun(sections: small)); small = [] }
+                runs.append(PlatformRun(sections: [Section(platform: platform, games: rows)]))
+            } else {
+                small.append(Section(platform: platform, games: rows))
+            }
+        }
+        if !small.isEmpty { runs.append(PlatformRun(sections: small)) }
+        return runs
+    }
+}
+
+/// Lays its blocks out left to right and wraps to a new line when the next one does not fit,
+/// like words in a paragraph. Each block keeps its ideal size.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 12
+    var lineSpacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let height = lines.last.map { $0.y + $0.height } ?? 0
+        return CGSize(width: proposal.width ?? lines.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for line in arrange(width: bounds.width, subviews: subviews) {
+            for item in line.items {
+                subviews[item.index].place(at: CGPoint(x: bounds.minX + item.x, y: bounds.minY + line.y),
+                                           proposal: ProposedViewSize(item.size))
+            }
+        }
+    }
+
+    private struct Line {
+        var items: [(index: Int, x: CGFloat, size: CGSize)] = []
+        var y: CGFloat = 0
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Line] {
+        var lines = [Line()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            var line = lines[lines.count - 1]
+            let x = line.items.isEmpty ? 0 : line.width + spacing
+            if !line.items.isEmpty, x + size.width > width {
+                lines.append(Line(items: [(index, 0, size)], y: line.y + line.height + lineSpacing, width: size.width, height: size.height))
+            } else {
+                line.items.append((index, x, size))
+                line.width = x + size.width
+                line.height = max(line.height, size.height)
+                lines[lines.count - 1] = line
+            }
+        }
+        return lines
     }
 }

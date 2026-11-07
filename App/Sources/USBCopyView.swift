@@ -106,7 +106,7 @@ final class USBCopyModel {
         finishedBytes = 0
         copied = []
         alreadyThere = []
-        awake = KeepAwake(reason: "Kopierar spel till en USB-disk")
+        awake = KeepAwake(reason: "Copying games to a USB drive")
         let copies = plan.copies
         // Off the main thread: the copy reads and writes for minutes. The store is MainActor
         // (and so Sendable); events hop back to it.
@@ -171,7 +171,7 @@ final class USBCopyModel {
     }
 }
 
-/// "Kopiera till en USB-disk": the drives as pills, the games with where they go and what
+/// "Copy to a USB Drive": the drives as pills, the games with where they go and what
 /// happens to them (split, made into an ISO), the drive's free space before and after, and a
 /// white button that says what happens.
 struct USBCopyView: View {
@@ -193,11 +193,11 @@ struct USBCopyView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Kopiera till en USB-disk")
-                .font(.system(size: 30, weight: .light))
+            Text("Copy to a USB Drive")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Snabbast för många spel. PS3:an läser USB-diskar i FAT32, som inte rymmer filer över 4 GB. Större ISO:er delas därför i .iso.0, .iso.1 …, och en spelmapp med en så stor fil blir en ISO. webMAN startar dem direkt från disken.")
-                .font(.system(size: 13))
+            Text("Fastest for many games. The PS3 reads USB drives in FAT32, which can't hold files over 4 GB. Larger ISOs are split into .iso.0, .iso.1 …, and a game folder with a file that large becomes an ISO. webMAN starts them straight from the drive.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -207,8 +207,8 @@ struct USBCopyView: View {
                 .padding(.bottom, 12)
 
             if let volume = model.selected, !volume.isFAT32 {
-                Text("\(volume.name) är \(volume.format). PS3:an läser bara FAT32: formatera disken som ”MS-DOS (FAT)” i Skivverktyg (det raderar allt på den).")
-                    .font(.system(size: 12))
+                Text("\(volume.name) is \(volume.format). The PS3 only reads FAT32: format the drive as “MS-DOS (FAT)” in Disk Utility (that erases everything on it).")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.warm)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 8)
@@ -247,8 +247,8 @@ struct USBCopyView: View {
     private var drivePicker: some View {
         Group {
             if model.volumes.isEmpty {
-                Text("Ingen USB-disk är ansluten. Sätt i en disk som är formaterad som ”MS-DOS (FAT)”.")
-                    .font(.system(size: 13))
+                Text("No USB drive is connected. Plug in a drive formatted as “MS-DOS (FAT)”.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
             } else {
                 HStack(spacing: 2) {
@@ -261,11 +261,11 @@ struct USBCopyView: View {
                                 Image(systemName: "externaldrive.fill")
                                     .foregroundStyle(volume.isFAT32 ? Theme.accent : Theme.tertiaryText)
                                 Text(volume.name)
-                                Text("\(volume.isFAT32 ? "FAT32" : volume.format) · \(Format.bytes(volume.free)) ledigt")
-                                    .font(.system(size: 12, weight: .semibold))
+                                Text("\(volume.isFAT32 ? "FAT32" : volume.format) · \(Format.bytes(volume.free)) free")
+                                    .font(.ui(.footnote, weight: .semibold))
                                     .foregroundStyle(Theme.tertiaryText)
                             }
-                            .font(.system(size: 14, weight: chosen ? .bold : .semibold))
+                            .font(.ui(.callout, weight: chosen ? .bold : .semibold))
                             .foregroundStyle(chosen ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                             .padding(.horizontal, 13)
                             .padding(.vertical, 8)
@@ -288,7 +288,7 @@ struct USBCopyView: View {
             if model.isPlanning {
                 HStack(spacing: 10) {
                     Spinner()
-                    Text("Läser spelen…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                    Text("Reading the games…").font(.ui(.body)).foregroundStyle(Theme.secondaryText)
                 }
                 .padding(10)
             }
@@ -304,28 +304,28 @@ struct USBCopyView: View {
         let done = model.copied.contains(title) || model.alreadyThere.contains(title)
         return HStack(spacing: 12) {
             Image(systemName: done ? "checkmark.circle.fill" : GameArtwork.symbol(for: first.game.platform))
-                .font(.system(size: 17))
+                .font(.ui(.title3))
                 .foregroundStyle(done ? Theme.good : Theme.accent)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.ui(.callout, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
-                    if first.kind == .isoFromFolder { Chip(text: "BLIR EN ISO", color: Theme.warm) }
-                    if first.parts > 1 { Chip(text: "\(first.parts) DELAR") }
-                    if model.alreadyThere.contains(title) { Chip(text: "FINNS REDAN", color: Theme.good) }
+                    if first.kind == .isoFromFolder { Chip(text: "Becomes an ISO", color: Theme.warm) }
+                    if first.parts > 1 { Chip(text: "\(first.parts) parts") }
+                    if model.alreadyThere.contains(title) { Chip(text: "Already there", color: Theme.good) }
                 }
-                Text(copies.count == 1 ? place : "\(copies.count) filer till \((place as NSString).deletingLastPathComponent)")
-                    .font(.system(size: 11, design: .monospaced))
+                Text(copies.count == 1 ? place : "\(copies.count) files to \((place as NSString).deletingLastPathComponent)")
+                    .font(.ui(.caption, design: .monospaced))
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
             Spacer()
             Text(Format.bytes(copies.reduce(0) { $0 + $1.size }))
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .monospacedDigit()
         }
@@ -336,22 +336,22 @@ struct USBCopyView: View {
     private func skippedRow(_ game: Game, _ reason: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "minus.circle")
-                .font(.system(size: 17))
+                .font(.ui(.title3))
                 .foregroundStyle(Theme.tertiaryText)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
                 Text(game.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.ui(.callout, weight: .semibold))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                 Text(reason)
-                    .font(.system(size: 11))
+                    .font(.ui(.caption))
                     .foregroundStyle(Theme.warm)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Text("Hoppar över")
-                .font(.system(size: 12))
+            Text("Skipped")
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.tertiaryText)
         }
         .padding(.horizontal, 10)
@@ -365,45 +365,45 @@ struct USBCopyView: View {
             case .copying:
                 let total = max(model.plan.total, 1)
                 HStack {
-                    Text(model.currentTitle.map { "Kopierar \($0)" } ?? "Kopierar…")
-                        .font(.system(size: 13, weight: .semibold))
+                    Text(model.currentTitle.map { "Copying \($0)" } ?? "Copying…")
+                        .font(.ui(.body, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     Spacer()
                     Text("\(Int(Double(model.written) / Double(total) * 100)) %")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.ui(.body, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .monospacedDigit()
                 }
                 PSProgressBar(fraction: Double(model.written) / Double(total))
                 Text(progressText(total: total))
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
                     .monospacedDigit()
             case .done:
-                Text(model.alreadyThere.isEmpty ? "Klart. Mata ut disken, sätt den i PS3:an och uppdatera spellistan."
-                     : "Klart (\(model.alreadyThere.count) fanns redan på disken). Mata ut disken, sätt den i PS3:an och uppdatera spellistan.")
-                    .font(.system(size: 13, weight: .semibold))
+                Text(model.alreadyThere.isEmpty ? "Done. Eject the drive, plug it into the PS3 and refresh the game list."
+                     : "Done (\(model.alreadyThere.count) were already on the drive). Eject the drive, plug it into the PS3 and refresh the game list.")
+                    .font(.ui(.body, weight: .semibold))
                     .foregroundStyle(Theme.good)
                     .fixedSize(horizontal: false, vertical: true)
             case .failed(let message):
-                Text("Kopieringen stannade: \(message) Det som hann bli klart ligger kvar; det som inte blev klart är borttaget.")
-                    .font(.system(size: 13))
+                Text("The copy stopped: \(message) What was finished stays; what wasn't is removed.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.hot)
                     .fixedSize(horizontal: false, vertical: true)
             case .review:
-                fact("Att kopiera", Format.bytes(model.plan.total))
+                fact("To copy", Format.bytes(model.plan.total))
                 if let volume = model.selected {
                     let after = volume.free - model.plan.total
-                    fact("Ledigt på \(volume.name)", "\(Format.bytes(volume.free)) → \(Format.bytes(max(after, 0)))", warn: after < 0)
+                    fact("Free on “\(volume.name)”", "\(Format.bytes(volume.free)) → \(Format.bytes(max(after, 0)))", warn: after < 0)
                 }
             }
             if let ejectError {
-                Text(ejectError).font(.system(size: 12)).foregroundStyle(Theme.hot)
+                Text(ejectError).font(.ui(.footnote)).foregroundStyle(Theme.hot)
             }
             if model.phase == .copying, KeepAwake.isOnBattery {
                 Text(KeepAwake.batteryTip)
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.warm)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -411,8 +411,8 @@ struct USBCopyView: View {
     }
 
     private func progressText(total: Int64) -> String {
-        let left = model.rate > 0 ? " · \(Format.duration(Double(total - model.written) / model.rate)) kvar" : ""
-        return "\(Format.bytes(model.written)) av \(Format.bytes(total)) · \(Format.rate(model.rate))\(left)"
+        let left = model.rate > 0 ? " · \(Format.duration(Double(total - model.written) / model.rate)) left" : ""
+        return "\(Format.bytes(model.written)) of \(Format.bytes(total)) · \(Format.rate(model.rate))\(left)"
     }
 
     private var buttons: some View {
@@ -420,32 +420,32 @@ struct USBCopyView: View {
             Spacer()
             switch model.phase {
             case .copying:
-                Button("Avbryt kopieringen") { model.cancel() }
+                Button("Stop Copying") { model.cancel() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
             case .done:
                 if let volume = model.selected {
-                    Button("Mata ut \(volume.name)") {
+                    Button("Eject “\(volume.name)”") {
                         Task {
                             do {
                                 try await model.eject()
                                 onDone()
                                 dismiss()
                             } catch {
-                                ejectError = "\(volume.name) gick inte att mata ut: \(error.localizedDescription)"
+                                ejectError = "“\(volume.name)” couldn't be ejected: \(error.localizedDescription)"
                             }
                         }
                     }
                     .buttonStyle(PillButtonStyle(prominent: false))
                 }
-                Button("Klar") {
+                Button("Done") {
                     onDone()
                     dismiss()
                 }
                 .buttonStyle(PillButtonStyle())
                 .keyboardShortcut(.defaultAction)
             case .review, .failed:
-                Button("Avbryt") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
                 Button(primaryTitle) { model.start() }
@@ -458,17 +458,18 @@ struct USBCopyView: View {
 
     private var primaryTitle: String {
         let count = model.entries.count
-        let target = model.selected.map { " till \($0.name)" } ?? ""
-        if case .failed = model.phase { return "Försök igen" }
-        return count == 1 ? "Kopiera \(model.entries[0].title)\(target)" : "Kopiera \(count) spel\(target)"
+        // The drive is quoted and called a drive, so one named "PS3" is never read as the console.
+        let target = model.selected.map { " to “\($0.name)”" } ?? ""
+        if case .failed = model.phase { return "Try Again" }
+        return count == 1 ? "Copy \(model.entries[0].title)\(target)" : "Copy \(count) Games\(target)"
     }
 
     private func fact(_ label: String, _ value: String, warn: Bool = false) -> some View {
         HStack {
-            Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            Text(label).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(warn ? Theme.hot : Theme.primaryText)
                 .monospacedDigit()
         }

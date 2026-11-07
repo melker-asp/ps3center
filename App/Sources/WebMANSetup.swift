@@ -47,26 +47,26 @@ final class WebMANSetup: NSObject, WKNavigationDelegate {
         let before = try await read()
         let slots = before.slots ?? []
         guard !slots.isEmpty else {
-            throw PS3Error.refused("webMAN:s inställningar har inga nätverksservrar. Den här versionen av webMAN kan inte spela från en ps3netsrv.")
+            throw PS3Error.refused("webMAN's settings have no network servers. This version of webMAN can't play from a ps3netsrv.")
         }
         if let ready = slots.firstIndex(where: { $0.enabled && $0.host == address && $0.port == port }) { return ready }
         guard let slot = slots.firstIndex(where: { $0.host == address }) ?? slots.firstIndex(where: { $0.host.isEmpty }) else {
-            throw PS3Error.refused("Alla \(slots.count) nätverksservrar i webMAN används redan. Ändra en av dem själv i webMAN:s inställningar.")
+            throw PS3Error.refused("All \(slots.count) network servers in webMAN are already in use. Change one of them yourself in webMAN's settings.")
         }
 
         let changed = try await read(filling: slot, address: address, port: port)
         guard let query = changed.query, query.contains("ic=") else {
-            throw PS3Error.refused("webMAN:s inställningssida såg inte ut som väntat, så inget skickades.")
+            throw PS3Error.refused("webMAN's settings page didn't look as expected, so nothing was sent.")
         }
-        OperationLog.record("webman-setup", "nätverksserver \(slot + 1) = \(address):\(port)")
+        OperationLog.record("webman-setup", "network server \(slot + 1) = \(address):\(port)")
         try await WebMAN(host: host).get(encoded: "/setup.ps3?" + query, timeout: 20)
 
         // Every field should come back as it was sent.
         try await load()
-        guard let saved = try await read().query else { throw PS3Error.refused("webMAN:s inställningar gick inte att läsa efteråt.") }
+        guard let saved = try await read().query else { throw PS3Error.refused("webMAN's settings couldn't be read afterwards.") }
         let differing = WebMANSettings.differences(sent: query, saved: saved)
         guard differing.isEmpty else {
-            throw PS3Error.refused("webMAN sparade inte allt som det var (\(differing.joined(separator: ", "))). En kopia av inställningarna från före ändringen ligger i Systemfiler under Underhåll.")
+            throw PS3Error.refused("webMAN didn't save everything as it was (\(differing.joined(separator: ", "))). A copy of the settings from before the change is in System Files under Maintenance.")
         }
         return slot
     }
@@ -110,10 +110,10 @@ final class WebMANSetup: NSObject, WKNavigationDelegate {
         """
         guard let json = try await webView.evaluateJavaScript(script) as? String,
               let form = try? JSONDecoder().decode(Form.self, from: Data(json.utf8)) else {
-            throw PS3Error.refused("webMAN:s inställningssida gick inte att läsa.")
+            throw PS3Error.refused("webMAN's settings page couldn't be read.")
         }
         if let error = form.error {
-            throw PS3Error.refused("webMAN:s inställningssida såg inte ut som väntat (\(error)), så inget ändrades.")
+            throw PS3Error.refused("webMAN's settings page didn't look as expected (\(error)), so nothing changed.")
         }
         return form
     }

@@ -1,12 +1,11 @@
 import PS3Kit
 import SwiftUI
 
-/// Överföringar: the send queue with progress, Starta/Pausa, what happens when it is done, the
+/// Transfers: the send queue with progress, Start/Pause, what happens when it is done, the
 /// MD5 check and the measured speed. Opened from the arrows in the top bar.
 struct TransfersView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(TransferStore.self) private var transfers
-    @Environment(\.dismiss) private var dismiss
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views.
     var scrolls = true
 
@@ -18,8 +17,8 @@ struct TransfersView: View {
             }
             Group {
                 if transfers.queue.items.isEmpty {
-                    Text("Kön är tom. Välj spel under Macen i Spel-fliken, eller dra filer till fönstret.")
-                        .font(.system(size: 13))
+                    Text("The queue is empty. Pick games under Mac in the Games tab, or drag files onto the window.")
+                        .font(.ui(.body))
                         .foregroundStyle(Theme.secondaryText)
                         .frame(maxWidth: .infinity, minHeight: 120)
                 } else if scrolls {
@@ -34,11 +33,9 @@ struct TransfersView: View {
             settings
             Spacer(minLength: 16)
             HStack {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut(.cancelAction)
-                    .help("Tillbaka")
                 Spacer()
+                // Outlined while Start is the sheet's white button.
+                DoneButton(prominent: transfers.isRunning || transfers.pending.isEmpty)
             }
         }
         .padding(32)
@@ -49,24 +46,24 @@ struct TransfersView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Överföringar")
-                    .font(.system(size: 30, weight: .light))
+                Text("Transfers")
+                    .font(.ui(.display, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                 Text(summary)
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .monospacedDigit()
             }
             Spacer()
             if transfers.isRunning {
-                Button("Pausa") { transfers.pause() }
+                Button("Pause") { transfers.pause() }
                     .buttonStyle(PillButtonStyle(prominent: false))
             } else if !transfers.pending.isEmpty {
-                Button("Starta") { transfers.start() }
+                Button("Start") { transfers.start() }
                     .buttonStyle(PillButtonStyle())
             }
             if transfers.queue.items.contains(where: { $0.state == .done }) {
-                Button("Rensa klara") { transfers.clearFinished() }
+                Button("Clear Finished") { transfers.clearFinished() }
                     .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
@@ -74,10 +71,10 @@ struct TransfersView: View {
 
     private var summary: String {
         let pending = transfers.pending.count
-        guard pending > 0 else { return "Inget kvar att skicka" }
-        var parts = ["\(pending) kvar", Format.bytes(transfers.remainingBytes)]
+        guard pending > 0 else { return "Nothing left to send" }
+        var parts = ["\(pending) left", Format.bytes(transfers.remainingBytes)]
         if transfers.isRunning, transfers.rate > 0 { parts.append(Format.rate(transfers.rate)) }
-        if let eta = transfers.eta { parts.append("ca \(Format.duration(eta)) kvar") }
+        if let eta = transfers.eta { parts.append("about \(Format.duration(eta)) left") }
         return parts.joined(separator: " · ")
     }
 
@@ -94,19 +91,19 @@ struct TransfersView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(item.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.ui(.callout, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     Spacer()
-                    Text(item.state == .done ? Format.bytes(item.total) : "\(Format.bytes(item.sent)) av \(Format.bytes(item.total))")
-                        .font(.system(size: 12))
+                    Text(item.state == .done ? Format.bytes(item.total) : "\(Format.bytes(item.sent)) of \(Format.bytes(item.total))")
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.secondaryText)
                         .monospacedDigit()
                 }
                 if item.state == .failed, let message = item.message {
                     Text(message)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.hot)
+                        .font(.ui(.footnote))
+                        .foregroundStyle(Theme.hotText)
                         .lineLimit(2)
                 } else if item.state != .done {
                     PSProgressBar(fraction: item.fraction)
@@ -116,13 +113,13 @@ struct TransfersView: View {
                 Button { transfers.retry(item.id) } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.secondaryText)
-                    .help("Försök igen")
+                    .iconLabel("Try Again")
             }
             if item.id != transfers.current {
                 Button { transfers.remove(item.id) } label: { Image(systemName: "xmark.circle") }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.tertiaryText)
-                    .help("Ta bort ur kön (filer på PS3:an rörs inte)")
+                    .iconLabel("Remove from the queue (files on the PS3 are not touched)")
             }
         }
         .padding(12)
@@ -147,66 +144,74 @@ struct TransfersView: View {
     private var settings: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("När kön är klar").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text("When the queue finishes").font(.ui(.body)).foregroundStyle(Theme.secondaryText)
                 Spacer()
                 WhenDonePicker()
             }
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Kontrollera med MD5").font(.system(size: 13)).foregroundStyle(Theme.primaryText)
-                    Text("PS3:an räknar en kontrollsumma för varje stort spel; tar några minuter per spel.")
-                        .font(.system(size: 11)).foregroundStyle(Theme.tertiaryText)
+                    Text("Verify with MD5").font(.ui(.body)).foregroundStyle(Theme.primaryText)
+                    Text("The PS3 computes a checksum for each large game; takes a few minutes per game.")
+                        .font(.ui(.caption)).foregroundStyle(Theme.tertiaryText)
                 }
                 Spacer()
-                PillToggle(isOn: transfers.queue.verify) { transfers.setVerify($0) }
+                PillToggle(isOn: transfers.queue.verify, label: "Verify with MD5") { transfers.setVerify($0) }
             }
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Hastighet").font(.system(size: 13)).foregroundStyle(Theme.primaryText)
-                    Text(speedText).font(.system(size: 11)).foregroundStyle(Theme.tertiaryText)
+                    Text("Speed").font(.ui(.body)).foregroundStyle(Theme.primaryText)
+                    Text(speedText).font(.ui(.caption)).foregroundStyle(Theme.tertiaryText)
                     if let error = transfers.measureError {
-                        Text(error).font(.system(size: 11)).foregroundStyle(Theme.hot).fixedSize(horizontal: false, vertical: true)
+                        Text(error).font(.ui(.caption)).foregroundStyle(Theme.hotText).fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
                 if transfers.isMeasuring {
                     HStack(spacing: 8) {
                         Spinner()
-                        Text(transfers.measureStep ?? "Mäter…").font(.system(size: 12)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                        Text(transfers.measureStep ?? "Measuring…").font(.ui(.footnote)).foregroundStyle(Theme.secondaryText).monospacedDigit()
                     }
                 } else {
-                    Button("Mät hastigheten") { Task { await transfers.measureSpeed() } }
+                    Button("Measure Speed") { Task { await transfers.measureSpeed() } }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(transfers.isRunning)
-                        .help(transfers.isRunning ? "Pausa kön först; mätningen och kön delar på PS3:ans FTP" : "Skickar till PS3:an i fem sekunder och läser tillbaka det som kom fram")
+                        .help(transfers.isRunning ? "Pause the queue first; the test and the queue share the PS3's FTP" : "Sends to the PS3 for five seconds and reads back what arrived")
                 }
             }
             if (transfers.lastSpeed?.network ?? console.snapshot?.network) == "Wi-Fi" {
-                Text("PS3:an är på Wi-Fi, som bara klarar 2,4 GHz. Med nätverkskabel tar 10 GB \(SpeedTest.cableEstimate(bytes: 10_000_000_000)). Macen hålls vaken medan kön går, och PS3:an stängs inte av mitt i en överföring.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.warm)
-                    .fixedSize(horizontal: false, vertical: true)
+                // One line with a mark instead of a paragraph in yellow; the reassurance is in the tooltip.
+                tip("wifi", "Wi-Fi only does 2.4 GHz on the PS3. With a cable, 10 GB takes \(SpeedTest.cableEstimate(bytes: 10_000_000_000)).")
+                    .help("The Mac stays awake while the queue runs, and the PS3 is never shut down in the middle of a transfer.")
             }
             if KeepAwake.isOnBattery, !transfers.queue.pending.isEmpty {
-                Text(KeepAwake.batteryTip)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.warm)
-                    .fixedSize(horizontal: false, vertical: true)
+                tip("battery.50", KeepAwake.batteryTip)
             }
         }
     }
 
+    private func tip(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(Theme.warm)
+            Text(text)
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.ui(.footnote))
+    }
+
     private var speedText: String {
-        guard let speed = transfers.lastSpeed else { return "Inte mätt än: mät för en tidsberäkning i kön." }
-        let date = speed.measuredAt.formatted(date: .abbreviated, time: .omitted)
-        let network = speed.network.map { " över \($0)" } ?? ""
-        return "\(Format.rate(speed.upload)) till PS3:an\(network) · 10 GB tar ca \(Format.duration(10e9 / speed.upload)) · mätt \(date)"
+        guard let speed = transfers.lastSpeed else { return "Not measured yet: measure for a time estimate in the queue." }
+        // Format.day is always English; `formatted(date:)` followed the system language.
+        let network = speed.network.map { " over \($0)" } ?? ""
+        return "\(Format.rate(speed.upload)) to the PS3\(network) · 10 GB takes about \(Format.duration(10e9 / speed.upload)) · measured \(Format.day(speed.measuredAt))"
     }
 }
 
 /// An on/off switch in the PS app's style; drawn by SwiftUI, so snapshots can render it.
 struct PillToggle: View {
     let isOn: Bool
+    /// What VoiceOver says; the switch has no visible text of its own.
+    var label = ""
     let change: (Bool) -> Void
 
     var body: some View {
@@ -220,5 +225,8 @@ struct PillToggle: View {
             .frame(width: 44, height: 26)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
     }
 }

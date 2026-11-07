@@ -9,9 +9,9 @@ enum MainTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .status: return "Status"
-        case .games: return "Spel"
-        case .apps: return "Appar"
-        case .maintenance: return "Underhåll"
+        case .games: return "Games"
+        case .apps: return "Apps"
+        case .maintenance: return "Maintenance"
         }
     }
 }
@@ -80,7 +80,7 @@ struct ContentView: View {
             maintenance.autoBackupIfDue(gameRunning: console.snapshot?.isGameRunning ?? true, transfersRunning: transfers.isRunning)
         }
         .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
-        // Files from Finder's "Skicka till PS3", the menu bar and Shortcuts.
+        // Files from Finder's "Send to PS3", the menu bar and Shortcuts.
         // They wait until the console is online.
         .onChange(of: Inbox.shared.revision * 2 + (console.connection == .online ? 1 : 0), initial: true) {
             WindowOpener.shared.openWindow = openWindow
@@ -120,10 +120,10 @@ struct TopBar: View {
                             CountBadge(count: transfers.pending.count).offset(x: 6, y: -6)
                         }
                     }
-                    .help("Överföringar")
+                    .iconLabel("Transfers")
                     Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
                         .buttonStyle(CircleIconButtonStyle())
-                        .help("Utseende")
+                        .iconLabel("Appearance")
                 }
             }
     }
@@ -131,7 +131,7 @@ struct TopBar: View {
 
 /// Centered pill tabs as in Mole, styled like the PS app's segmented control: a dark
 /// capsule with a lighter pill for the selection, the logo on a PlayStation-blue disc with
-/// a green presence dot while the console answers, and a green count on Appar.
+/// a green presence dot while the console answers, and a green count on Apps.
 struct TabBar: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(AppsStore.self) private var apps
@@ -144,7 +144,7 @@ struct TabBar: View {
                 ZStack {
                     Circle().fill(Theme.psBlue)
                     Image(systemName: "playstation.logo")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.ui(.headline, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 .frame(width: 34, height: 34)
@@ -159,28 +159,33 @@ struct TabBar: View {
             }
             .padding(.trailing, 6)
 
+            // The tabs only lead somewhere while the console answers; on the splash screen they
+            // are dimmed instead of looking clickable.
+            let online = console.connection == .online
             ForEach(MainTab.allCases) { tab in
                 Button {
                     withAnimation(.spring(duration: 0.3)) { selection = tab }
                 } label: {
                     HStack(spacing: 7) {
                         Text(tab.title)
-                        if tab == .apps, !apps.updates.isEmpty {
+                        if tab == .apps, online, !apps.updates.isEmpty {
                             CountBadge(count: apps.updates.count)
                         }
                     }
-                    .font(.system(size: 14, weight: selection == tab ? .bold : .semibold))
+                    .font(.ui(.callout, weight: selection == tab ? .bold : .semibold))
                     .foregroundStyle(selection == tab ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                     .padding(.horizontal, 22)
                     .padding(.vertical, 9)
                     .background {
-                        if selection == tab {
+                        if selection == tab, online {
                             Capsule().fill(Color.white.opacity(0.14)).matchedGeometryEffect(id: "pill", in: pill)
                         }
                     }
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .disabled(!online)
+                .opacity(online ? 1 : 0.45)
             }
         }
         .padding(5)
@@ -203,15 +208,15 @@ struct ConnectionView: View {
                 .opacity(isOffline ? 0.6 : 1)
                 .padding(.bottom, 18)
             Text(title)
-                .font(.system(size: 26, weight: .light))
+                .font(.ui(.title, weight: .light))
                 .foregroundStyle(Theme.primaryText)
             Text(detail)
-                .font(.system(size: 14))
+                .font(.ui(.callout))
                 .foregroundStyle(Color.white.opacity(0.72))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
             if isOffline {
-                Button("Försök igen") { console.retry() }
+                Button("Try Again") { console.retry() }
                     .buttonStyle(PillButtonStyle())
             } else {
                 Spinner(size: 20)
@@ -231,10 +236,10 @@ struct ConnectionView: View {
 
     private var title: String {
         switch console.connection {
-        case .connecting: return "Ansluter till PS3:an…"
-        case .scanning: return "Letar efter PS3:an på nätverket…"
-        case .offline: return "Ingen kontakt med PS3:an"
-        case .henOff: return "PS3:an är på, men HEN är inte aktiverat"
+        case .connecting: return "Connecting to the PS3…"
+        case .scanning: return "Looking for the PS3 on the network…"
+        case .offline: return "Can't reach the PS3"
+        case .henOff: return "The PS3 is on, but HEN isn't enabled"
         case .online: return ""
         }
     }
@@ -242,9 +247,9 @@ struct ConnectionView: View {
     private var detail: String {
         switch console.connection {
         case .offline(let message): return message
-        case .henOff: return "webMAN startar först när HEN är aktiverat. Välj \u{201D}Enable HEN\u{201D} under Spel på PS3:an, så ansluter PS3 Center av sig själv."
-        case .scanning: return "Den sparade adressen svarade inte. Det här tar upp till en halv minut."
-        default: return "webMAN måste vara igång, så aktivera HEN efter varje omstart."
+        case .henOff: return "webMAN only starts once HEN is enabled. Choose \u{201C}Enable HEN\u{201D} under Game on the PS3, and PS3 Center connects by itself."
+        case .scanning: return "The saved address didn't answer. This takes up to half a minute."
+        default: return "webMAN has to be running, so enable HEN after every restart."
         }
     }
 }

@@ -69,13 +69,13 @@ final class NetServerStore {
     func configureWebMAN() async {
         guard !isFixture, let host, let address else { return }
         do {
-            webMAN = .working("Sparar en kopia av webMAN:s inställningar…")
+            webMAN = .working("Saving a copy of webMAN's settings…")
             _ = try await SystemFiles.backup(host: host)
-            webMAN = .working("Fyller i nätverksservern i webMAN…")
+            webMAN = .working("Filling in the network server in webMAN…")
             let index = try await WebMANSetup(host: host).configure(address: address, port: Int(NetServer.defaultPort))
             remember(index)
             if !isEnabled { setEnabled(true) }
-            webMAN = .working("Uppdaterar spellistan…")
+            webMAN = .working("Refreshing the game list…")
             let webman = WebMAN(host: host)
             let running = try await webman.isGameRunning()
             if !running {
@@ -114,7 +114,7 @@ final class NetServerStore {
             try server.start()
             self.server = server
         } catch {
-            status.error = "Spelservern kunde inte starta: \(error.localizedDescription)"
+            status.error = "The game server couldn't start: \(error.localizedDescription)"
         }
     }
 
@@ -136,7 +136,7 @@ final class NetServerStore {
     func consoleMounted(_ path: String?) {
         let playingFromMac = path?.hasPrefix("/net") == true && server != nil
         if playingFromMac, awake == nil {
-            awake = KeepAwake(reason: "PS3:an spelar från Macen")
+            awake = KeepAwake(reason: "The PS3 is playing from the Mac")
         } else if !playingFromMac {
             awake = nil
         }

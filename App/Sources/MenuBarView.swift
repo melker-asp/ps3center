@@ -19,48 +19,48 @@ struct MenuBarView: View {
             header
             if let s = console.snapshot, console.connection == .online {
                 VStack(alignment: .leading, spacing: 6) {
-                    line("thermometer.medium", "CPU \(s.cpuTemp.map(String.init) ?? "–") °C · RSX \(s.rsxTemp.map(String.init) ?? "–") °C · fläkt \(s.fanPercent.map(String.init) ?? "–") %")
-                    line("gamecontroller", s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "Ett spel") : "XMB")
+                    line("thermometer.medium", "CPU \(s.cpuTemp.map(String.init) ?? "–") °C · RSX \(s.rsxTemp.map(String.init) ?? "–") °C · fan \(s.fanPercent.map(String.init) ?? "–") %")
+                    line("gamecontroller", s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "A game") : "XMB")
                     if let item = transfers.queue.items.first(where: { $0.state == .sending }) {
                         line("arrow.up.circle", "\(item.title) · \(Int(item.fraction * 100)) %")
                     } else if !transfers.pending.isEmpty {
-                        line("arrow.up.circle", "\(transfers.pending.count) i kön")
+                        line("arrow.up.circle", "\(transfers.pending.count) in the queue")
                     }
                     if netServer.isEnabled {
-                        line("server.rack", netServer.status.clients > 0 ? "Spelservern: PS3:an ansluten" : "Spelservern är på")
+                        line("server.rack", netServer.status.clients > 0 ? "Game Server: PS3 connected" : "Game Server is on")
                     }
                 }
             }
             if let note = console.actionNote {
-                Text(note).font(.system(size: 11)).foregroundStyle(Theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+                Text(note).font(.ui(.caption)).foregroundStyle(Theme.secondaryText).fixedSize(horizontal: false, vertical: true)
             }
             Divider()
             VStack(alignment: .leading, spacing: 2) {
-                row("macwindow", "Öppna PS3 Center") { open() }
-                row("square.and.arrow.up", "Skicka filer…") { chooseFiles() }
+                row("macwindow", "Open PS3 Center") { open() }
+                row("square.and.arrow.up", "Send Files…") { chooseFiles() }
                 if console.connection == .online {
-                    row("arrow.triangle.2.circlepath", "Uppdatera spellistan") { console.refreshGames() }
+                    row("arrow.triangle.2.circlepath", "Refresh Game List") { console.refreshGames() }
                     if console.snapshot?.isGameRunning == true {
-                        row("xmark.circle", "Avsluta spelet") { console.exitGame() }
+                        row("xmark.circle", "Quit Game") { console.exitGame() }
                     }
-                    row("power", "Stäng av PS3:an…") { confirmShutdown() }
+                    row("power", "Shut Down PS3…") { confirmShutdown() }
                 }
             }
             .disabled(console.isActing)
             Divider()
             HStack {
-                Text("Starta vid inloggning").font(.system(size: 13))
+                Text("Launch at Login").font(.ui(.body))
                 Spacer()
-                PillToggle(isOn: startsAtLogin) { on in
+                PillToggle(isOn: startsAtLogin, label: "Launch at Login") { on in
                     loginNote = LoginItem.set(on)
                     startsAtLogin = LoginItem.isEnabled
                 }
                 .scaleEffect(0.8)
             }
             if let loginNote {
-                Text(loginNote).font(.system(size: 11)).foregroundStyle(Theme.warm).fixedSize(horizontal: false, vertical: true)
+                Text(loginNote).font(.ui(.caption)).foregroundStyle(Theme.warm).fixedSize(horizontal: false, vertical: true)
             }
-            row("xmark.square", "Avsluta PS3 Center") { NSApp.terminate(nil) }
+            row("xmark.square", "Quit PS3 Center") { NSApp.terminate(nil) }
         }
         .padding(14)
         .frame(width: 300)
@@ -71,9 +71,9 @@ struct MenuBarView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Circle().fill(statusColor).frame(width: 9, height: 9)
-            Text("PS3 Center").font(.system(size: 14, weight: .semibold))
+            Text("PS3 Center").font(.ui(.callout, weight: .semibold))
             Spacer()
-            Text(statusText).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+            Text(statusText).font(.ui(.footnote)).foregroundStyle(Theme.secondaryText)
         }
     }
 
@@ -87,10 +87,10 @@ struct MenuBarView: View {
 
     private var statusText: String {
         switch console.connection {
-        case .online: return console.snapshot.map { "Hälsa \($0.health)" } ?? "Ansluten"
-        case .henOff: return "HEN är inte aktiverat"
-        case .offline: return "Ingen kontakt"
-        case .connecting, .scanning: return "Ansluter…"
+        case .online: return console.snapshot.map { "Health \($0.health)" } ?? "Connected"
+        case .henOff: return "HEN isn't enabled"
+        case .offline: return "Can't reach the PS3"
+        case .connecting, .scanning: return "Connecting…"
         }
     }
 
@@ -99,7 +99,7 @@ struct MenuBarView: View {
             Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.accent)
             Text(text).lineLimit(1).truncationMode(.middle)
         }
-        .font(.system(size: 12))
+        .font(.ui(.footnote))
     }
 
     private func row(_ icon: String, _ title: String, action: @escaping () -> Void) -> some View {
@@ -113,7 +113,7 @@ struct MenuBarView: View {
             .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
-        .font(.system(size: 13))
+        .font(.ui(.body))
     }
 
     private func open() {
@@ -126,8 +126,8 @@ struct MenuBarView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
-        panel.prompt = "Skicka"
-        panel.message = "Välj spel, paket eller mappar att skicka till PS3:an."
+        panel.prompt = "Send"
+        panel.message = "Choose games, packages or folders to send to the PS3."
         NSApp.activate()
         guard panel.runModal() == .OK else { return }
         WindowOpener.shared.openWindow = openWindow
@@ -139,7 +139,7 @@ struct MenuBarView: View {
         alert.messageText = PowerAction.shutdown.question
         alert.informativeText = PowerAction.shutdown.message(running: console.snapshot?.isGameRunning == true)
         alert.addButton(withTitle: PowerAction.shutdown.button)
-        alert.addButton(withTitle: "Avbryt")
+        alert.addButton(withTitle: "Cancel")
         NSApp.activate()
         if alert.runModal() == .alertFirstButtonReturn { console.shutdown() }
     }

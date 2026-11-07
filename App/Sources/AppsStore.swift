@@ -28,7 +28,7 @@ final class AppsStore {
         }
     }
 
-    /// What "Uppdatera alla" is about to do, shown for review before anything happens: the
+    /// What "Update All" is about to do, shown for review before anything happens: the
     /// updates it can install, and the ones it leaves alone and why.
     struct UpdatePlan: Identifiable {
         struct Skip: Identifiable {
@@ -43,8 +43,8 @@ final class AppsStore {
         let skipped: [Skip]
     }
 
-    /// The outcome of "Uppdatera alla" once the queue is empty: Klart, Misslyckades and Hoppade
-    /// över, each with its reason. Shown above the list until it is closed.
+    /// The outcome of "Update All" once the queue is empty: Done, Failed and
+    /// Skipped, each with its reason. Shown above the list until it is closed.
     struct UpdateReport: Equatable {
         struct Line: Equatable, Identifiable {
             let id: String
@@ -58,7 +58,7 @@ final class AppsStore {
         let finished: Date
     }
 
-    /// A running "Uppdatera alla": what it queued, and what it left out and why.
+    /// A running "Update All": what it queued, and what it left out and why.
     private struct UpdateBatch {
         let installs: [UpdateReport.Line]
         let skipped: [UpdateReport.Line]
@@ -80,7 +80,7 @@ final class AppsStore {
     var selectedID: String?
     var archiveMissing = false
 
-    /// The .pkg files in the Mac's package folders (Från Macen).
+    /// The .pkg files in the Mac's package folders (From Mac).
     private(set) var packages: [LocalPackage] = []
     private(set) var packagesLoaded = false
     private(set) var isLoadingPackages = false
@@ -101,14 +101,14 @@ final class AppsStore {
     private var forceNext = false
     private var host: String?
 
-    /// Updates the user has not ignored: what the badges count and "Uppdatera alla" offers.
+    /// Updates the user has not ignored: what the badges count and "Update All" offers.
     var updates: [AppStatus] { statuses.filter(\.isPendingUpdate) }
     var ignoredUpdates: [AppStatus] { statuses.filter { $0.state == .updateAvailable && $0.ignored } }
     var current: [AppStatus] { statuses.filter { $0.state == .upToDate } }
     var manual: [AppStatus] { statuses.filter { $0.state == .manual || $0.state == .error } }
     var available: [AppStatus] { statuses.filter { $0.installed == nil && $0.installable } }
     var installableUpdates: [AppStatus] { updates.filter(\.canInstall) }
-    /// Hämta's "Nytt": programs whose latest release is less than 30 days old.
+    /// Browse's "New": apps whose latest release is less than 30 days old.
     var newReleases: [AppStatus] { statuses.filter { $0.isNewRelease() && ($0.installable || $0.installed != nil || $0.blocked) } }
 
     var waitingGame: String? {
@@ -202,8 +202,8 @@ final class AppsStore {
         for status in fresh { seen.insert("\(status.id) \(status.latest ?? "")") }
         UserDefaults.standard.set(Array(seen), forKey: key)
         let names = fresh.map(\.name).joined(separator: ", ")
-        Notifier.post(title: fresh.count == 1 ? "Ny version av \(names)" : "\(fresh.count) programuppdateringar",
-                      body: fresh.count == 1 ? "Finns att installera under Appar." : names)
+        Notifier.post(title: fresh.count == 1 ? "New version of \(names)" : "\(fresh.count) app updates",
+                      body: fresh.count == 1 ? "Ready to install under Apps." : names)
     }
 
     /// Fixture mode (`PS3CENTER_FIXTURES=1`): canned rows and README, no network.
@@ -285,20 +285,20 @@ final class AppsStore {
         statuses[index].ignored = ignored
     }
 
-    // MARK: Uppdatera alla
+    // MARK: Update All
 
-    /// What the review before "Uppdatera alla" shows.
+    /// What the review before "Update All" shows.
     func updatePlan() -> UpdatePlan {
         let notAutomatic = updates.filter { !$0.canInstall }.map { UpdatePlan.Skip(status: $0, reason: Self.skipReason(for: $0)) }
-        let ignored = ignoredUpdates.map { UpdatePlan.Skip(status: $0, reason: "Ignorerad") }
+        let ignored = ignoredUpdates.map { UpdatePlan.Skip(status: $0, reason: "Ignored") }
         return UpdatePlan(installs: installableUpdates, skipped: notAutomatic + ignored)
     }
 
-    /// Why an update is not part of "Uppdatera alla", in a few words.
+    /// Why an update is not part of "Update All", in a few words.
     static func skipReason(for status: AppStatus) -> String {
         if status.compatibility.blocksInstall { return status.compatibility.summary }
-        if let action = entry(for: status)?.action, case .notifyOnly = action { return "Installeras aldrig automatiskt" }
-        return status.note ?? "Releasen saknar paket"
+        if let action = entry(for: status)?.action, case .notifyOnly = action { return "Never installed automatically" }
+        return status.note ?? "The release has no package"
     }
 
     static func versionChange(_ status: AppStatus) -> String {
@@ -310,7 +310,7 @@ final class AppsStore {
         guard batch == nil, !chosen.isEmpty else { return }
         let chosenIDs = Set(chosen.map(\.id))
         let unchecked = plan.installs.filter { !chosenIDs.contains($0.id) }
-            .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Bortvald i granskningen") }
+            .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Unchecked in the review") }
         let skipped = plan.skipped.map { UpdateReport.Line(id: $0.id, name: $0.status.name, detail: $0.reason) }
         batch = UpdateBatch(installs: chosen.map { UpdateReport.Line(id: $0.id, name: $0.name, detail: Self.versionChange($0)) },
                             skipped: unchecked + skipped)
@@ -333,16 +333,16 @@ final class AppsStore {
             switch operations[line.id]?.stage {
             case .done: done.append(line)
             case .failed(let message): failed.append(UpdateReport.Line(id: line.id, name: line.name, detail: message))
-            default: skipped.append(UpdateReport.Line(id: line.id, name: line.name, detail: "Kördes inte"))
+            default: skipped.append(UpdateReport.Line(id: line.id, name: line.name, detail: "Didn't run"))
             }
         }
         report = UpdateReport(done: done, failed: failed, skipped: skipped, finished: Date())
-        let title = failed.isEmpty && done.count == 1 ? "\(done[0].name) är uppdaterat"
-            : "\(done.count) av \(batch.installs.count) uppdateringar klara"
-        Notifier.post(title: title, body: failed.isEmpty ? "Allt gick bra." : "Gick inte: " + failed.map(\.name).joined(separator: ", "))
+        let title = failed.isEmpty && done.count == 1 ? "\(done[0].name) is updated"
+            : "\(done.count) of \(batch.installs.count) updates done"
+        Notifier.post(title: title, body: failed.isEmpty ? "Everything went fine." : "Failed: " + failed.map(\.name).joined(separator: ", "))
     }
 
-    /// Fixture mode: the report after an "Uppdatera alla" with one of each outcome.
+    /// Fixture mode: the report after an "Update All" with one of each outcome.
     func loadFixtureReport() {
         let byID = Dictionary(uniqueKeysWithValues: statuses.map { ($0.id, $0) })
         func line(_ id: String, _ detail: (AppStatus) -> String) -> [UpdateReport.Line] {
@@ -351,12 +351,12 @@ final class AppsStore {
         }
         report = UpdateReport(
             done: line("apollo", Self.versionChange),
-            failed: line("webman") { _ in "Kontakten med PS3:an bröts under uppladdningen" },
+            failed: line("webman") { _ in "The connection to the PS3 dropped during the upload" },
             skipped: line("hen", Self.skipReason) + line("artemis") { _ in "Ignorerad" },
             finished: Date())
     }
 
-    /// "Kör ändå": restarts the waiting install without waiting for the game to end.
+    /// "Install Anyway": restarts the waiting install without waiting for the game to end.
     func forceWaiting() {
         guard waitingGame != nil, let id = operations.first(where: { if case .waitingForGame = $0.value.stage { return true }; return false })?.key else { return }
         runner?.cancel()
@@ -396,7 +396,7 @@ final class AppsStore {
         guard let host, let entry = Catalog.entries.first(where: { $0.id == id }) else { return }
         guard let root = MirrorRoot.resolve() else {
             archiveMissing = true
-            operations[id] = Operation(stage: .failed("Välj PS3-mappen först"))
+            operations[id] = Operation(stage: .failed("Choose the PS3 folder first"))
             return
         }
         var options = TransferOptions()
@@ -408,7 +408,7 @@ final class AppsStore {
                 Task { @MainActor [weak self] in self?.handle(event, for: id) }
             }
             operations[id] = Operation(stage: .done)
-            try? await WebMAN(host: host).popup("\(entry.name) installerat från Macen")
+            try? await WebMAN(host: host).popup("\(entry.name) installed from the Mac")
         } catch is CancellationError {
             // forceWaiting() re-queued it.
         } catch {
@@ -419,7 +419,7 @@ final class AppsStore {
     /// A package from the Mac: uploaded and installed, and left in its folder.
     private func perform(_ package: LocalPackage) async {
         guard let host else {
-            operations[package.id] = Operation(stage: .failed("PS3:an är inte ansluten"))
+            operations[package.id] = Operation(stage: .failed("The PS3 isn't connected"))
             return
         }
         var options = TransferOptions()
@@ -431,7 +431,7 @@ final class AppsStore {
                 Task { @MainActor [weak self] in self?.handle(event, for: package.id) }
             }
             operations[package.id] = Operation(stage: .done)
-            try? await WebMAN(host: host).popup("\(package.title) installerat från Macen")
+            try? await WebMAN(host: host).popup("\(package.title) installed from the Mac")
         } catch is CancellationError {
             // forceWaiting() re-queued it.
         } catch {
@@ -456,8 +456,8 @@ final class AppsStore {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Välj"
-        panel.message = "Välj PS3-mappen (den med dev_hdd0/ och _Installerat/)."
+        panel.prompt = "Choose"
+        panel.message = "Choose the PS3 folder (the one with dev_hdd0/ and _Installed/)."
         guard panel.runModal() == .OK, let url = panel.url, MirrorRoot.looksLikeMirror(url) else { return }
         var config = ConfigStore.load()
         config.root = url.path

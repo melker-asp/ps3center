@@ -59,7 +59,7 @@ final class PS2ClassicModel {
         do {
             let read = try PS2ClassicKeys.read(urls)
             let merged = PS2ClassicKeys(values: (keys?.values ?? [:]).merging(read.values) { $1 })
-            if !merged.wrong.isEmpty { throw PS3Error.invalidFile(merged.problem ?? "Fel nycklar.") }
+            if !merged.wrong.isEmpty { throw PS3Error.invalidFile(merged.problem ?? "Wrong keys.") }
             try merged.save()
             keys = merged
             keyMessage = merged.problem
@@ -112,7 +112,7 @@ final class PS2ClassicModel {
     }
 }
 
-/// "Gör om till PS2 Classic": the game and the file it becomes, the keys, what the console needs,
+/// "Convert to PS2 Classic": the game and the file it becomes, the keys, what the console needs,
 /// and a white button that says what happens.
 struct PS2ClassicView: View {
     @Environment(\.dismiss) private var dismiss
@@ -132,11 +132,11 @@ struct PS2ClassicView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Gör om till PS2 Classic")
-                .font(.system(size: 30, weight: .light))
+            Text("Convert to PS2 Classic")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("På HEN startar PS2-spel bara som PS2 Classics. PS3 Center krypterar en kopia av spelet till en .BIN.ENC bredvid det, som PS2 Classic GUI gör på en PC. Originalet ändras inte.")
-                .font(.system(size: 13))
+            Text("On HEN, PS2 games only start as PS2 Classics. PS3 Center encrypts a copy of the game into a .BIN.ENC next to it, as PS2 Classic GUI does on a PC. The original isn't changed.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -144,10 +144,10 @@ struct PS2ClassicView: View {
 
             gameRow
 
-            section("NYCKLAR")
+            section("KEYS")
             keysSection
 
-            section("PÅ PS3:AN")
+            section("ON THE PS3")
             consoleSection
 
             Spacer(minLength: 12)
@@ -164,7 +164,7 @@ struct PS2ClassicView: View {
 
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .bold))
+            .font(.ui(.caption, weight: .bold))
             .tracking(1.2)
             .foregroundStyle(Theme.secondaryText)
             .padding(.top, 20)
@@ -174,26 +174,26 @@ struct PS2ClassicView: View {
     private var gameRow: some View {
         HStack(spacing: 12) {
             Image(systemName: GameArtwork.symbol(for: .ps2))
-                .font(.system(size: 20))
+                .font(.ui(.title2))
                 .foregroundStyle(Theme.accent)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(model.game.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.ui(.headline, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     if let id = model.game.titleID { Chip(text: id) }
                 }
                 Text("→ \(model.output.lastPathComponent)")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.ui(.caption, design: .monospaced))
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
             Spacer()
             Text(Format.bytes(model.size))
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .monospacedDigit()
         }
@@ -207,18 +207,18 @@ struct PS2ClassicView: View {
         if model.keysReady {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.good)
-                Text("Nycklarna finns på den här Macen och stämmer.")
-                    .font(.system(size: 13))
+                Text("The keys are on this Mac and check out.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.primaryText)
                 Spacer()
-                Button("Ta bort") { model.removeKeys() }
-                    .buttonStyle(PillButtonStyle(prominent: false))
+                Button("Delete") { model.removeKeys() }
+                    .buttonStyle(PillButtonStyle(destructive: true))
                     .disabled(model.phase == .working)
             }
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("PS2 Classics krypteras med Sonys nycklar, och PS3 Center har dem inte med sig. Hämta läser dem ur webMAN MOD:s repo på GitHub, kontrollerar dem mot fingeravtryck och sparar dem bara här på Macen (~/.config/ps3center).")
-                    .font(.system(size: 12))
+                Text("PS2 Classics are encrypted with Sony's keys, and PS3 Center doesn't ship them. Download Keys reads them from webMAN MOD's repo on GitHub, checks them against fingerprints and saves them only here on the Mac (~/.config/ps3center).")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
@@ -227,18 +227,18 @@ struct PS2ClassicView: View {
                     } label: {
                         HStack(spacing: 7) {
                             if model.fetching { Spinner() } else { Image(systemName: "arrow.down.circle") }
-                            Text(model.fetching ? "Hämtar…" : "Hämta nycklarna")
+                            Text(model.fetching ? "Downloading…" : "Download Keys")
                         }
                     }
                     .buttonStyle(PillButtonStyle(tint: Theme.accent))
                     .disabled(model.fetching)
-                    Button("Importera…") { importing = true }
+                    Button("Import…") { importing = true }
                         .buttonStyle(PillButtonStyle(prominent: false))
-                        .help("ps2classic.c, platshållarens .rifkey eller .7z-arkiven, t.ex. från PS2 Classic GUI")
+                        .help("ps2classic.c, the placeholder's .rifkey, or the .7z archives, e.g. from PS2 Classic GUI")
                 }
                 if let message = model.keyMessage {
                     Text(message)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.hot)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -251,13 +251,13 @@ struct PS2ClassicView: View {
         let text: String
         let ok: Bool
         if let launcher, launcher.installed != nil {
-            text = "PS2 Classics Launcher är installerad. PS3HEN gör licensen själv."
+            text = "PS2 Classics Launcher is installed. PS3HEN makes the license itself."
             ok = true
         } else if launcher != nil {
-            text = "Installera PS2 Classics Launcher under Appar → Hämta. Den startar PS2 Classics, och PS3HEN gör licensen själv."
+            text = "Install PS2 Classics Launcher under Apps → Browse. It starts PS2 Classics, and PS3HEN makes the license itself."
             ok = false
         } else {
-            text = "PS3:an behöver PS2 Classics Launcher (Appar → Hämta). PS3HEN gör licensen själv."
+            text = "The PS3 needs PS2 Classics Launcher (Apps → Browse). PS3HEN makes the license itself."
             ok = false
         }
         return VStack(alignment: .leading, spacing: 8) {
@@ -265,12 +265,12 @@ struct PS2ClassicView: View {
                 Image(systemName: ok ? "checkmark.circle.fill" : "info.circle")
                     .foregroundStyle(ok ? Theme.good : Theme.warm)
                 Text(text)
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("Super Slim kör PS2-spel i mjukvara. De flesta fungerar; hackar ett spel kan PS2 CONFIG Database (Appar) ha en rättning, som webMAN använder av sig själv.")
-                .font(.system(size: 12))
+            Text("The Super Slim runs PS2 games in software. Most work; if a game stutters, PS2 CONFIG Database (Apps) may have a fix, which webMAN uses by itself.")
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -283,29 +283,29 @@ struct PS2ClassicView: View {
             let total = max(model.total, max(model.game.size ?? 1, 1))
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("Krypterar…").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                    Text("Encrypting…").font(.ui(.body, weight: .semibold)).foregroundStyle(Theme.primaryText)
                     Spacer()
                     Text("\(Int(Double(model.read) / Double(total) * 100)) %")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.ui(.body, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .monospacedDigit()
                 }
                 PSProgressBar(fraction: Double(model.read) / Double(total))
             }
         case .done(let url):
-            Text("Klart: \(url.lastPathComponent) ligger bredvid spelet. Skicka den till PS3:an, så hamnar den i PS2ISO.")
-                .font(.system(size: 13, weight: .semibold))
+            Text("Done: \(url.lastPathComponent) is next to the game. Send it to the PS3, and it goes to PS2ISO.")
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(Theme.good)
                 .fixedSize(horizontal: false, vertical: true)
         case .failed(let message):
             Text(message)
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .foregroundStyle(Theme.hot)
                 .fixedSize(horizontal: false, vertical: true)
         case .ready:
             if model.alreadyMade {
-                Text("\(model.output.lastPathComponent) finns redan bredvid spelet.")
-                    .font(.system(size: 12))
+                Text("\(model.output.lastPathComponent) is already next to the game.")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.warm)
             }
         }
@@ -316,13 +316,13 @@ struct PS2ClassicView: View {
             Spacer()
             switch model.phase {
             case .working:
-                Button("Avbryt") { model.cancel() }
+                Button("Cancel") { model.cancel() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
             case .done(let url):
-                Button("Visa i Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                     .buttonStyle(PillButtonStyle(prominent: false))
-                Button("Skicka till PS3:an") {
+                Button("Send to PS3") {
                     if let routes = try? FileRouter.routes(for: [url], mirrorRoot: nil) { transfers.add(routes) }
                     Task { await library.loadMac() }
                     dismiss()
@@ -330,13 +330,13 @@ struct PS2ClassicView: View {
                 .buttonStyle(PillButtonStyle())
                 .keyboardShortcut(.defaultAction)
             case .ready, .failed:
-                Button("Stäng") {
+                Button("Close") {
                     if case .failed = model.phase {} else if live { Task { await library.loadMac() } }
                     dismiss()
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
                 .keyboardShortcut(.cancelAction)
-                Button("Gör om \(model.game.title)") { model.start() }
+                Button("Convert \(model.game.title)") { model.start() }
                     .buttonStyle(PillButtonStyle())
                     .disabled(!model.keysReady || model.alreadyMade)
                     .keyboardShortcut(.defaultAction)

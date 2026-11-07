@@ -27,10 +27,10 @@ targets:
             playstation.net:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: true
-        # Finder: "Skicka till PS3" under Tjänster and Snabbåtgärder (ServiceProvider in Inbox.swift).
+        # Finder: "Send to PS3" under Services and Quick Actions (ServiceProvider in Inbox.swift).
         NSServices:
           - NSMenuItem:
-              default: Skicka till PS3
+              default: Send to PS3
             NSMessage: sendToPS3
             NSPortName: PS3 Center
             NSRequiredContext: {}
@@ -50,7 +50,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: PS3 Center
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: PS3 Center pratar med webMAN på din PS3 över det lokala nätverket.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: PS3 Center talks to webMAN on your PS3 over the local network.
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         # Sources/Assets.xcassets/AppIcon.appiconset, rendered by scripts/make_icon.swift (`make icon`).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

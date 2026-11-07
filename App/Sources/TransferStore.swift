@@ -101,7 +101,7 @@ final class TransferStore {
         for game in games {
             if host == nil { startWhenOnline = true }
             add(game.routes)
-            Notifier.post(title: "Nytt spel i kön", body: "\(game.title) skickas till PS3:an.")
+            Notifier.post(title: "New game in the queue", body: "\(game.title) is being sent to the PS3.")
         }
     }
 
@@ -130,11 +130,11 @@ final class TransferStore {
     func start() {
         guard runner == nil, !isFixture, let host else { return }
         guard let lock = QueueLock() else {
-            note = "Kön skickas redan från ps3 queue start i Terminalen."
+            note = "The queue is already being sent from `ps3 queue start` in Terminal."
             return
         }
         self.lock = lock
-        awake = KeepAwake(reason: "Skickar spel till PS3:an")
+        awake = KeepAwake(reason: "Sending games to the PS3")
         pausedForSleep = false
         note = nil
         runner = Task { await self.run(host: host) }
@@ -176,12 +176,12 @@ final class TransferStore {
     func measureSpeed() async {
         guard !isMeasuring, !isRunning else { return }
         guard let host else {
-            measureError = "Ingen kontakt med PS3:an just nu."
+            measureError = "Can't reach the PS3 right now."
             return
         }
         isMeasuring = true
         measureError = nil
-        measureStep = "Förbereder…"
+        measureStep = "Preparing…"
         defer {
             isMeasuring = false
             measureStep = nil
@@ -191,7 +191,7 @@ final class TransferStore {
                 Task { @MainActor [weak self] in self?.measured(event) }
             }
         } catch {
-            measureError = "Mätningen misslyckades: \(error.localizedDescription)"
+            measureError = "The measurement failed: \(error.localizedDescription)"
         }
     }
 
@@ -199,7 +199,7 @@ final class TransferStore {
         guard isMeasuring else { return }
         switch event {
         case .progress(_, let sent, let total, let bytesPerSecond):
-            measureStep = "Skickar \(total > 0 ? Int(Double(sent) / Double(total) * 100) : 0) % · \(Format.rate(bytesPerSecond))"
+            measureStep = "Sending \(total > 0 ? Int(Double(sent) / Double(total) * 100) : 0) % · \(Format.rate(bytesPerSecond))"
         case .note(let text):
             measureStep = text
         default:
@@ -265,8 +265,8 @@ final class TransferStore {
                     Task { @MainActor [weak self] in self?.handle(event, item: nil) }
                 }
                 note = nil
-                Notifier.post(title: titles.count == 1 ? "\(titles[0]) är skickat" : "\(titles.count) spel är skickade",
-                              body: queue.whenDone == .shutdown ? "PS3:an stängs av." : "Spelen finns under Spel på PS3:an.")
+                Notifier.post(title: titles.count == 1 ? "\(titles[0]) is sent" : "\(titles.count) games are sent",
+                              body: queue.whenDone == .shutdown ? "The PS3 is shutting down." : "The games are under Game on the PS3.")
             } catch {
                 note = error.localizedDescription
             }
@@ -287,9 +287,9 @@ final class TransferStore {
             guard let id else { return }
             queue.update(id) { $0.sent = Self.sentBefore(route, in: $0) + route.size }
         case .waitingForGame(let game):
-            note = "\(game) körs. Spellistan uppdateras när du har avslutat spelet."
+            note = "\(game) is running. The game list refreshes once you quit the game."
         case .refreshed:
-            note = "Spellistan är uppdaterad"
+            note = "The game list is refreshed"
         case .note(let text):
             note = text
         case .started:

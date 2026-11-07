@@ -6,20 +6,19 @@ import SwiftUI
 struct NetServerView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(NetServerStore.self) private var server
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Spelservern")
-                    .font(.system(size: 30, weight: .light))
+                Text("Game Server")
+                    .font(.ui(.display, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                 Spacer()
-                PillToggle(isOn: server.isEnabled) { server.setEnabled($0) }
+                PillToggle(isOn: server.isEnabled, label: "Game Server") { server.setEnabled($0) }
             }
-            Text("PS3:an spelar ISO:er direkt från Macens spelmappar, utan att kopiera dem. Macen måste vara på och vaken medan du spelar; PS3 Center håller den vaken.")
-                .font(.system(size: 13))
+            Text("The PS3 plays ISOs straight from the Mac's game folders, without copying them. The Mac has to be on and awake while you play; PS3 Center keeps it awake.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -27,38 +26,39 @@ struct NetServerView: View {
 
             Card(icon: "server.rack", title: "Status", chip: statusChip, chipColor: server.status.isRunning ? Theme.good : Theme.secondaryText) {
                 VStack(alignment: .leading, spacing: 8) {
-                    line("Adress", server.addresses.map { "\($0):\(NetServer.defaultPort)" }.joined(separator: ", "))
-                    line("PS3:an", server.status.clients > 0 ? "ansluten" : "inte ansluten än")
+                    line("Address", server.addresses.map { "\($0):\(NetServer.defaultPort)" }.joined(separator: ", "))
+                    line("PS3", server.status.clients > 0 ? "connected" : "not connected yet")
                     if let file = server.status.lastFile {
-                        line("Läser", (file as NSString).lastPathComponent)
+                        line("Reading", (file as NSString).lastPathComponent)
                     }
-                    line("Skickat", Format.bytes(server.status.bytesServed))
+                    line("Sent", Format.bytes(server.status.bytesServed))
                     if let error = server.status.error {
-                        Text(error).font(.system(size: 12)).foregroundStyle(Theme.hot)
+                        Text(error).font(.ui(.footnote)).foregroundStyle(Theme.hot)
                     }
                 }
             }
             .frame(height: 190)
 
             Text("WEBMAN")
-                .font(.system(size: 11, weight: .bold))
+                .font(.ui(.caption, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 22)
                 .padding(.bottom, 10)
             webMANSection
 
-            Text("PS3-spel bör gå över kabel. PS2-ISO:er kopieras till hårddisken när de startas, och spelmappar (GAMES) går inte över nätet, bara ISO:er. Ge Macen en fast adress i routern, annars hittar webMAN inte servern efter en omstart.")
-                .font(.system(size: 12))
+            Text("PS3 games should go over a cable. PS2 ISOs are copied to the hard drive when they start, and game folders (GAMES) don't work over the network, only ISOs. Give the Mac a fixed address in the router, or webMAN won't find the server after a restart.")
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.tertiaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 14)
 
             Spacer(minLength: 16)
-            Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                .keyboardShortcut(.cancelAction)
-                .help("Tillbaka")
+            HStack {
+                Spacer()
+                // Outlined: Set Up webMAN for Me is the white button here.
+                DoneButton(prominent: false)
+            }
         }
         .padding(32)
         .frame(width: 580, height: 700, alignment: .topLeading)
@@ -71,18 +71,18 @@ struct NetServerView: View {
         case .unknown, .checking:
             HStack(spacing: 10) {
                 Spinner(size: 14)
-                Text("Läser webMAN:s inställningar…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text("Reading webMAN's settings…").font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             }
         case .working(let step):
             HStack(spacing: 10) {
                 Spinner(size: 14)
-                Text(step).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text(step).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             }
         case .configured(let slot):
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
-                Text("webMAN hämtar spel från Macen som nätverksserver \(slot + 1) (/net\(slot)). Spelen syns under webMAN:s spel och startar som vanligt.")
-                    .font(.system(size: 13))
+                Text("webMAN gets games from the Mac as network server \(slot + 1) (/net\(slot)). The games show up among webMAN's games and start as usual.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -90,22 +90,22 @@ struct NetServerView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if case .failed(let message) = server.webMAN {
                     Text(message)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.hot)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("webMAN behöver veta var spelservern finns. PS3 Center fyller i en ledig nätverksserver med \(server.address ?? "Macens adress"):\(NetServer.defaultPort), sparar och uppdaterar spellistan. Dina andra webMAN-inställningar lämnas som de är, och en kopia av dem sparas först (Underhåll → Systemfiler).")
-                    .font(.system(size: 13))
+                Text("webMAN needs to know where the game server is. PS3 Center fills in a free network server with \(server.address ?? "the Mac's address"):\(NetServer.defaultPort), saves, and refreshes the game list. Your other webMAN settings stay as they are, and a copy of them is saved first (Maintenance → System Files).")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
-                    Button("Ställ in webMAN åt mig") { Task { await server.configureWebMAN() } }
+                    Button("Set Up webMAN for Me") { Task { await server.configureWebMAN() } }
                         .buttonStyle(PillButtonStyle())
                         .disabled(console.host == nil)
                     if let host = console.host, let url = URL(string: "http://\(host)/setup.ps3") {
-                        Button("Göra det själv") { openURL(url) }
+                        Button("Do It Myself") { openURL(url) }
                             .buttonStyle(PillButtonStyle(prominent: false))
-                            .help("Öppnar webMAN:s inställningar: nätverksserver 1 = \(server.address ?? "Macens adress") och port \(NetServer.defaultPort)")
+                            .help("Opens webMAN's settings: network server 1 = \(server.address ?? "the Mac's address") and port \(NetServer.defaultPort)")
                     }
                 }
             }
@@ -113,14 +113,14 @@ struct NetServerView: View {
     }
 
     private var statusChip: String {
-        if !server.isEnabled { return "Av" }
-        return server.status.isRunning ? "På" : "Startar"
+        if !server.isEnabled { return "Off" }
+        return server.status.isRunning ? "On" : "Starting"
     }
 
     private func line(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText).frame(width: 70, alignment: .leading)
-            Text(value).font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.primaryText).lineLimit(1).truncationMode(.middle)
+            Text(label).font(.ui(.body)).foregroundStyle(Theme.secondaryText).frame(width: 70, alignment: .leading)
+            Text(value).font(.ui(.body, weight: .medium)).foregroundStyle(Theme.primaryText).lineLimit(1).truncationMode(.middle)
         }
     }
 }

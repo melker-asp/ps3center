@@ -6,7 +6,6 @@ import SwiftUI
 /// `folders` in config.json like `ps3 config folder add`. The mirror folder's dev_hdd0/<KIND>
 /// counts too and is shown, but is not removed from here.
 struct FoldersView: View {
-    @Environment(\.dismiss) private var dismiss
     /// Called after a change, so the Mac's library is read again.
     let onChange: () -> Void
     /// False when rendered for a snapshot: the folders in Fixtures, and no disk is looked at.
@@ -26,11 +25,11 @@ struct FoldersView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Spelmappar")
-                .font(.system(size: 30, weight: .light))
+            Text("Game Folders")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Koppla mapparna där du har dina spel. Spelen visas under Macen i Spel-fliken, och PS3 Center lägger dem i rätt mapp på PS3:an. Bevakar du en mapp skickas nya spel i den av sig själva när de har kopierats klart.")
-                .font(.system(size: 13))
+            Text("Add the folders where you keep your games. The games show up under Mac in the Games tab, and PS3 Center puts them in the right folder on the PS3. If you watch a folder, new games in it are sent by themselves once they have finished copying.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -46,11 +45,8 @@ struct FoldersView: View {
             }
 
             HStack {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut(.cancelAction)
-                    .help("Tillbaka")
                 Spacer()
+                DoneButton()
             }
             .padding(.top, 16)
         }
@@ -63,8 +59,8 @@ struct FoldersView: View {
         let folders = linked.filter { $0.kind == kind }.map { $0.url }
         return HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(kind.label).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.primaryText)
-                Text(kind.name).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(Theme.tertiaryText)
+                Text(kind.label).font(.ui(.headline, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                Text(kind.name).font(.ui(.caption, weight: .bold, design: .monospaced)).foregroundStyle(Theme.tertiaryText)
             }
             .frame(width: 160, alignment: .leading)
             VStack(alignment: .leading, spacing: 6) {
@@ -72,34 +68,34 @@ struct FoldersView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "folder.fill").foregroundStyle(Theme.accent)
                         Text((url.path as NSString).abbreviatingWithTildeInPath)
-                            .font(.system(size: 12))
+                            .font(.ui(.footnote))
                             .foregroundStyle(Theme.primaryText)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         if !isPluggedIn(url) {
-                            Chip(text: "Inte ansluten", color: Theme.warm)
+                            Chip(text: "Not Connected", color: Theme.warm)
                         }
                         Spacer(minLength: 4)
                         HStack(spacing: 4) {
-                            Text("Bevaka").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
-                            PillToggle(isOn: watched.contains(url.path)) { setWatched(url, $0) }
+                            Text("Watch").font(.ui(.caption)).foregroundStyle(Theme.secondaryText)
+                            PillToggle(isOn: watched.contains(url.path), label: "Watch \(url.lastPathComponent)") { setWatched(url, $0) }
                                 .scaleEffect(0.7)
                                 .frame(width: 34)
                         }
-                        .help("Nya spel i mappen läggs i kön och skickas när de har slutat växa. Det som redan finns i mappen räknas inte som nytt.")
+                        .help("New games in the folder join the queue and are sent once they stop growing. What is already in the folder doesn't count as new.")
                         if isConfigured(url, kind) {
                             Button { remove(url, kind) } label: { Image(systemName: "minus.circle") }
                                 .buttonStyle(.plain)
                                 .foregroundStyle(Theme.secondaryText)
-                                .help("Koppla bort (filerna rörs inte)")
+                                .iconLabel("Remove (the files are not touched)")
                         } else {
-                            Chip(text: "Spegelmappen")
+                            Chip(text: "Mirror Folder")
                         }
                     }
                 }
-                Button { add(kind) } label: { Label("Lägg till…", systemImage: "plus") }
+                Button { add(kind) } label: { Label("Add…", systemImage: "plus") }
                     .buttonStyle(.plain)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.ui(.footnote, weight: .semibold))
                     .foregroundStyle(Theme.accent)
             }
         }
@@ -121,8 +117,8 @@ struct FoldersView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
-        panel.prompt = "Koppla"
-        panel.message = "Välj mappar med \(kind.label.lowercased())."
+        panel.prompt = "Add"
+        panel.message = "Choose folders with \(kind.label.lowercased())."
         guard panel.runModal() == .OK else { return }
         for url in panel.urls { try? GameFolders.add(url, as: kind) }
         reload()
@@ -146,9 +142,8 @@ struct FoldersView: View {
 }
 
 /// Paketmappar: the Mac folders with .pkg files, saved as `packageFolders` in config.json like
-/// `ps3 config folder add PKG`. Their packages are listed under Från Macen in the Apps tab.
+/// `ps3 config folder add PKG`. Their packages are listed under From Mac in the Apps tab.
 struct PackageFoldersView: View {
-    @Environment(\.dismiss) private var dismiss
     /// Called after a change, so the packages are read again.
     let onChange: () -> Void
     /// False when rendered for a snapshot: the folders in Fixtures, and no disk is looked at.
@@ -163,11 +158,11 @@ struct PackageFoldersView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Paketmappar")
-                .font(.system(size: 30, weight: .light))
+            Text("Package Folders")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Koppla mapparna där du har .pkg-filer, till exempel program du har laddat ner själv. PS3 Center letar i mappen och mapparna direkt under den. Paketen visas under Från Macen i Appar-fliken och installeras på PS3:an med ett klick. Filerna ligger kvar på Macen.")
-                .font(.system(size: 13))
+            Text("Add the folders where you keep .pkg files, such as apps you downloaded yourself. PS3 Center looks in the folder and the folders directly inside it. The packages show up under From Mac in the Apps tab and install on the PS3 with one click. The files stay on the Mac.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -182,11 +177,8 @@ struct PackageFoldersView: View {
             }
 
             HStack {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut(.cancelAction)
-                    .help("Tillbaka")
                 Spacer()
+                DoneButton()
             }
             .padding(.top, 16)
         }
@@ -198,8 +190,8 @@ struct PackageFoldersView: View {
     private var list: some View {
         VStack(alignment: .leading, spacing: 0) {
             if folders.isEmpty {
-                Text("Inga mappar är kopplade än.")
-                    .font(.system(size: 13))
+                Text("No folders added yet.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.tertiaryText)
                     .padding(.vertical, 12)
             }
@@ -207,25 +199,25 @@ struct PackageFoldersView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "folder.fill").foregroundStyle(Theme.accent)
                     Text((url.path as NSString).abbreviatingWithTildeInPath)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !isPluggedIn(url) {
-                        Chip(text: "Inte ansluten", color: Theme.warm)
+                        Chip(text: "Not Connected", color: Theme.warm)
                     }
                     Spacer(minLength: 4)
                     Button { remove(url) } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.plain)
                         .foregroundStyle(Theme.secondaryText)
-                        .help("Koppla bort (filerna rörs inte)")
+                        .iconLabel("Remove (the files are not touched)")
                 }
                 .padding(.vertical, 10)
                 Divider().overlay(Theme.cardStroke)
             }
-            Button { add() } label: { Label("Lägg till…", systemImage: "plus") }
+            Button { add() } label: { Label("Add…", systemImage: "plus") }
                 .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(.footnote, weight: .semibold))
                 .foregroundStyle(Theme.accent)
                 .padding(.top, 12)
         }
@@ -240,8 +232,8 @@ struct PackageFoldersView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
-        panel.prompt = "Koppla"
-        panel.message = "Välj mappar med .pkg-filer."
+        panel.prompt = "Add"
+        panel.message = "Choose folders with .pkg files."
         guard panel.runModal() == .OK else { return }
         for url in panel.urls { try? PackageFolders.add(url) }
         reload()

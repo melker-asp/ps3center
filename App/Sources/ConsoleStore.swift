@@ -171,26 +171,26 @@ final class ConsoleStore {
         let rsx = next.rsxTemp ?? 0
         guard cpu >= 80 || rsx >= 85, Date().timeIntervalSince(lastHeatWarning) > 1800 else { return }
         lastHeatWarning = Date()
-        Notifier.post(title: "PS3:an är varm", body: "CPU \(cpu) °C, RSX \(rsx) °C. Se till att den har luft runt sig.")
+        Notifier.post(title: "The PS3 is hot", body: "CPU \(cpu) °C, RSX \(rsx) °C. Make sure it has air around it.")
     }
 
     // MARK: Controls
 
     func shutdown() {
-        act("PS3:an stängs av") { try await $0.shutdown() }
+        act("The PS3 is shutting down") { try await $0.shutdown() }
     }
 
     func restart() {
-        act("PS3:an startar om. Aktivera HEN igen när den har startat.") { try await $0.restart() }
+        act("The PS3 is restarting. Enable HEN again once it has started.") { try await $0.restart() }
     }
 
     func exitGame() {
-        act("Spelet är avslutat") { _ = try await GameLibraryService(host: $0.host).exitGame() }
+        act("The game has quit") { _ = try await GameLibraryService(host: $0.host).exitGame() }
     }
 
     /// Like SELECT + L3; not while a game runs, as `ps3 refresh` waits for.
     func refreshGames() {
-        act("Spellistan är uppdaterad") { webMAN in
+        act("The game list is refreshed") { webMAN in
             let running = try await webMAN.isGameRunning()
             guard !running else { throw PS3Error.gameRunning }
             try await webMAN.refreshGames()
@@ -199,15 +199,15 @@ final class ConsoleStore {
     }
 
     func eject() {
-        act("Skivan matas ut") { try await $0.ejectDisc() }
+        act("Ejecting the disc") { try await $0.ejectDisc() }
     }
 
     func insert() {
-        act("Skivan matas in") { try await $0.insertDisc() }
+        act("Inserting the disc") { try await $0.insertDisc() }
     }
 
     func setFanTarget(_ celsius: Int) {
-        act("Fläkten håller nu max \(celsius) °C") { try await $0.setFanTarget(celsius) }
+        act("The fan now targets \(celsius) °C") { try await $0.setFanTarget(celsius) }
     }
 
     // MARK: Extras (webMAN commands from fas 9)
@@ -221,8 +221,8 @@ final class ConsoleStore {
                 let recording = try await WebMAN(host: host).toggleRecording()
                 isRecording = recording
                 actionNote = recording
-                    ? "Spelar in. Tryck igen för att sluta."
-                    : "Inspelningen ligger i /dev_hdd0/VIDEO. Hämta den under Underhåll → Filmer och bilder."
+                    ? "Recording. Press again to stop."
+                    : "The recording is in /dev_hdd0/VIDEO. Import it under Maintenance → Videos & Photos."
             } catch {
                 actionNote = error.localizedDescription
             }
@@ -231,7 +231,7 @@ final class ConsoleStore {
     }
 
     func reloadXMB() {
-        act("XMB:n laddas om") { webMAN in
+        act("Reloading the XMB") { webMAN in
             let running = try await webMAN.isGameRunning()
             guard !running else { throw PS3Error.gameRunning }
             try await webMAN.reloadXMB()
@@ -239,15 +239,15 @@ final class ConsoleStore {
     }
 
     func beep() {
-        act("Pip!") { try await $0.beep() }
+        act("Beep!") { try await $0.beep() }
     }
 
     func enableGameScreenshots() {
-        act("Skärmbilder är tillåtna i spel till nästa omstart: PS-knappen → Spara skärmbild.") { try await $0.enableGameScreenshots() }
+        act("Screenshots are allowed in games until the next restart: PS button → Save Screenshot.") { try await $0.enableGameScreenshots() }
     }
 
     func setGameMusic(_ on: Bool) {
-        act(on ? "Musik från XMB:n spelar under spel" : "Ingen musik från XMB:n under spel") { try await $0.setGameMusic(on) }
+        act(on ? "XMB music plays during games" : "No XMB music during games") { try await $0.setGameMusic(on) }
     }
 
     func press(_ button: PadButton) async {

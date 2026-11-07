@@ -4,7 +4,7 @@ import PS3Kit
 import ServiceManagement
 import SwiftUI
 
-/// Files to send that come from outside the window: Finder's "Skicka till PS3", the menu bar
+/// Files to send that come from outside the window: Finder's "Send to PS3", the menu bar
 /// and Shortcuts. The window picks them up and shows the same review as a drop.
 @MainActor
 @Observable
@@ -50,7 +50,7 @@ final class WindowOpener {
     }
 }
 
-/// Finder's "Skicka till PS3" (Services menu and Quick Actions), declared as NSServices in
+/// Finder's "Send to PS3" (Services menu and Quick Actions), declared as NSServices in
 /// project.yml.
 @MainActor
 final class ServiceProvider: NSObject {
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
-/// "Starta vid inloggning", as a login item for the app itself.
+/// "Launch at Login", as a login item for the app itself.
 enum LoginItem {
     static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
 
@@ -83,7 +83,7 @@ enum LoginItem {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             return nil
         } catch {
-            return "Gick inte att ändra: \(error.localizedDescription). Lägg PS3 Center i Program och försök igen."
+            return "Couldn't change it: \(error.localizedDescription). Put PS3 Center in Applications and try again."
         }
     }
 }
