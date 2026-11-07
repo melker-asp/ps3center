@@ -178,23 +178,8 @@ struct WhenDonePicker: View {
     @Environment(TransferStore.self) private var transfers
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(TransferQueue.WhenDone.allCases, id: \.self) { choice in
-                Button {
-                    transfers.setWhenDone(choice)
-                } label: {
-                    Text(choice.label)
-                        .font(.ui(.body, weight: transfers.queue.whenDone == choice ? .bold : .semibold))
-                        .foregroundStyle(transfers.queue.whenDone == choice ? Theme.primaryText : Theme.primaryText.opacity(0.7))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(transfers.queue.whenDone == choice ? Color.white.opacity(0.14) : .clear))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
+        PillPicker(options: TransferQueue.WhenDone.allCases, selection: transfers.queue.whenDone, label: \.label) {
+            transfers.setWhenDone($0)
         }
-        .padding(4)
-        .background(Capsule().fill(Color.black.opacity(0.45)))
     }
 }

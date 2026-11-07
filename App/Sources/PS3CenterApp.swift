@@ -10,6 +10,8 @@ struct PS3CenterApp: App {
     @State private var netServer = NetServerStore()
     @State private var maintenance = MaintenanceStore()
     @State private var appearance = AppearanceStore()
+    @State private var preferences = AppPreferences()
+    @State private var router = AppRouter()
 
     var body: some Scene {
         // One window; closed, the app keeps running in the menu bar.
@@ -22,6 +24,8 @@ struct PS3CenterApp: App {
                 .environment(netServer)
                 .environment(maintenance)
                 .environment(appearance)
+                .environment(preferences)
+                .environment(router)
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)
                 .task {
@@ -44,13 +48,22 @@ struct PS3CenterApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 820)
+        .commands {
+            // PS3 Center → Settings… opens the sheet in the window, as the gear does.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { router.openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
+        }
 
-        MenuBarExtra {
+        // Settings → General → Show in Menu Bar.
+        MenuBarExtra(isInserted: $preferences.showsMenuBarIcon) {
             MenuBarView()
                 .environment(console)
                 .environment(apps)
                 .environment(transfers)
                 .environment(netServer)
+                .environment(router)
                 .preferredColorScheme(.dark)
         } label: {
             Image(systemName: "playstation.logo")

@@ -122,7 +122,7 @@ final class MaintenanceStore {
                 localSaves = SaveBackupService.local()
                 lastSaveBackup = SaveBackupService.lastBackup()
                 if !report.copied.isEmpty {
-                    Notifier.post(title: "Saves backed up", body: "\(report.copied.count) saves changed since last week.")
+                    Notifier.post(.savesBackedUp, title: "Saves backed up", body: "\(report.copied.count) saves changed since last week.")
                 }
             }
             busy = nil

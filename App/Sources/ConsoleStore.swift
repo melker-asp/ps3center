@@ -172,7 +172,7 @@ final class ConsoleStore {
         guard Thermal.cpu.level(cpu) == .hot || Thermal.rsx.level(rsx) == .hot,
               Date().timeIntervalSince(lastHeatWarning) > 1800 else { return }
         lastHeatWarning = Date()
-        Notifier.post(title: "The PS3 is hot", body: "CPU \(cpu) °C, RSX \(rsx) °C. Make sure it has air around it.")
+        Notifier.post(.consoleHot, title: "The PS3 is hot", body: "CPU \(cpu) °C, RSX \(rsx) °C. Make sure it has air around it.")
     }
 
     // MARK: Controls

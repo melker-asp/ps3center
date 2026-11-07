@@ -47,21 +47,13 @@ final class AppearanceStore {
     }
 }
 
-/// The PS app's Appearance screen: a title in light weight, one row per theme with a colour
-/// square and a radio button, and Done.
-struct AppearanceView: View {
+/// The PS app's Appearance rows, in Settings → Appearance: one row per theme with a colour
+/// square and a radio button.
+struct ThemePicker: View {
     @Environment(AppearanceStore.self) private var appearance
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Appearance")
-                .font(.ui(.display, weight: .light))
-                .foregroundStyle(Theme.primaryText)
-            Text("Choose how PS3 Center looks.")
-                .font(.ui(.callout))
-                .foregroundStyle(Theme.secondaryText)
-                .padding(.top, 8)
-                .padding(.bottom, 14)
             ForEach(AppTheme.allCases) { theme in
                 Button {
                     withAnimation(.easeInOut(duration: 0.3)) { appearance.theme = theme }
@@ -69,16 +61,9 @@ struct AppearanceView: View {
                     row(theme)
                 }
                 .buttonStyle(.plain)
-            }
-            Spacer(minLength: 20)
-            HStack {
-                Spacer()
-                DoneButton()
+                .accessibilityAddTraits(appearance.theme == theme ? .isSelected : [])
             }
         }
-        .padding(32)
-        .frame(width: 460, height: 640, alignment: .topLeading)
-        .background(Theme.base)
     }
 
     private func row(_ theme: AppTheme) -> some View {

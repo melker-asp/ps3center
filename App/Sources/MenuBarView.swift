@@ -8,6 +8,7 @@ struct MenuBarView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
+    @Environment(AppRouter.self) private var router
     @Environment(\.openWindow) private var openWindow
     @State private var startsAtLogin = LoginItem.isEnabled
     /// The panel's own background; the menu bar draws one, a snapshot needs it.
@@ -59,6 +60,10 @@ struct MenuBarView: View {
             }
             if let loginNote {
                 Text(loginNote).font(.ui(.caption)).foregroundStyle(Theme.warm).fixedSize(horizontal: false, vertical: true)
+            }
+            row("gearshape", "Settings…") {
+                WindowOpener.shared.openWindow = openWindow
+                router.openSettings()
             }
             row("xmark.square", "Quit PS3 Center") { NSApp.terminate(nil) }
         }

@@ -175,7 +175,7 @@ final class AppsStore {
         for status in fresh { seen.insert("\(status.id) \(status.latest ?? "")") }
         UserDefaults.standard.set(Array(seen), forKey: key)
         let names = fresh.map(\.name).joined(separator: ", ")
-        Notifier.post(title: fresh.count == 1 ? "New version of \(names)" : "\(fresh.count) app updates",
+        Notifier.post(.appUpdates, title: fresh.count == 1 ? "New version of \(names)" : "\(fresh.count) app updates",
                       body: fresh.count == 1 ? "Ready to install under Apps." : names)
     }
 
@@ -305,7 +305,7 @@ final class AppsStore {
         let done = report.done, failed = report.failed
         let title = failed.isEmpty && done.count == 1 ? "\(done[0].name) is updated"
             : "\(done.count) of \(batch.installs.count) updates done"
-        Notifier.post(title: title, body: failed.isEmpty ? "Everything went fine." : "Failed: " + failed.map(\.name).joined(separator: ", "))
+        Notifier.post(.installsFinished, title: title, body: failed.isEmpty ? "Everything went fine." : "Failed: " + failed.map(\.name).joined(separator: ", "))
     }
 
     /// Fixture mode: the report after an "Update All" with one of each outcome.
@@ -418,15 +418,20 @@ final class AppsStore {
 
     // MARK: Mirror folder
 
+    /// From the banner: an existing PS3 folder, or a new one inside a folder that isn't one.
     func chooseMirrorFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = "Choose"
-        panel.message = "Choose the PS3 folder (the one with dev_hdd0/ and _Installed/)."
-        guard panel.runModal() == .OK, let url = panel.url, MirrorRoot.looksLikeMirror(url) else { return }
-        guard (try? ConfigStore.edit({ $0.root = url.path })) != nil else { return }
-        archiveMissing = false
+        if case .set = PS3FolderPicker.choose() { mirrorFolderChanged() }
+    }
+
+    /// From the banner: a new, empty PS3 folder.
+    func createMirrorFolder() {
+        if case .set = PS3FolderPicker.create() { mirrorFolderChanged() }
+    }
+
+    /// After the PS3 folder changed (here or in Settings): installs that stopped for it can go again.
+    func mirrorFolderChanged() {
+        archiveMissing = MirrorRoot.resolve() == nil
+        guard !archiveMissing else { return }
         for (id, op) in operations { if case .failed = op.stage { operations[id] = nil } }
     }
 }

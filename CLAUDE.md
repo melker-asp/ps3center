@@ -206,6 +206,14 @@ xcodebuild won't find it.
   to `<name> [ID].BIN.ENC` as ps2classic does, for the placeholder `PS2U10000` (PS3HEN makes its
   license itself). `PS2ClassicKeys` downloads, imports and checks the keys. CLI: `ps3 ps2`.
   The app: Convert to PS2 Classic… in the right-click menu on a PS2 game under Mac (`PS2ClassicView`).
+- **Settings** (`SettingsView.swift`, `Preferences.swift`): the gear, ⌘, (`CommandGroup(replacing:
+  .appSettings)`) and the menu bar open one sheet through `AppRouter`, which sits on the window so it
+  survives the window being reopened. `AppPreferences` holds what only the app uses (UserDefaults:
+  `startTab`/`lastTab`, `showsMenuBarIcon` bound to `MenuBarExtra(isInserted:)`, the muted
+  `NotificationKind`s that `Notifier.post` checks); what the CLI reads stays in config.json
+  (`FTPTuning` has the limits both use, `MirrorRoot.create(in:)` makes an empty PS3 folder, also
+  `ps3 config set root <folder> --create`). `PS3FolderPicker` is shared by Settings and the banner in
+  Apps. Phase 11 in PLAN.md has the next steps (setup guide, help, tooltips, tour).
 - **Progress:** `TransferEvent` goes via `@Sendable` callbacks. The CLI prints them (`TransferPrinter`),
   the app puts them in `AppsStore.operations` on the MainActor.
 - **The app:** `ConsoleStore` fetches status every 3 seconds, `AppsStore` has an installation queue that takes

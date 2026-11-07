@@ -46,7 +46,8 @@ waits until no game is running. Uploads start right away. `--force` runs anyway.
 | **Games** | `ps3 games`, `ps3 send`, `ps3 serve`, `ps3 usb`, `ps3 iso` | Library Mac ↔ PS3, drag and drop to send, mount/play, delete |
 | **Apps** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Like Mole's Apps → Updates: "02.40 → 02.41", Update / Ignore / Update All. Ignore skips just that version (`apps ignore`); a newer one shows up again. Update All first shows a review and afterwards a report. The Browse tab shows `apps available`, grouped as System, Programs and webMAN add-ons, with New (released in the last 30 days) on top. From Mac (`apps mac`) shows the .pkg files in the package folders, per folder, like the Mac's games in the Games tab; they are installed where they are, with the same compatibility check when the title ID is in the catalog. Clicking a row opens the detail page (`apps info`): version, compatibility with the console and the README with images |
 | **Maintenance** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Saves and system files to the Mac, Cleanup like Mole's Optimize (a report with Done and what remains, with the reason), Storage like Mole's Analyze (one bar over /dev_hdd0) and Disc |
-| **Menu bar** | `ps3 status --watch` | Compact status + quick buttons (Send Files…, Refresh Game List, Quit Game, Shut Down), Launch at Login |
+| **Menu bar** | `ps3 status --watch` | Compact status + quick buttons (Send Files…, Refresh Game List, Quit Game, Shut Down), Launch at Login, Settings… |
+| **Settings** (the gear, ⌘,) | `ps3 config` | General, Appearance, Folders, Transfers and Notifications in one sheet (below) |
 
 ## Appearance (Mole's structure, the PS app's colors)
 
@@ -89,9 +90,29 @@ From Mole: the layout. From the PlayStation app: colors, buttons and feel. All v
 - **Images:** Now Playing shows the game's ICON0/PIC1 from `/dev_bdvd/PS3_GAME` (`GameArt`), and
   the detail page has a banner like the PS Store with the app's PIC1.PNG or the README's first image.
   Browse is a grid of cards like the PS app's library.
-- **Appearance** (the gear at the top right): the PS app's themes. "Match Tab" (default) gives each
-  tab its own color; Starlight Blue, Nova Pink, Cosmic Red, Galactic Purple and Midnight Black color
-  all tabs the same. Saved as `theme` in `config.json`.
+- **Settings** (the gear at the top right, ⌘, and Settings… in the menu bar): one sheet with the
+  sections on the left like the PS app's Settings, a short line on what each section is for, and
+  groups of rows on cards (`SettingsGroup`, `SettingsRow`; a row of pills goes below its title,
+  `SettingsStackedRow`). One choice out of a few is a `PillPicker`, on/off is a `PillToggle`; both are
+  drawn by SwiftUI so snapshots render them. The sheet's white button is Done; everything else in it
+  is outlined. It works while the console is offline, since a new user needs it before there is one.
+  - General: the tab the app opens in (or the last one), Launch at Login, Show in Menu Bar.
+  - Appearance: the PS app's themes. "Match Tab" (default) gives each tab its own color; Starlight
+    Blue, Nova Pink, Cosmic Red, Galactic Purple and Midnight Black color all tabs the same.
+  - Folders: the PS3 folder (Create… makes an empty one for someone without a copy of the console's
+    drive, Choose… offers one inside a folder that isn't one), Game Folders and Package Folders.
+  - Transfers: when the queue finishes, Verify with MD5, the weekly save backup, and under Advanced
+    the FTP piece size and pieces in flight with Reset to Default.
+  - Notifications: whether macOS allows them (asks once; after a no, a button opens System
+    Settings) and one switch per kind (`NotificationKind`).
+  - A switch that also sits where it is used (Launch at Login in the menu bar, Verify with MD5 in
+    Transfers, the weekly backup in Maintenance) reads and writes the same value, so nothing moved away
+    from where people already found it.
+  - **Where a setting is saved:** what the CLI also reads (host, root, folders, FTP tuning, theme) is
+    in `config.json`, so `ps3 config` and the app agree. What only changes how the app looks or behaves
+    (the start tab, the menu bar icon, notifications, the weekly backup, the Games view) is in
+    UserDefaults. A value equal to the default is saved as nothing, so config.json only holds what
+    someone changed.
 - A hero image that mirrors health. Mole uses a planet; here it could be the console or a
   disc that glows in the health color.
 - **Review view before changes:** groups with checkboxes and size, and a white main button that

@@ -22,9 +22,11 @@ struct ContentView: View {
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
     @Environment(MaintenanceStore.self) private var maintenance
+    @Environment(AppPreferences.self) private var preferences
+    @Environment(AppRouter.self) private var router
     @Environment(\.openWindow) private var openWindow
-    @State private var tab: MainTab = .status
-    @State private var showsAppearance = false
+    /// Settings → General → Open In: a tab, or the one the window was on last time.
+    @State private var tab: MainTab = StartTab.launchTab()
     @State private var showsTransfers = false
     @State private var dropped: SendReview?
 
@@ -43,7 +45,7 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.5), value: console.connection == .online)
 
             VStack(spacing: 0) {
-                TopBar(selection: $tab, openTransfers: { showsTransfers = true }) { showsAppearance = true }
+                TopBar(selection: $tab, openTransfers: { showsTransfers = true }) { router.openSettings() }
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -65,7 +67,10 @@ struct ContentView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
-        .sheet(isPresented: $showsAppearance) { AppearanceView() }
+        // On the window, not the gear, so ⌘, and the menu bar can open it too.
+        .sheet(isPresented: Binding(get: { router.showsSettings }, set: { router.showsSettings = $0 })) {
+            SettingsView(section: router.settingsSection)
+        }
         .sheet(isPresented: $showsTransfers) { TransfersView() }
         .sheet(item: $dropped) { SendReviewView(review: $0) }
         .task(id: console.host) {
@@ -80,6 +85,7 @@ struct ContentView: View {
             maintenance.autoBackupIfDue(gameRunning: console.snapshot?.isGameRunning ?? true, transfersRunning: transfers.isRunning)
         }
         .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
+        .onChange(of: tab) { _, tab in preferences.remember(tab) }
         // Files from Finder's "Send to PS3", the menu bar and Shortcuts.
         // They wait until the console is online.
         .onChange(of: Inbox.shared.revision * 2 + (console.connection == .online ? 1 : 0), initial: true) {
@@ -104,7 +110,7 @@ struct TopBar: View {
     @Environment(TransferStore.self) private var transfers
     @Binding var selection: MainTab
     var openTransfers: () -> Void = {}
-    let openAppearance: () -> Void
+    let openSettings: () -> Void
 
     var body: some View {
         TabBar(selection: $selection)
@@ -121,9 +127,9 @@ struct TopBar: View {
                         }
                     }
                     .iconLabel("Transfers")
-                    Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
+                    Button(action: openSettings) { Image(systemName: "gearshape.fill") }
                         .buttonStyle(CircleIconButtonStyle())
-                        .iconLabel("Appearance")
+                        .iconLabel("Settings (⌘,)")
                 }
             }
     }

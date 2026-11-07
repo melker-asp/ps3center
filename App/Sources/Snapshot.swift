@@ -94,7 +94,7 @@ enum Snapshot {
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
         write(SavesView(live: false).environment(maintenance), name: "saves", into: directory)
-        write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),
+        write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer).environment(AppRouter()),
               name: "menubar", into: directory)
         render(.maintenance, name: "maintenance", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) {
             MaintenanceView(scrolls: false)
@@ -131,7 +131,15 @@ enum Snapshot {
         render(.status, name: "status-nova-pink", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, theme: .novaPink) {
             StatusView(scrolls: false)
         }
-        write(AppearanceView().environment(AppearanceStore(previewing: .perTab)), name: "appearance", into: directory)
+        // Settings, one picture per section, with the defaults instead of the viewer's own choices.
+        let preferences = AppPreferences(previewing: true)
+        for section in SettingsSection.allCases {
+            write(SettingsView(section: section, live: false, scrolls: false)
+                    .environment(AppearanceStore(previewing: .perTab)).environment(preferences)
+                    .environment(console).environment(apps).environment(games).environment(transfers)
+                    .environment(netServer).environment(maintenance),
+                  name: "settings-\(section.rawValue)", into: directory)
+        }
         NSApp.terminate(nil)
     }
 

@@ -291,6 +291,9 @@ public enum Fixtures {
 
     public static let unpluggedFolders: Set<String> = ["/Volumes/Games/PS3ISO", "/Volumes/Games/Packages"]
 
+    /// The PS3 folder (`root`) that Settings → Folders shows.
+    public static let mirrorRoot = "/Users/melker/PS3"
+
     // MARK: Packages on the Mac
 
     /// The .pkg files in the package folders of `folderConfig`: Apollo and RetroArch are

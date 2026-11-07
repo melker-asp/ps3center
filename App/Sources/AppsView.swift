@@ -36,7 +36,7 @@ struct AppsView: View {
                 WaitingBanner(game: game) { apps.forceWaiting() }
             }
             if apps.archiveMissing {
-                MissingFolderBanner { apps.chooseMirrorFolder() }
+                MissingFolderBanner(choose: { apps.chooseMirrorFolder() }, create: { apps.createMirrorFolder() })
             }
             if let selected = apps.selected {
                 AppDetailView(status: selected, scrolls: scrolls)
@@ -662,13 +662,18 @@ struct WaitingBanner: View {
 
 struct MissingFolderBanner: View {
     let choose: () -> Void
+    let create: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "folder.badge.questionmark").foregroundStyle(Theme.hot)
-            Text("The app can't find the PS3 folder where packages are archived (_Installed/Packages).")
+            Text("Installing apps needs a PS3 folder on the Mac to archive the packages in (_Installed/Packages).")
                 .font(.ui(.body)).foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
+            Button("Create Folder…", action: create)
+                .buttonStyle(PillButtonStyle(tint: Theme.hot))
+                .help("Makes an empty PS3 folder with dev_hdd0 and _Installed in a place you choose")
             Button("Choose Folder…", action: choose).buttonStyle(PillButtonStyle(tint: Theme.hot))
         }
         .padding(12)

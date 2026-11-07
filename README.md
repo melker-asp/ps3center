@@ -75,7 +75,11 @@ long you have played a game and when you last played it. Notifications arrive wh
 the console gets hot and when an app has a new version.
 
 The look follows the PlayStation app: blue splash screen, dark base with a color per tab, white buttons and
-the games' own images. The gear at the top right opens Appearance with the PS app's themes.
+the games' own images. The gear at the top right (or ⌘,) opens Settings: the tab the app opens in,
+Launch at Login and the menu bar icon, the PS app's themes, the PS3 folder (Create… makes an empty one
+if you don't have one), Game and Package Folders, how the queue ends, MD5 checks, the weekly save
+backup, the FTP tuning, and which notifications you get. It works before a console is connected.
+From Terminal, `ps3 config set root ~/Documents --create` makes the same empty PS3 folder.
 
 `make snapshot DIR=/tmp/shots` renders the tabs to PNG without opening any window, and
 `make snapshot-fixtures DIR=/tmp/shots` does the same without a PS3.
