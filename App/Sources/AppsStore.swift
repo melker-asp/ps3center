@@ -93,6 +93,8 @@ final class AppsStore {
     var manual: [AppStatus] { statuses.filter { $0.state == .manual || $0.state == .error } }
     var available: [AppStatus] { statuses.filter { $0.installed == nil && $0.installable } }
     var installableUpdates: [AppStatus] { updates.filter(\.canInstall) }
+    /// Hämta's "Nytt": programs whose latest release is less than 30 days old.
+    var newReleases: [AppStatus] { statuses.filter { $0.isNewRelease() && ($0.installable || $0.installed != nil || $0.blocked) } }
 
     var waitingGame: String? {
         for op in operations.values { if case .waitingForGame(let game) = op.stage { return game } }

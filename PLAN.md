@@ -22,7 +22,11 @@ Kvar utanför koden:
   Macen före varje commit.
 - Proven 1–14 under Prova på konsolen.
 
-Byggt sist (7 nov): Ignorera i Appar och `ps3 apps ignore`/`unignore`, och en granskning före
+Byggt sist (7 nov, kväll): `ps3 mcp`, en MCP-server som bara läser, och tre idéer från ps3.world:
+paket från GitHub kontrolleras mot storlek och SHA-256, Nytt i Hämta och fler felkoder med råd
+(test 16).
+
+Byggt 7 nov: Ignorera i Appar och `ps3 apps ignore`/`unignore`, och en granskning före
 och en rapport efter Uppdatera alla (test 15).
 
 Byggt 6 nov: sortering på namn, storlek och senast tillagt (Spel-fliken och
@@ -453,6 +457,13 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     - Uppdatera alla: stämmer storlekarna i granskningen med paketen på GitHub, och syns HEN under
       Hoppas över? Bocka ur ett program och installera resten. Kommer rapporten när kön är klar, med
       det urbockade under Hoppade över? Prova gärna medan ett spel körs, så att kön får vänta.
+16. MCP och ps3.world-idéerna:
+    - `claude mcp add ps3 -- ~/.local/bin/ps3 mcp`, och fråga Claude om PS3:ans status, om det finns
+      uppdateringar och vad en felkod betyder. Stäng av HEN (starta om PS3:an): säger Claude att HEN
+      inte är aktiverat?
+    - Installera eller uppdatera ett program: står det "stämmer med GitHubs kontrollsumma" i förloppet
+      (`ps3 apps install …`)?
+    - Hämta: stämmer raden Nytt med programmen som fått en release den senaste månaden?
 
 ## Beslut (24 okt 2026)
 

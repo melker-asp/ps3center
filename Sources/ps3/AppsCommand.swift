@@ -163,7 +163,9 @@ struct Apps: AsyncParsableCommand {
                     }
                     let pad = String(repeating: " ", count: max(1, 18 - plain.count))
                     let id = UI.paint(s.id.padding(toLength: 13, withPad: " ", startingAt: 0), .gray)
-                    let detail = s.blocked ? s.compatibility.summary : s.ignored ? "ignorerad: \(s.summary)" : s.summary
+                    let detail = s.blocked ? s.compatibility.summary
+                        : s.ignored ? "ignorerad: \(s.summary)"
+                        : s.isNewRelease() ? "ny version: \(s.summary)" : s.summary
                     print("  \(marker) \(name)\(id)\(version)\(pad)" + UI.paint(detail, .gray))
                 }
                 print()

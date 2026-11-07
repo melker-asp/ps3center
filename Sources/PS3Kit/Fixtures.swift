@@ -142,6 +142,14 @@ public enum Fixtures {
     ]
     private static let defaultPackageSize: Int64 = 6_291_456
 
+    /// Days since the latest release, for "Nytt" in Hämta; the rest are older than 30 days.
+    private static let releaseAges: [String: Double] = ["apollo": 5, "ezremote": 12, "ps3health": 21, "pkgi": 60]
+
+    static func releaseDate(for id: String, now: Date = Date()) -> String {
+        let days = releaseAges[id] ?? 200
+        return ISO8601DateFormatter().string(from: now.addingTimeInterval(-days * 86_400))
+    }
+
     /// Skipped in the fixtures, so the screens show the Ignorerade list.
     public static let ignoredUpdates = ["artemis": "r6.5"]
 
@@ -170,7 +178,8 @@ public enum Fixtures {
                 let latest = version?.latest ?? "1.0"
                 let asset: URL? = entry.isInstallable ? URL(string: "https://github.com/\(entry.repository ?? "")/releases/download/\(latest)/\(entry.id).pkg") : nil
                 release = .success(AppsService.LatestInfo(version: latest, assetURL: asset, assetName: asset?.lastPathComponent, assetData: assetData,
-                                                          assetSize: asset == nil ? nil : packageSizes[entry.id] ?? defaultPackageSize))
+                                                          assetSize: asset == nil ? nil : packageSizes[entry.id] ?? defaultPackageSize,
+                                                          releaseDate: releaseDate(for: entry.id)))
             }
             return service.status(for: entry, installedFile: installedFile, console: console, release: release, ignored: ignored)
         }

@@ -12,7 +12,8 @@ PS3Kit (Swift-bibliotek)   ← all logik: webMAN, FTP, ISO/SFO/PKG, uppdateringa
 
 CLI:t skriver också JSON (`--json`, och automatiskt när utdata skickas vidare), och
 `ps3 status --watch --json` strömmar NDJSON. Det gör att widgets, Raycast eller Claude kan
-läsa samma data utan appen.
+läsa samma data utan appen. `ps3 mcp` ger Claude samma data som MCP-verktyg (bara läsning i
+första versionen; verktyg som ändrar konsolen får i så fall samma torrkörning och logg som CLI:t).
 
 ## Principer från Mole
 
@@ -43,7 +44,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
 | **Spel** | `ps3 games`, `ps3 send`, `ps3 serve` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
-| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Ignorera hoppar över just den versionen (`apps ignore`); en nyare visas igen. Uppdatera alla visar först en granskning och efteråt en rapport. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
+| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Ignorera hoppar över just den versionen (`apps ignore`); en nyare visas igen. Uppdatera alla visar först en granskning och efteråt en rapport. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg, med Nytt (release de senaste 30 dagarna) överst. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Sparfiler och systemfiler till Macen, Städning som Moles Optimize (en rapport med Klart och det som återstår, med skälet), Lagring som Moles Analyze (en stapel över /dev_hdd0) och Skivan |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
 
