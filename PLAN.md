@@ -20,7 +20,12 @@ Left outside the code:
   is sorted out (the repo is private). The alternatives are in CLAUDE.md: the repo variable
   `CI_RUNNER=self-hosted` or a public repo. Until then `swift test` and `make app` are run on
   the Mac before every commit.
-- Tests 1–16 under Try on the console.
+- Tests 1–19 under Try on the console.
+
+Built Nov 7, after the first cable test: Connection (the Network card's search button and Find PS3…
+on the connection screen, `ps3 connection`). It lists every PS3 on the Mac's networks, takes a typed
+address, shows the cable's link speed and the values to enter on the PS3; the search now also covers
+Internet Sharing and searches cables first (test 19).
 
 Built last (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
 packages from GitHub are checked against size and SHA-256, New in Browse and more error codes with advice
@@ -252,7 +257,8 @@ Transfers in the app. Retries after network errors are built (Oct 25): `RetryPol
 The tuning is built (Oct 25): 1 MB chunks and two in flight, adjustable with `ftpChunkKB` and
 `ftpWindow` in config.json to compare with the speed test (test 13). The time with a cable is shown in the
 review (Nov 6): from a measurement over LAN if there is one, otherwise 10–40 MB/s. Two files
-at the same time is not built (test 5).
+at the same time is not built (test 5). First measurement on the console (Nov 7): Wi-Fi 1.1 MB/s,
+a direct cable 5.5 MB/s with the link at 100 Mbit; the cable is to be swapped (test 19).
 
 - `ps3 speedtest` (and a button in Transfers): sends 256 MB from memory to `/dev_hdd0/tmp`,
   fetches it back and deletes the file. Shows MB/s in both directions and whether it is Wi-Fi or cable.
@@ -522,6 +528,12 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
       Send to PS3. Does the game show up in webMAN's list under PS2, and does it start? If not: what
       is on the TV (an error code, or a black screen)?
     - Preferably both a DVD game (.iso) and a CD game (.cue/.bin).
+19. Connection (Nov 7), with the PS3 on a cable to the Mac:
+    - Swap the cable for a Cat5e or Cat6. Open the Network card's search button: does the cable say
+      1 Gbit instead of 100 Mbit? Then `ps3 speedtest` again (it was 5.5 MB/s at 100 Mbit).
+    - Put the PS3 back on Wi-Fi in its own menu while the sheet is open, Search Again, and press Use
+      on the new address: does the Status tab follow without the splash screen?
+    - Type a wrong address in the field and Connect: the error should come and the old address stay.
 
 ## Decisions (Oct 24, 2026)
 
