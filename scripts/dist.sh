@@ -75,10 +75,18 @@ codesign --verify --deep --strict "$mount/PS3 Center.app"
 hdiutil detach -quiet "$mount"
 
 echo "→ ps3-cli.zip (arm64 + x86_64)"
-swift build -c release --arch arm64 --arch x86_64 --product ps3
-bin="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+# One architecture at a time, each in a build folder of its own, then lipo. `swift build` with two
+# --arch switches to the XCBuild backend, which in Xcode 16 (GitHub's runner) rejects
+# `.swiftLanguageMode(.v6)`; and Xcode 27's default backend puts every architecture in the same
+# .build/out folder, so without --scratch-path the second build overwrites the first.
+slices=()
+for arch in arm64 x86_64; do
+    scratch="$root/.build/dist-$arch"
+    swift build -c release --arch "$arch" --scratch-path "$scratch" --product ps3
+    slices+=("$(swift build -c release --arch "$arch" --scratch-path "$scratch" --show-bin-path)/ps3")
+done
 mkdir "$stage/cli"
-cp "$bin/ps3" "$stage/cli/ps3"
+lipo -create -output "$stage/cli/ps3" "${slices[@]}"
 codesign --force --sign - "$stage/cli/ps3"
 universal "$stage/cli/ps3"
 [[ "$("$stage/cli/ps3" --version)" == "$version" ]]
