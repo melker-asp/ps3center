@@ -156,6 +156,13 @@ struct AppsView: View {
     }
 
     @ViewBuilder private var getList: some View {
+        if !apps.newReleases.isEmpty {
+            SectionHeader(title: "Nytt", count: apps.newReleases.count)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 16)], alignment: .leading, spacing: 16) {
+                ForEach(apps.newReleases, id: \.id) { AppTile(status: $0) }
+            }
+            .padding(.horizontal, 14)
+        }
         ForEach(CatalogEntry.Category.allCases, id: \.self) { category in
             let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil || $0.blocked) }
             if !rows.isEmpty {
@@ -326,6 +333,10 @@ struct AppTile: View {
             }
             HStack(spacing: 8) {
                 Chip(text: AppRow.sourceLabel(for: status))
+                if status.isNewRelease() {
+                    Chip(text: "NYTT", color: Theme.good)
+                        .help(status.releasedAt.map { "Senaste versionen kom \($0.formatted(date: .long, time: .omitted))" } ?? "")
+                }
                 if let badge = status.compatibility.badge {
                     Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
                 }

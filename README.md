@@ -129,7 +129,8 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps unignore <namn…>` | Visar ett programs uppdateringar igen |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |
 | `ps3 refresh [--xmb]` | Uppdaterar spellistan (som SELECT + L3); `--xmb` laddar om XMB:n också |
-| `ps3 error <kod>` | Förklarar en felkod som 80010006 |
+| `ps3 error <kod>` | Förklarar en felkod som 80010006, och de vanligaste för skiva, Blu-ray, video, nätverk och konto |
+| `ps3 mcp` | MCP-server så att t.ex. Claude kan läsa och felsöka PS3:an (se Claude och MCP) |
 | `ps3 history` | Vad verktyget har ändrat (`~/Library/Logs/ps3center/operations.log`) |
 | `ps3 discover` | Letar upp PS3:an på nätverket och sparar adressen |
 | `ps3 config [set host/root …]` | Inställningar i `~/.config/ps3center/config.json` |
@@ -142,6 +143,29 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 - **Säkerhetsspärr:** innan något installeras läser verktyget konsolens firmware (HEN eller CFW,
   CEX eller DEX, version). Program som inte fungerar på den blockeras, både via namn och som egen
   .pkg-fil med ett känt title ID. Går firmwaren inte att läsa blockeras program som har krav.
+
+- **Paket från GitHub kontrolleras** mot storleken och SHA-256-summan som GitHub anger, innan de
+  arkiveras eller skickas. Stämmer de inte tas filen bort.
+- **Nytt i Hämta:** program vars senaste release är högst 30 dagar gammal har en egen rad överst
+  och etiketten NYTT (`ps3 apps available` skriver "ny version").
+
+## Claude och MCP
+
+`ps3 mcp` är en MCP-server över stdio. Med den kan Claude läsa PS3:an och hjälpa till att felsöka:
+status och hälsa, homebrew och uppdateringar, spelen, underhållsrapporten, historiken och
+felkoder. Verktygen läser bara; ändringar görs med `ps3` eller i appen.
+
+```bash
+claude mcp add ps3 -- ~/.local/bin/ps3 mcp          # Claude Code
+```
+
+I Claude Desktop läggs den till i `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "ps3": { "command": "/Users/<du>/.local/bin/ps3", "args": ["mcp"] } } }
+```
+
+Fråga sedan till exempel "Varför är min PS3 så varm?" eller "Vad betyder 8001003D?".
 
 ## Felsökning
 

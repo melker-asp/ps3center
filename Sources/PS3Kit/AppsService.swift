@@ -28,12 +28,22 @@ public struct AppStatus: Codable, Sendable {
     public var blocked = false
     /// Size of the release package in bytes, for the review before "Uppdatera alla".
     public var assetSize: Int64?
+    /// When the latest release came out, as GitHub writes it ("2026-11-02T18:04:11Z").
+    public var releaseDate: String?
     /// An update to exactly this release was skipped (`IgnoredUpdates`). It still counts as
     /// `updateAvailable`, but lists and "Uppdatera alla" leave it out.
     public var ignored = false
 
     /// An update the user has not skipped: what the badges count and "Uppdatera alla" offers.
     public var isPendingUpdate: Bool { state == .updateAvailable && !ignored }
+
+    public var releasedAt: Date? { releaseDate.flatMap { ISO8601DateFormatter().date(from: $0) } }
+
+    /// "Nytt" in Hämta: the latest release came out in the last `days` days.
+    public func isNewRelease(now: Date = Date(), days: Int = 30) -> Bool {
+        guard let releasedAt else { return false }
+        return now.timeIntervalSince(releasedAt) < Double(days) * 86_400
+    }
 }
 
 public struct AppsService: Sendable {
@@ -48,6 +58,7 @@ public struct AppsService: Sendable {
         /// Downloaded release asset, only for plugin files that are compared byte for byte.
         let assetData: Data?
         var assetSize: Int64? = nil
+        var releaseDate: String? = nil
     }
 
     // MARK: Check
@@ -129,6 +140,8 @@ public struct AppsService: Sendable {
             status.assetURL = info.assetURL
             status.assetName = info.assetName
             status.assetSize = info.assetSize
+            // An untracked release is someone else's (webMAN's add-ons), so its date says nothing.
+            if entry.tracksUpdates { status.releaseDate = info.releaseDate }
             status.installable = entry.isInstallable && info.assetURL != nil
             if !entry.tracksUpdates { status.latest = nil }
             if let assetData = info.assetData, let installedData = installedFile {
@@ -216,7 +229,8 @@ public struct AppsService: Sendable {
                         data = try? await GitHub.data(asset.browserDownloadURL)
                     }
                     results[entry.id] = .success(LatestInfo(version: release.tagName, assetURL: asset?.browserDownloadURL,
-                                                            assetName: asset?.name, assetData: data, assetSize: asset?.size))
+                                                            assetName: asset?.name, assetData: data, assetSize: asset?.size,
+                                                            releaseDate: release.publishedAt))
                 case .some(.failure(let error)):
                     results[entry.id] = .failure(error)
                 case .none:
@@ -313,6 +327,10 @@ public struct AppsService: Sendable {
         events(.note("Laddar ner \(asset.name) \(release.tagName) (\(Format.bytes(asset.size)))…"))
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("ps3center-\(UUID().uuidString)/\(asset.name)")
         try await GitHub.download(asset.browserDownloadURL, to: staging)
+        // Size and SHA-256 as GitHub lists them, before anything is archived or sent.
+        if try GitHub.verify(staging, size: asset.size, digest: asset.digest) {
+            events(.note("\(asset.name) stämmer med GitHubs kontrollsumma (SHA-256)."))
+        }
         let local = try archivePackage(staging, into: archive)
         try? FileManager.default.removeItem(at: staging.deletingLastPathComponent())
 

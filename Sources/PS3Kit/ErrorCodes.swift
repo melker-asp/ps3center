@@ -1,8 +1,9 @@
 import Foundation
 
-/// The console's system error codes (0x8001xxxx), in Swedish. The names and meanings come from
-/// RPCS3's rpcs3/Emu/Cell/ErrorCodes.h; the advice is PS3 Center's own, for the cases that come up
-/// with HEN and webMAN.
+/// The console's error codes, in Swedish. The system codes (0x8001xxxx) and their names come from
+/// RPCS3's rpcs3/Emu/Cell/ErrorCodes.h. The XMB's own codes for discs, Blu-ray, video, the network
+/// and the account (`xmbTable`) are the ones ps3.world/error-codes lists as common, with the
+/// meaning checked there (Nov 2026). The advice is PS3 Center's own, for HEN and webMAN.
 public enum ConsoleErrorCode {
     public struct Info: Sendable {
         public let code: UInt32
@@ -72,12 +73,31 @@ public enum ConsoleErrorCode {
         0x8001003A: ("ENOTMOUNTED", "Filsystemet är inte monterat.", "Är disken ansluten och spelet monterat?"),
         0x8001003B: ("ENOTSDATA", "Inte SDATA.", nil),
         0x8001003C: ("ESDKVER", "Fel SDK-version.", "Spelet kräver en nyare systemprogramvara än konsolens."),
-        0x8001003D: ("ENOLICDISC", "Licens saknas för skivan.", nil),
-        0x8001003E: ("ENOLICENT", "Licens saknas.", nil),
+        0x8001003D: ("ENOLICDISC", "Spelet vill ha sin skiva i spelaren.",
+                     "Sätt i skivan. För en kopia: montera spelet i webMAN först och starta det sedan."),
+        0x8001003E: ("ENOLICENT", "Licens saknas, oftast för att skivan inte sitter i.",
+                     "Sätt i skivan, eller montera kopian i webMAN innan spelet startas."),
+    ]
+
+    /// The XMB's codes outside 0x8001xxxx that come up most, with a short tag in place of a name.
+    static let xmbTable: [UInt32: (String, String, String?)] = [
+        0x8001050B: ("SKIVA", "Ett spel eller en demo på hårddisken startar inte med en skiva i spelaren.",
+                     "Mata ut skivan och starta om konsolen."),
+        0x80010514: ("SKIVA", "Skivan går inte att läsa.",
+                     "Rengör skivan och prova en annan. Går ingen skiva att läsa är Blu-ray-läsaren trasig; spel från hårddisken fungerar ändå."),
+        0x80010516: ("SKIVA", "Skivan går inte att ladda.", "Sätt i den igen eller rengör den."),
+        0x8002291A: ("BLU-RAY", "Blu-ray-skivan går inte att läsa.", "Rengör skivan. Läser ingen skiva behöver läsaren lagas."),
+        0x80029906: ("BLU-RAY", "En hembränd BD-R godtas inte som skiva.", "Bränn den igen med ett aktuellt program, t.ex. ImgBurn."),
+        0x8002990C: ("VIDEO", "Konsolen kan inte spela den här sortens video.", "Konvertera filen till MP4 (H.264)."),
+        0x8002990D: ("VIDEO", "Videon eller skivan går inte att spela.", "Rengör skivan. Är det en fil spelar MP4 (H.264) bäst."),
+        0x80710102: ("NÄTVERK", "Ingen DNS-server svarar, eller två enheter har samma IP-adress.",
+                     "Starta om routern och ange DNS själv (1.1.1.1). Har PS3:an en fast adress, kontrollera att ingen annan enhet har den."),
+        0x80029519: ("KONTO", "Kontot kan inte aktiveras, och köpta PSN-spel slutar fungera.",
+                     "Vanligt efter HEN, en avaktivering eller byte av firmware. PS3 Center ändrar inget här: köpta spel behöver kontots aktivering."),
     ]
 
     public static func info(_ code: UInt32) -> Info? {
-        guard let entry = table[code] else { return nil }
+        guard let entry = table[code] ?? xmbTable[code] else { return nil }
         return Info(code: code, name: entry.0, meaning: entry.1, advice: entry.2)
     }
 
@@ -91,7 +111,7 @@ public enum ConsoleErrorCode {
 
     /// Every known code in `text`, explained: for an error message from the console.
     public static func explain(in text: String) -> [Info] {
-        let pattern = #"(?:0x)?(8001[0-9A-Fa-f]{4})"#
+        let pattern = #"(?:0x)?(80[0-9A-Fa-f]{6})"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         var seen = Set<UInt32>()
