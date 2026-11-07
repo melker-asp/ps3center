@@ -93,7 +93,12 @@ private func decrypt(_ file: Data, values: [PS2ClassicKeys.Name: Data]) throws -
     #expect(result.image[size..<padded].allSatisfy { $0 == 0 })
     let limg = [UInt8](result.image[padded..<(padded + 16)])
     let sectors = UInt32(padded / 0x800)
-    #expect(limg == Array("LIMG".utf8) + [0, 0, 0, 1] + [UInt8(sectors >> 24), UInt8((sectors >> 16) & 0xFF), UInt8((sectors >> 8) & 0xFF), UInt8(sectors & 0xFF)] + [0, 0, 8, 0])
+    // Built in steps: as one expression, CI's compiler gave up type-checking it.
+    var expectedLIMG = [UInt8]("LIMG".utf8)
+    expectedLIMG += [0, 0, 0, 1]
+    expectedLIMG += withUnsafeBytes(of: sectors.bigEndian) { Array($0) }
+    expectedLIMG += [0, 0, 8, 0]
+    #expect(limg == expectedLIMG)
 
     // Each table: SHA-1 of the encrypted segment and its number, counting on over blocks.
     #expect(result.tables.count == 2)
