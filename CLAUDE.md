@@ -68,7 +68,9 @@ xcodebuild won't find it.
 - **webMAN's quirks** are handled in `WebMAN.swift` and `FTPClient.swift`:
   - every HTTP request sends `Connection: close` and runs one at a time, except commands that can take minutes
     (`/install.ps3`, `/stat.ps3`): they go through `WebMAN.long` on a connection of their own and
-    set `WebMAN.isBusy`, so that the app doesn't mistake slow status responses for the console being gone
+    set `WebMAN.isBusy`, so that the app doesn't mistake slow status responses for the console being gone.
+    `isBusy` also sees long commands in other processes (one file per pid in `~/.config/ps3center/busy/`),
+    so `ps3 maintain` or `ps3 mcp` beside the app doesn't make the app go offline
   - ENODATA on the data connection means end of file
   - `APPE` continues an interrupted upload
 
@@ -89,6 +91,32 @@ xcodebuild won't find it.
   `compatibility`/`blocked` and zeroes `canInstall`/`installable`; `AppsService.install` and the CLI's
   `apps install` (also custom .pkg files via title ID) stop before download. Unknown firmware blocks
   apps that have requirements.
+- **Ignored updates** (`IgnoredUpdates.swift`): catalog id → release tag in `config.json`
+  (`ignoredUpdates`). `AppsService.status` sets `AppStatus.ignored` when exactly that tag is the
+  latest, so a newer release shows again. `isPendingUpdate` is what counts: badges, notifications,
+  Update All and `ps3 apps update` without names. Only the Mac changes, so no `OperationLog` or
+  `--dry-run`.
+- **Versions on screen:** `AppStatus.latestForDisplay` gives the release tag in the console's APP_VER form
+  when the catalog knows the mapping ("v2.4.1" → "02.41"), and `versionChange` is "02.40 → 02.41". The
+  Updates list, the detail page, the review, its report and the CLI all use it; never print `latest` next
+  to `installed`.
+- **Update All** in the app: `AppsStore.updatePlan()` → `UpdateReviewView` → `updateAll(_:from:)`, which
+  queues what was chosen (leaving out what finished updating while the sheet was open) and keeps an
+  `UpdateBatch`. When the queue is empty `finishBatch()` makes an `UpdateReport` (Done / Failed / Skipped)
+  that `UpdateReportCard` shows at the top of Updates.
+- **GitHub:** API answers go through `GitHub.api`, which sends the last ETag (`APICache`,
+  `~/Library/Caches/ps3center/github`, shared by the app, the CLI and `ps3 mcp`). A 304 doesn't count
+  against the 60-an-hour limit, and when GitHub rate-limits the last answer is used. Packages are checked
+  with `GitHub.verify` (size and the asset's `digest` "sha256:…") right after the download in
+  `AppsService.install`; a file that doesn't match is removed. `AppStatus.releaseDate` (only for apps that
+  track releases) gives New in Browse (`isNewRelease`, 30 days).
+- **MCP** (`MCPServer.swift`, `ps3 mcp`): JSON-RPC 2.0 over stdio, one line per message, and nothing else
+  may be written to stdout. `consoleTools` are the tools; all only read (`readOnlyHint`). Tool calls run
+  one at a time in order (`CallQueue`), while ping and tools/list are answered at once, and a call the
+  client cancels gets no answer. Tools that open an FTP session refuse while the queue is being sent
+  (`QueueLock.isHeld`). A tool that fails answers with `isError`, not a protocol error. When webMAN
+  doesn't answer but the console does, the error says HEN is off. A tool that changes the console would
+  have to follow the CLI's rules (a question, `--dry-run`, `OperationLog`).
 - **The detail page:** `AppsStore.selectedID` opens `AppDetailView` in the Apps tab. The README is fetched with
   `GitHub.readme` and parsed by `Readme` (blocks + inline Markdown that `AttributedString` draws).
   The same data is shown by `ps3 apps info`.
@@ -108,7 +136,7 @@ xcodebuild won't find it.
   all changes go through `TransferQueue.edit`, which rereads the file under a lock, and
   `QueueLock` makes sure only one process sends. Everything is sent via `TransferService.send`, which
   uploads to `.part` and renames. `QueueRunner.send` and `ps3 send` retry after network errors
-  (`RetryPolicy`). `FolderWatch` (watch.json) finds new games in watched folders;
+  (`RetryPolicy`), decided by the error's case (`PS3Error.transferInterrupted`, FTP codes), never by its text. `FolderWatch` (watch.json) finds new games in watched folders;
   the app's `TransferStore` and `ps3 watch` put them in the queue. `FTPClient.Tuning` controls chunk size and
   the number of chunks in flight (config.json `ftpChunkKB`/`ftpWindow`).
 - **The game server** (`NetServer.swift`): a custom read-only ps3netsrv. The root is the connected
@@ -126,6 +154,11 @@ xcodebuild won't find it.
   <folder>` with a manifest per folder, the previous copy in `.previous`), `SystemFiles`, `MaintenanceService`
   (report + `fix` which only removes packages and `.part`), `StorageAnalyzer` (`/stat.ps3`) and
   `DiscRipper` (`/copy.ps3`, progress over FTP). The app: `MaintenanceStore` and `MaintenanceView`.
+- **Folder names on the Mac** are English since Nov 7, 2026 (Saves, System Files, `.previous`,
+  Videos/Photos, `_Installed/Packages`, `_Backups`, `_Emergency`). `BackupFolder.migrate` renames a
+  Swedish one once, only when the English one doesn't exist. When both exist (an older app or `ps3`
+  made the old one again), `FolderMigration.leftovers` puts it in the maintenance report; nothing is
+  merged by itself. Install the app and the CLI together (`make install-app`, `make install`).
 - **Phase 9** (ideas from aldostools/Resources):
   - `ConsoleExtras.swift`: XMB reload, recording, in-game screenshots, beep, in-game music,
     `UpdateBlock` and `MediaImport` (videos and photos to the Mac, `imported.json`).
@@ -138,8 +171,13 @@ xcodebuild won't find it.
     In-Game Screenshots, In-Game Music), on the game page and in Maintenance.
 - **Phase 10** (the ISO tools from the PC, `ISOTools.swift`): `PS3ISOBuilder` makes an ISO of a
   game folder with makeps3iso's layout (see DESIGN.md), `PS3ISO.split`/`join`/`extract`, and
-  `PartWriter` writes everything as `.part` and renames when it is complete. `USBDrive.plan` splits ISOs over
-  4 GB and turns a game folder with a file over 4 GB into an ISO in parts. CLI: `ps3 iso`. The app:
+  `PartWriter` writes everything as `.part` and renames when it is complete (`discard` also takes back
+  parts it had already named). `extract` refuses an ISO that ends early, and `join` refuses parts that
+  can't make the whole image (`checkComplete`: a gap, a short part, less than the descriptor's size).
+  `USBDrive.plan` splits ISOs over 4 GB and turns a game folder with a file over 4 GB into an ISO in
+  parts; copies already on the drive are `isOnDrive` and left out of `Plan.total`. `USBDrive.copy`
+  writes game folders as `<name>.part` too and checks for cancel between files.
+  `USBDrive.volume(containing:)` finds the drive for a folder that isn't made yet. CLI: `ps3 iso`. The app:
   Copy to USB Drive… in the Games tab (Mac) opens `USBCopyView` with `USBCopyModel`.
 - **PS2 Classics** (`PS2Classics.swift`): `PS2ClassicMaker` encrypts a PS2 ISO (or .cue/.bin)
   to `<name> [ID].BIN.ENC` as ps2classic does, for the placeholder `PS2U10000` (PS3HEN makes its
@@ -151,7 +189,8 @@ xcodebuild won't find it.
   one app at a time because webMAN's FTP can't handle parallel transfers. Design tokens are in
   `Theme.swift` (Mole style), and the rules for using them (one white button per screen,
   `destructive` for removals, `DoneButton` on sheets, `.font(.ui(…))` sizes, English dates via
-  `Theme.locale`/`Format`) are under Appearance in DESIGN.md. Never compare a display string in
+  `Format`, whose `Format.locale` `Theme.locale` also uses, and `Format.estimate` for time still to go)
+  are under Appearance in DESIGN.md. Never compare a display string in
   code (a status text, a label): keep a flag or an enum, so text can change freely.
 
 ## Rules
