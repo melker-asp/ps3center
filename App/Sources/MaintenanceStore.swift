@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PS3Kit
+import PS3KitFixtures
 
 /// The Maintenance tab: save and system file backups, the maintenance check, the storage map and
 /// copying the disc. Like `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze` and `ps3 rip`.

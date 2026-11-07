@@ -39,6 +39,9 @@ targets:
     dependencies:
       - package: PS3Center
         product: PS3Kit
+      # Canned data for PS3CENTER_FIXTURES=1 (CI's screenshots).
+      - package: PS3Center
+        product: PS3KitFixtures
     settings:
       base:
         PRODUCT_NAME: PS3 Center

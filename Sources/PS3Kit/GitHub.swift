@@ -80,9 +80,7 @@ public enum GitHub {
             let data: Data
         }
 
-        static var folder: URL {
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/ps3center/github", isDirectory: true)
-        }
+        static var folder: URL { StatePaths.caches.appendingPathComponent("github", isDirectory: true) }
 
         static func file(for url: URL, in folder: URL = folder) -> URL {
             let key = SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()

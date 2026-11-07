@@ -37,25 +37,19 @@ public struct PS3Config: Codable, Equatable, Sendable {
 }
 
 public enum ConfigStore {
-    public static var directory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/ps3center", isDirectory: true)
-    }
+    public static var directory: URL { StatePaths.config }
 
     public static var file: URL { directory.appendingPathComponent("config.json") }
 
-    public static func load() -> PS3Config {
-        guard let data = try? Data(contentsOf: file),
-              let config = try? JSONDecoder().decode(PS3Config.self, from: data)
-        else { return PS3Config() }
-        return config
-    }
+    static var store: JSONFile<PS3Config> { JSONFile(file, empty: PS3Config()) }
 
-    public static func save(_ config: PS3Config) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(config).write(to: file, options: .atomic)
+    public static func load() -> PS3Config { store.load() }
+
+    /// The only way to change config.json: rereads it under a lock, so a setting another process
+    /// saved meanwhile (the app, `ps3`, `ps3 mcp`) is kept. See `JSONFile`.
+    @discardableResult
+    public static func edit<T>(_ change: (inout PS3Config) throws -> T) throws -> T {
+        try store.edit(change)
     }
 }
 

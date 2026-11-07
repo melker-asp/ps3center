@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import PS3Kit
+import PS3KitFixtures
 
 /// The first 0x60 bytes of a .pkg: the magic and the content ID at 0x30.
 private func packageHeader(_ contentID: String) -> Data {

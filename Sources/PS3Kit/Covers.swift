@@ -11,8 +11,7 @@ public struct CoverService: Sendable {
 
     /// The user's own covers are not a cache, so they live in Application Support.
     static var customDirectory: URL {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ps3center/covers", isDirectory: true)
+        let url = StatePaths.support.appendingPathComponent("covers", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
@@ -147,7 +146,7 @@ public struct CoverService: Sendable {
                 events(.finished(route, seconds: 0))
                 sent += 1
             }
-            if sent > 0 { OperationLog.record("covers", "\(sent) \(sent == 1 ? "cover" : "covers") to \(folder)") }
+            if sent > 0 { OperationLog.record(.covers, "\(sent) \(sent == 1 ? "cover" : "covers") to \(folder)") }
             return sent
         }
     }

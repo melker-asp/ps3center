@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import PS3Kit
+import PS3KitFixtures
 import SwiftUI
 
 /// The Mac's picked games on their way to a USB drive, as `ps3 usb prepare` does it.

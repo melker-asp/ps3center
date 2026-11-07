@@ -134,6 +134,19 @@ public struct PS2ClassicKeys: Equatable, Sendable {
         values.merge(other) { $1 }
     }
 
+    /// Reads `urls` (see `read`), adds their values to the keys already on the Mac and saves the
+    /// result. Nothing is saved when a value is wrong. Returns the saved keys and how many values
+    /// the files held. For `ps3 ps2 keys --import` and the app's Import Keys.
+    @discardableResult
+    public static func importFiles(_ urls: [URL]) throws -> (keys: PS2ClassicKeys, read: Int) {
+        let read = try read(urls)
+        var keys = load() ?? PS2ClassicKeys()
+        keys.merge(read.values)
+        if !keys.wrong.isEmpty { throw PS3Error.invalidFile(keys.problem ?? "Wrong keys.") }
+        try keys.save()
+        return (keys, read.values.count)
+    }
+
     /// The values in C source like ps2classic.c: `u8 ps2_key_cex_data[] = { 0x.., … };`.
     static func values(inSource text: String) -> [Name: Data] {
         var result: [Name: Data] = [:]
@@ -291,12 +304,21 @@ public enum PS2ClassicMaker {
         return Int64(segment) * (1 + blocks + segments)
     }
 
+    /// Refuses before anything is written when the drive with `folder` (or the folder it will be
+    /// made in) has less than `size` free.
+    public static func checkSpace(_ size: Int64, in folder: URL) throws {
+        if let volume = USBDrive.volume(containing: folder), volume.free < size {
+            throw PS3Error.refused("Not enough space on \(volume.name): needs \(Format.bytes(size)), \(Format.bytes(volume.free)) free.")
+        }
+    }
+
     /// Makes the PS2 Classic `output` from `image` (an ISO, or a .cue or .bin). The image is not
     /// changed; the output is written as .part and named when it is whole. `progress` gets the
     /// bytes of the image read and their total.
     public static func make(from image: URL, to output: URL, keys: PS2ClassicKeys,
                             progress: (Int64, Int64) -> Void = { _, _ in }) throws {
         if let problem = keys.problem { throw PS3Error.refused("The keys for PS2 Classics: \(problem)") }
+        try checkSpace(encryptedSize(forImage: imageSize(of: image)), in: output.deletingLastPathComponent())
         let random = SymmetricKey(size: .bits128).withUnsafeBytes { Array($0) }
         try encrypt(from: image, to: output, values: keys.values, npdHash1: random, progress: progress)
     }

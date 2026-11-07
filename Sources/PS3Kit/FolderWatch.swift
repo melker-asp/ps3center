@@ -27,18 +27,13 @@ public struct FolderWatch: Sendable {
 
     /// How long a new entry must keep its size before it counts as complete.
     public var settle: TimeInterval = 60
-    var state: State
-    let file: URL
+    let store: JSONFile<State>
 
     public init(file: URL = FolderWatch.defaultFile) {
-        self.file = file
-        state = (try? Data(contentsOf: file)).flatMap { try? Self.decoder.decode(State.self, from: $0) } ?? State()
+        store = JSONFile(file, empty: State())
     }
 
-    public static var defaultFile: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ps3center/watch.json")
-    }
+    public static var defaultFile: URL { StatePaths.support.appendingPathComponent("watch.json") }
 
     /// The linked folders that are watched.
     public static func watched(config: PS3Config = ConfigStore.load()) -> [(kind: GameFolders.Kind, url: URL)] {
@@ -52,18 +47,26 @@ public struct FolderWatch: Sendable {
 
     /// Turns watching of a linked folder on or off in config.json.
     public static func setWatched(_ folder: URL, _ on: Bool) throws {
-        var config = ConfigStore.load()
-        var paths = config.watchedFolders ?? []
         let path = folder.standardizedFileURL.path
-        paths.removeAll { $0 == path }
-        if on { paths.append(path) }
-        config.watchedFolders = paths.isEmpty ? nil : paths
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            var paths = config.watchedFolders ?? []
+            paths.removeAll { $0 == path }
+            if on { paths.append(path) }
+            config.watchedFolders = paths.isEmpty ? nil : paths
+        }
     }
 
     /// Looks at the folders and returns the new entries that have kept their size for `settle`
-    /// seconds; they count as handled from then on. Saves what it has seen.
-    public mutating func poll(_ folders: [(kind: GameFolders.Kind, url: URL)], now: Date = Date()) -> [Arrival] {
+    /// seconds; they count as handled from then on. What has been seen is read and saved under
+    /// watch.json's lock, so the app and `ps3 watch` side by side never both report one game.
+    /// When watch.json cannot be written nothing is reported, and the next look finds it again.
+    public func poll(_ folders: [(kind: GameFolders.Kind, url: URL)], now: Date = Date()) -> [Arrival] {
+        let settle = self.settle
+        return (try? store.edit { Self.poll(&$0, folders, settle: settle, now: now) }) ?? []
+    }
+
+    static func poll(_ state: inout State, _ folders: [(kind: GameFolders.Kind, url: URL)], settle: TimeInterval,
+                     now: Date) -> [Arrival] {
         var arrivals: [Arrival] = []
         var stillGrowing: [String: Growing] = [:]
         for (kind, folder) in folders {
@@ -92,13 +95,7 @@ public struct FolderWatch: Sendable {
             state.known[key] = known.sorted()
         }
         state.growing = stillGrowing
-        save()
         return arrivals
-    }
-
-    func save() {
-        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? Self.encoder.encode(state).write(to: file, options: .atomic)
     }
 
     /// Names in a folder, without hidden files and files that are still being downloaded.
@@ -117,19 +114,6 @@ public struct FolderWatch: Sendable {
         guard isDirectory.boolValue else { return FileRouter.fileSize(url) }
         return ((try? FileRouter.filesRecursively(in: url)) ?? []).map(FileRouter.fileSize).reduce(0, +)
     }
-
-    static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return encoder
-    }()
-
-    static let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
 
     /// The games behind new entries, from the Mac's library: what `TransferQueue.add` takes.
     public static func routes(for arrivals: [Arrival]) -> [(title: String, routes: [Route])] {

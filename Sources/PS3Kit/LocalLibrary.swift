@@ -47,20 +47,20 @@ public enum GameFolders {
 
     /// Links `folder` as a source of `kind` games in config.json.
     public static func add(_ folder: URL, as kind: Kind) throws {
-        var config = ConfigStore.load()
-        var folders = config.folders ?? [:]
         let path = folder.standardizedFileURL.path
-        if !(folders[kind.name] ?? []).contains(path) { folders[kind.name, default: []].append(path) }
-        config.folders = folders
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            var folders = config.folders ?? [:]
+            if !(folders[kind.name] ?? []).contains(path) { folders[kind.name, default: []].append(path) }
+            config.folders = folders
+        }
     }
 
     public static func remove(_ folder: URL, from kind: Kind) throws {
-        var config = ConfigStore.load()
         let path = folder.standardizedFileURL.path
-        config.folders?[kind.name]?.removeAll { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath).standardizedFileURL.path == path }
-        if config.folders?[kind.name]?.isEmpty == true { config.folders?[kind.name] = nil }
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            config.folders?[kind.name]?.removeAll { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath).standardizedFileURL.path == path }
+            if config.folders?[kind.name]?.isEmpty == true { config.folders?[kind.name] = nil }
+        }
     }
 }
 
@@ -192,9 +192,7 @@ enum LocalGameReader {
 
     /// Read details per file (path, size and date), in ~/Library/Caches/ps3center/mac-games.json.
     enum Cache {
-        static var file: URL {
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/ps3center/mac-games.json")
-        }
+        static var file: URL { StatePaths.caches.appendingPathComponent("mac-games.json") }
 
         static func load() -> [String: Info] {
             guard let data = try? Data(contentsOf: file) else { return [:] }

@@ -1,5 +1,6 @@
 import AppKit
 import PS3Kit
+import PS3KitFixtures
 import SwiftUI
 
 /// Spelmappar: one row per kind (PS3ISO, PS2ISO …) with the Mac folders linked to it, saved as

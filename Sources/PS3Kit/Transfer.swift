@@ -31,6 +31,7 @@ public struct TransferOptions: Sendable {
 
 /// Keeps the Mac from idle sleep while transfers run, like `caffeinate -i`; the display may
 /// still sleep. A Mac on battery with its lid closed sleeps anyway.
+/// Unchecked: the only stored property is the immutable activity token.
 public final class KeepAwake: @unchecked Sendable {
     private let activity: NSObjectProtocol
 
@@ -76,9 +77,7 @@ public struct TransferService: Sendable {
         if options.verify { try await verify(sent, events: events) }
         try await installThemes(sent, options: options, events: events)
         guard options.refresh, sent.contains(where: \.refreshesGameList) else { return }
-        try await waitUntilIdle(force: options.force, events: events)
-        try await webman.refreshGames()
-        events(.refreshed)
+        try await refreshGameList(whenGameRuns: .wait, force: options.force, events: events)
         if options.popup {
             let titles = Array(Set(sent.filter(\.refreshesGameList).map { $0.title ?? GameName.clean($0.local.lastPathComponent) })).sorted()
             let message = titles.count == 1 ? "\(titles[0]) is now under Game" : "\(titles.count) new games are now under Game"
@@ -124,7 +123,7 @@ public struct TransferService: Sendable {
         }
         for item in pending {
             try await upload(item.route, to: item.path, offset: item.offset, ftp: ftp, events: events)
-            OperationLog.record("send", "\(item.route.remote) (\(Format.bytes(item.route.size)))")
+            OperationLog.record(.send, "\(item.route.remote) (\(Format.bytes(item.route.size)))")
         }
         return pending.map(\.route)
     }
@@ -256,7 +255,7 @@ public struct TransferService: Sendable {
             let name = route.local.lastPathComponent
             let before = try await installedThemes()
             events(.installing(name))
-            OperationLog.record("install-theme", name)
+            OperationLog.record(.installTheme, name)
             try? await webman.long("/install.ps3" + route.remote, timeout: 60)
             var appeared = false
             for _ in 0..<30 where !appeared {
@@ -349,7 +348,7 @@ public struct TransferService: Sendable {
         guard Date() < deadline else {
             throw PS3Error.timeout("installing \(name) did not finish within 20 minutes. Check the console; the package is still in /dev_hdd0/packages.")
         }
-        OperationLog.record("install", name)
+        OperationLog.record(.install, name)
         events(.installed(name))
     }
 
@@ -382,6 +381,37 @@ public struct TransferService: Sendable {
 
     /// "Warn and wait": blocks until no game/app is running, unless forced. Throws when the
     /// console stops answering, so nothing that follows runs on the guess that no game is running.
+    /// What refreshing the game list does when a game is running.
+    public enum WhenGameRuns: Sendable {
+        /// Waits until it is quit (`ps3 refresh`, after a transfer or the queue).
+        case wait
+        /// Refuses with `PS3Error.gameRunning` (a button just pressed in the app).
+        case refuse
+        /// Leaves it for later and returns false (a step of a longer setup).
+        case skip
+    }
+
+    /// Refreshes webMAN's game list (/refresh.ps3, like SELECT + L3), never while a game runs:
+    /// webMAN rescans the drives under it. Every caller goes through here, so the rule and the
+    /// log line are the same everywhere. Returns false when it was skipped.
+    @discardableResult
+    public func refreshGameList(whenGameRuns: WhenGameRuns, force: Bool = false, events: TransferHandler = { _ in }) async throws -> Bool {
+        if !force {
+            switch whenGameRuns {
+            case .wait:
+                try await waitUntilIdle(force: false, events: events)
+            case .refuse:
+                if try await webman.isGameRunning() { throw PS3Error.gameRunning }
+            case .skip:
+                if try await webman.isGameRunning() { return false }
+            }
+        }
+        try await webman.refreshGames()
+        OperationLog.record(.refresh, host)
+        events(.refreshed)
+        return true
+    }
+
     public func waitUntilIdle(force: Bool, events: TransferHandler, pollSeconds: UInt64 = 10) async throws {
         guard !force else { return }
         let webman = self.webman

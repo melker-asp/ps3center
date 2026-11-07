@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import PS3Kit
+import PS3KitFixtures
 
 /// The send queue in the app: the same queue.json as `ps3 queue`, sent one game at a time.
 /// Keeps the Mac awake while it runs, stops cleanly (the console keeps the .part file) when
@@ -35,14 +36,13 @@ final class TransferStore {
     }
 
     /// New games in watched folders (`FolderWatch`), looked for every 20 seconds.
-    private var watch = FolderWatch()
+    private let watch = FolderWatch()
     private var watcher: Task<Void, Never>?
     private var startWhenOnline = false
 
     private var runner: Task<Void, Never>?
     private var lock: QueueLock?
     private var awake: KeepAwake?
-    private var lastSave = Date.distantPast
     private var observers: [NSObjectProtocol] = []
     private var isFixture = false
 
@@ -51,8 +51,7 @@ final class TransferStore {
 
     /// Time left at the current rate, or at the last measured speed.
     var eta: TimeInterval? {
-        let speed = rate > 0 ? rate : (lastSpeed?.upload ?? 0)
-        return speed > 0 ? Double(remainingBytes) / speed : nil
+        SpeedTest.estimate(bytes: remainingBytes, rate: rate, measured: lastSpeed)
     }
 
     init() {
@@ -90,14 +89,12 @@ final class TransferStore {
     private func lookInWatchedFolders() async {
         let folders = FolderWatch.watched()
         guard !folders.isEmpty else { return }
-        let before = watch
+        let watch = self.watch
         // Reading the folders (and new games' sizes) stays off the main thread.
-        let (after, games) = await Task.detached { () -> (FolderWatch, [(title: String, routes: [Route])]) in
-            var watch = before
+        let games = await Task.detached { () -> [(title: String, routes: [Route])] in
             let arrivals = watch.poll(folders)
-            return (watch, arrivals.isEmpty ? [] : FolderWatch.routes(for: arrivals))
+            return arrivals.isEmpty ? [] : FolderWatch.routes(for: arrivals)
         }.value
-        watch = after
         for game in games {
             if host == nil { startWhenOnline = true }
             add(game.routes)
@@ -114,9 +111,13 @@ final class TransferStore {
             change(&queue)
             return
         }
-        queue = TransferQueue.edit { latest in
-            change(&latest)
-            return latest
+        do {
+            queue = try TransferQueue.edit { latest in
+                change(&latest)
+                return latest
+            }
+        } catch {
+            note = "The queue could not be saved: \(error.localizedDescription)"
         }
     }
 
@@ -207,66 +208,25 @@ final class TransferStore {
         }
     }
 
+    /// The loop itself is `QueueRunner.run`, the same as `ps3 queue start`; this only shows it.
     private func run(host: String) async {
         isRunning = true
-        var titles: [String] = []
-        var refresh = false
         let runner = QueueRunner(host: host)
-        while !Task.isCancelled {
-            // Read again each round: `ps3 queue add` may have added something.
-            queue = TransferQueue.load()
-            guard let item = queue.pending.first else { break }
-            current = item.id
-            edit {
-                $0.update(item.id) {
-                    $0.state = .sending
-                    $0.message = nil
-                }
-            }
-            do {
-                try await runner.send(item, verify: queue.verify) { event in
-                    Task { @MainActor [weak self] in self?.handle(event, item: item.id) }
-                }
-                edit {
-                    $0.update(item.id) {
-                        $0.state = .done
-                        $0.sent = $0.total
-                        $0.finishedAt = Date()
-                    }
-                }
-                titles.append(item.title)
-                refresh = refresh || item.routes.contains(where: \.refreshesGameList)
-            } catch {
-                // The file's progress can be some seconds behind what this copy has seen.
-                let sent = queue.items.first { $0.id == item.id }?.sent ?? item.sent
-                if Task.isCancelled || error is CancellationError {
-                    edit {
-                        $0.update(item.id) {
-                            $0.state = .paused
-                            $0.sent = sent
-                        }
-                    }
-                    break
-                }
-                edit {
-                    $0.update(item.id) {
-                        $0.state = .failed
-                        $0.message = error.localizedDescription
-                        $0.sent = sent
-                    }
-                }
-            }
+        let result = await runner.run { event in
+            Task { @MainActor [weak self] in self?.handle(event) }
         }
+        queue = TransferQueue.load()
         current = nil
         rate = 0
-        if !Task.isCancelled, !titles.isEmpty {
+        if !result.cancelled, !result.sent.isEmpty {
+            let titles = result.sent
             do {
-                try await runner.finish(sent: titles, refresh: refresh, whenDone: queue.whenDone) { event in
-                    Task { @MainActor [weak self] in self?.handle(event, item: nil) }
+                try await runner.finish(result) { event in
+                    Task { @MainActor [weak self] in self?.show(event) }
                 }
                 note = nil
                 Notifier.post(title: titles.count == 1 ? "\(titles[0]) is sent" : "\(titles.count) games are sent",
-                              body: queue.whenDone == .shutdown ? "The PS3 is shutting down." : "The games are under Game on the PS3.")
+                              body: result.whenDone == .shutdown ? "The PS3 is shutting down." : "The games are under Game on the PS3.")
             } catch {
                 note = error.localizedDescription
             }
@@ -277,15 +237,27 @@ final class TransferStore {
         awake = nil
     }
 
-    private func handle(_ event: TransferEvent, item id: UUID?) {
+    private func handle(_ event: QueueRunEvent) {
         switch event {
-        case .progress(let route, let sent, _, let bytesPerSecond):
-            guard let id else { return }
-            rate = bytesPerSecond
-            queue.update(id) { $0.sent = Self.sentBefore(route, in: $0) + sent }
-        case .finished(let route, _), .skipped(let route, _):
-            guard let id else { return }
-            queue.update(id) { $0.sent = Self.sentBefore(route, in: $0) + route.size }
+        case .started(let item):
+            current = item.id
+            note = nil
+            queue = TransferQueue.load()
+        case .sent(let id, let bytes):
+            queue.update(id) { $0.sent = bytes }
+        case .done, .failed, .paused:
+            queue = TransferQueue.load()
+        case .notSaved(let error):
+            note = "The queue could not be saved: \(error.localizedDescription)"
+        case .transfer(_, let transfer):
+            if case .progress(_, _, _, let bytesPerSecond) = transfer { rate = bytesPerSecond }
+            show(transfer)
+        }
+    }
+
+    /// What the queue is waiting for, from the transfer and from `finish`.
+    private func show(_ transfer: TransferEvent) {
+        switch transfer {
         case .waitingForGame(let game):
             note = "\(game) is running. The game list refreshes once you quit the game."
         case .refreshed:
@@ -295,19 +267,8 @@ final class TransferStore {
         case .started:
             note = nil  // going again after a retry
         default:
-            return
+            break
         }
-        // Progress is saved now and then, so a crash loses little.
-        if let id, Date().timeIntervalSince(lastSave) > 5, let sent = queue.items.first(where: { $0.id == id })?.sent {
-            lastSave = Date()
-            edit { $0.update(id) { $0.sent = sent } }
-        }
-    }
-
-    /// Bytes of the item's files before `route`, which are already on the console.
-    static func sentBefore(_ route: Route, in item: TransferQueue.Item) -> Int64 {
-        guard let index = item.files.firstIndex(where: { $0.remote == route.remote }) else { return 0 }
-        return item.files[..<index].reduce(0) { $0 + $1.size }
     }
 
     // MARK: Sleep

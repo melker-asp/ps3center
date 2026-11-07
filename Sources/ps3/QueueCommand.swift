@@ -87,7 +87,7 @@ struct Queue: AsyncParsableCommand {
                     throw PS3Error.invalidFile("Found neither the file nor the game \(names.joined(separator: " ")) in the Mac's game folders (see `ps3 games mac`).")
                 }
             }
-            let added = TransferQueue.edit { $0.add(routes) }
+            let added = try TransferQueue.edit { $0.add(routes) }
             guard !added.isEmpty else {
                 UI.skip("It is already in the queue.")
                 return
@@ -119,7 +119,7 @@ struct Queue: AsyncParsableCommand {
                 }
                 choice = parsed
             }
-            var queue = TransferQueue.edit { latest -> TransferQueue in
+            let queue = try TransferQueue.edit { latest -> TransferQueue in
                 if let choice { latest.whenDone = choice }
                 if let verify { latest.verify = verify }
                 return latest
@@ -135,41 +135,20 @@ struct Queue: AsyncParsableCommand {
             if KeepAwake.isOnBattery { UI.warn(KeepAwake.batteryTip) }
             let runner = QueueRunner(host: host)
             let printer = TransferPrinter(dryRun: false)
-            var sentTitles: [String] = []
-            var refreshes = false
-            // Read again each round, since the app and `ps3 queue add` may have changed the queue.
-            // Each item gets one try per run, even if queue.json cannot be written.
-            var tried = Set<UUID>()
-            while let item = queue.pending.first(where: { !tried.contains($0.id) }) {
-                tried.insert(item.id)
-                TransferQueue.edit { $0.update(item.id) { $0.state = .sending } }
-                UI.step(item.title)
-                do {
-                    try await runner.send(item, verify: queue.verify) { printer.handle($0) }
-                    TransferQueue.edit {
-                        $0.update(item.id) {
-                            $0.state = .done
-                            $0.sent = $0.total
-                            $0.finishedAt = Date()
-                            $0.message = nil
-                        }
-                    }
-                    sentTitles.append(item.title)
-                    refreshes = refreshes || item.routes.contains(where: \.refreshesGameList)
-                } catch {
-                    TransferQueue.edit {
-                        $0.update(item.id) {
-                            $0.state = .failed
-                            $0.message = error.localizedDescription
-                        }
-                    }
-                    UI.fail("\(item.title): \(error.localizedDescription)")
+            let warned = Once()
+            let result = await runner.run { event in
+                switch event {
+                case .started(let item): UI.step(item.title)
+                case .transfer(_, let transfer): printer.handle(transfer)
+                case .failed(let item, let error): UI.fail("\(item.title): \(error.localizedDescription)")
+                case .notSaved(let error):
+                    if warned.claim() { UI.warn("queue.json could not be written: \(error.localizedDescription)") }
+                case .sent, .done, .paused: break
                 }
-                queue = TransferQueue.load()
             }
-            try await runner.finish(sent: sentTitles, refresh: refreshes, whenDone: queue.whenDone) { printer.handle($0) }
+            try await runner.finish(result) { printer.handle($0) }
             withExtendedLifetime(lock) {}
-            UI.ok("The queue is done: \(sentTitles.count) sent")
+            UI.ok("The queue is done: \(result.sent.count) sent")
         }
     }
 
@@ -195,7 +174,7 @@ struct Queue: AsyncParsableCommand {
         var all = false
 
         func run() throws {
-            TransferQueue.edit { queue in
+            try TransferQueue.edit { queue in
                 if all { queue.items.removeAll() } else { queue.removeFinished() }
             }
             UI.ok(all ? "The queue is emptied" : "Finished rows are removed")
@@ -234,10 +213,10 @@ struct Speedtest: AsyncParsableCommand {
         UI.endProgress()
         UI.row("To the PS3", Format.rate(result.upload))
         if let down = result.download { UI.row("From the PS3", Format.rate(down)) }
-        if let network = result.network { UI.row("Network", network) }
+        if let network = result.network { UI.row("Network", network.label) }
         let tenGB: Int64 = 10_000_000_000
         UI.row("10 GB takes", "about " + Format.estimate(Double(tenGB) / result.upload))
-        if result.network == "Wi-Fi" {
+        if result.network == .wifi {
             print()
             UI.warn("The PS3 is on Wi-Fi (2.4 GHz only). With a network cable it is usually several times faster.")
         }
@@ -459,11 +438,11 @@ struct WatchFolders: AsyncParsableCommand {
         UI.header("Watching", detail: "\(folders.count) folder\(folders.count == 1 ? "" : "s")")
         for (kind, url) in folders { UI.row(kind.name, url.path) }
         print("\n  New games are added to the queue once they have stopped growing for a minute. Ctrl-C quits.")
-        var watch = FolderWatch()
+        let watch = FolderWatch()
         while true {
             let games = FolderWatch.routes(for: watch.poll(FolderWatch.watched()))
             if !games.isEmpty {
-                TransferQueue.edit { queue in
+                try TransferQueue.edit { queue in
                     for game in games { queue.add(game.routes) }
                 }
                 for game in games { UI.ok("\(game.title) is in the queue") }

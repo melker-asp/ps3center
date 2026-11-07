@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import Testing
 @testable import PS3Kit
+import PS3KitFixtures
 
 // Fixtures are trimmed copies of real responses from the console (PSID/IDPS removed).
 
@@ -19,7 +20,7 @@ import Testing
     #expect(s.firmwareType == "CEX")
     #expect(s.henVersion == "3.5.0")
     #expect(s.ip == "10.0.1.35")
-    #expect(s.network == "Wi-Fi")
+    #expect(s.network == .wifi)
     #expect(s.freeBytes == 355_800_000_000)
     #expect(s.webmanVersion == "1.47.50c")
     #expect(s.mountedGamePath == "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso")
@@ -287,8 +288,8 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: [:]) == "about 4–16 min")
     #expect(SpeedTest.cableEstimate(bytes: 50_000_000_000, measured: [:]) == "about 20 min–1 h 23 min")
     // A measurement with a cable wins, also while the console is back on Wi-Fi.
-    let lan = SpeedResult(upload: 25_000_000, download: nil, network: "LAN", measuredAt: Date())
-    let wifi = SpeedResult(upload: 3_000_000, download: nil, network: "Wi-Fi", measuredAt: Date())
+    let lan = SpeedResult(upload: 25_000_000, download: nil, network: .lan, measuredAt: Date())
+    let wifi = SpeedResult(upload: 3_000_000, download: nil, network: .wifi, measuredAt: Date())
     #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: ["LAN": lan, "Wi-Fi": wifi]) == "about 6 min")
     #expect(SpeedTest.cableEstimate(bytes: 500_000_000, measured: ["LAN": lan]) == "under a minute")
 }
@@ -706,9 +707,9 @@ private func rawCD(_ iso: Data) -> Data {
 
     // Another process adds a game while this one holds an older copy of the queue.
     let older = TransferQueue.load(from: file)
-    TransferQueue.edit(at: file) { $0.add([route("B")]) }
+    try TransferQueue.edit(at: file) { $0.add([route("B")]) }
     #expect(older.items.count == 1)
-    TransferQueue.edit(at: file) { $0.update(first.id) { $0.state = .sending } }
+    try TransferQueue.edit(at: file) { $0.update(first.id) { $0.state = .sending } }
 
     let latest = TransferQueue.load(from: file)
     #expect(latest.items.map(\.title) == ["A", "B"])
@@ -988,7 +989,7 @@ private final class NetClient {
     defer { try? fm.removeItem(at: base) }
     try Data(count: 10).write(to: folder.appendingPathComponent("Old.iso"))
     let kind = try #require(GameFolders.kind(named: "PS2ISO"))
-    var watch = FolderWatch(file: base.appendingPathComponent("watch.json"))
+    let watch = FolderWatch(file: base.appendingPathComponent("watch.json"))
     let start = Date(timeIntervalSince1970: 1_800_000_000)
 
     // The first look takes what is there as handled.
@@ -1004,7 +1005,7 @@ private final class NetClient {
     #expect(watch.poll([(kind, folder)], now: start.addingTimeInterval(200)).isEmpty)  // only once
 
     // What it has seen survives a restart.
-    var again = FolderWatch(file: base.appendingPathComponent("watch.json"))
+    let again = FolderWatch(file: base.appendingPathComponent("watch.json"))
     #expect(again.poll([(kind, folder)], now: start.addingTimeInterval(300)).isEmpty)
 }
 

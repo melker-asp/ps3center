@@ -21,16 +21,7 @@ struct Status: AsyncParsableCommand {
 
     func run() async throws {
         let asJSON = json || !UI.isTTY
-        let host: String
-        do {
-            host = try await Console.host(global, quiet: asJSON)
-        } catch {
-            // Off, or on with HEN not enabled? Only the second answers on the network.
-            if let known = global.host ?? ConfigStore.load().host, await Reachability.probe(known) == .henOff {
-                throw PS3Error.refused(Reachability.henOffAdvice(host: known))
-            }
-            throw error
-        }
+        let host = try await Console.host(global, quiet: asJSON)
         let webman = WebMAN(host: host)
 
         guard watch else {
@@ -62,15 +53,21 @@ struct Status: AsyncParsableCommand {
                      s.webmanVersion.map { "webMAN \($0)" }].compactMap { $0 }
         UI.header("PS3", detail: chips.joined(separator: " · "))
 
-        let healthColor: UI.Color = s.health >= 85 ? .green : s.health >= 65 ? .cyan : s.health >= 45 ? .yellow : .red
+        let healthColor: UI.Color
+        switch s.healthLevel {
+        case .excellent: healthColor = .green
+        case .good: healthColor = .cyan
+        case .ok: healthColor = .yellow
+        case .warning: healthColor = .red
+        }
         let notes = s.healthNotes.isEmpty ? "" : UI.paint("  " + s.healthNotes.joined(separator: ", "), .gray)
         UI.row("Health", UI.paint("\(s.health)", .bold, healthColor) + " " + s.healthLabel + notes)
 
         if let cpu = s.cpuTemp {
-            UI.row("CPU", "\(UI.bar(Double(cpu) / 90, width: 16, color: tempColor(cpu, warn: 70))) \(cpu) °C")
+            UI.row("CPU", "\(UI.bar(Double(cpu) / 90, width: 16, color: tempColor(Thermal.cpu.level(cpu)))) \(cpu) °C")
         }
         if let rsx = s.rsxTemp {
-            UI.row("RSX", "\(UI.bar(Double(rsx) / 90, width: 16, color: tempColor(rsx, warn: 75))) \(rsx) °C")
+            UI.row("RSX", "\(UI.bar(Double(rsx) / 90, width: 16, color: tempColor(Thermal.rsx.level(rsx)))) \(rsx) °C")
         }
         if let fan = s.fanPercent {
             let target = s.fanTargetMax.map { UI.paint("  holding max \($0) °C", .gray) } ?? ""
@@ -80,7 +77,7 @@ struct Status: AsyncParsableCommand {
             UI.row("Free", Format.bytes(free) + UI.paint("  on /dev_hdd0", .gray))
         }
         if let ip = s.ip {
-            UI.row("Network", "\(s.network ?? "") · \(ip)")
+            UI.row("Network", [s.network?.label, ip].compactMap { $0 }.joined(separator: " · "))
         }
         if s.isGameRunning {
             let name = s.mountedGameName ?? s.runningProcess ?? "Unknown"
@@ -92,7 +89,11 @@ struct Status: AsyncParsableCommand {
         }
     }
 
-    static func tempColor(_ value: Int, warn: Int) -> UI.Color {
-        value >= warn + 10 ? .red : value >= warn ? .yellow : .green
+    static func tempColor(_ level: Thermal.Level) -> UI.Color {
+        switch level {
+        case .hot: return .red
+        case .warm: return .yellow
+        case .normal: return .green
+        }
     }
 }

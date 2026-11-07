@@ -18,6 +18,9 @@ public enum PS3Error: LocalizedError, Equatable {
     /// PS3 Center will not do it (a running game, an installed game), with the reason.
     case refused(String)
     case gameRunning
+    /// The console answers on the network but webMAN does not: HEN is not enabled (the usual
+    /// reason after a restart). `ConsoleLocator.resolve` tells it apart from `unreachable`.
+    case henOff(host: String)
     case cancelled
 
     public var errorDescription: String? {
@@ -43,6 +46,8 @@ public enum PS3Error: LocalizedError, Equatable {
             return message
         case .gameRunning:
             return "A game or app is running on the PS3."
+        case .henOff(let host):
+            return Reachability.henOffAdvice(host: host)
         case .cancelled:
             return "Cancelled."
         }

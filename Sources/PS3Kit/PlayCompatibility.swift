@@ -57,6 +57,12 @@ public enum PlayCheck {
     }
 
     /// The full check, with what is on the console.
+    /// Whether sending `routes` to `console` includes a plain PS2 ISO that HEN can't start (only
+    /// PS2 Classics, `.BIN.ENC`), so the user hears it before gigabytes go over.
+    public static func sendsPS2ISOToHEN(_ routes: [Route], console: ConsoleProfile?) -> Bool {
+        console?.exploit == .hen && routes.contains { $0.kind == .ps2ISO && !PS2Classic.isClassic($0.remote) }
+    }
+
     public static func check(_ game: Game, console: ConsoleProfile?, host: String) async throws -> [Finding] {
         let findings = offline(game, console: console)
         guard game.platform == .ps1 || game.platform == .ps2 else { return findings }
@@ -177,7 +183,7 @@ public enum LibCrypt {
                 throw PS3Error.ftpProtocol("\(remote) did not come out right on the PS3.")
             }
         }
-        OperationLog.record("libcrypt", remote)
+        OperationLog.record(.libcrypt, remote)
         events("\(exe).lsd is on the PS3. Start the game again.")
     }
 }

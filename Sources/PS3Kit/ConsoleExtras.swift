@@ -9,7 +9,7 @@ extension WebMAN {
     /// app; otherwise it logs the user out and in with virtual pad presses (reload_xmb in
     /// include/init/vsh.h). Logged.
     public func reloadXMB() async throws {
-        OperationLog.record("reload-xmb", host)
+        OperationLog.record(.reloadXMB, host)
         try await long("/refresh.ps3?xmb", timeout: 90)
     }
 
@@ -53,7 +53,7 @@ extension WebMAN {
         }
         let page = try await get("/videorec.ps3", timeout: 30)
         let recording = Self.isRecording(page)
-        OperationLog.record("record", recording ? "start" : "stop")
+        OperationLog.record(.record, recording ? "start" : "stop")
         return recording
     }
 
@@ -68,7 +68,7 @@ extension WebMAN {
     /// Lets the XMB's own "save screenshot" work in every game (`/xmb.ps3$ingame_screenshot`,
     /// include/feat/ingame_screenshot.h). It lasts until the console restarts. Logged.
     public func enableGameScreenshots() async throws {
-        OperationLog.record("screenshots", "on in games")
+        OperationLog.record(.screenshots, "on in games")
         try await get("/xmb.ps3$ingame_screenshot", timeout: 15)
     }
 }
@@ -82,6 +82,11 @@ public struct MediaImport: Sendable {
         public var id: String { remotePath }
         public var name: String { (remotePath as NSString).lastPathComponent }
         public var isVideo: Bool { name.lowercased().hasSuffix(".mp4") }
+
+        package init(remotePath: String, size: Int64) {
+            self.remotePath = remotePath
+            self.size = size
+        }
     }
 
     public let host: String
@@ -95,19 +100,19 @@ public struct MediaImport: Sendable {
     }
 
     /// What has been copied before, by console path and size.
-    static var memoryFile: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ps3center/imported.json")
-    }
+    static var memoryFile: URL { StatePaths.support.appendingPathComponent("imported.json") }
+    static var memory: JSONFile<[String]> { JSONFile(memoryFile, empty: []) }
 
-    static func loadMemory() -> Set<String> {
-        guard let data = try? Data(contentsOf: memoryFile), let keys = try? JSONDecoder().decode([String].self, from: data) else { return [] }
-        return Set(keys)
-    }
+    static func loadMemory() -> Set<String> { Set(memory.load()) }
 
-    static func saveMemory(_ keys: Set<String>) {
-        try? FileManager.default.createDirectory(at: memoryFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? JSONEncoder().encode(keys.sorted()).write(to: memoryFile, options: .atomic)
+    /// Remembers one more copied item. Throws when imported.json cannot be written, rather than
+    /// letting the next import copy the same file again without a word.
+    static func remember(_ key: String) throws {
+        try memory.edit { keys in
+            guard !keys.contains(key) else { return }
+            keys.append(key)
+            keys.sort()
+        }
     }
 
     static func key(_ item: Item) -> String { "\(item.remotePath)|\(item.size)" }
@@ -151,7 +156,6 @@ public struct MediaImport: Sendable {
     /// them. Returns the files written. A name already taken gets a number.
     public func copy(_ items: [Item], to folder: URL = MediaImport.defaultFolder,
                      progress: @Sendable (Int, Int) -> Void = { _, _ in }) async throws -> [URL] {
-        var known = Self.loadMemory()
         var written: [URL] = []
         let fm = FileManager.default
         Self.migrateNames(in: folder)
@@ -166,8 +170,7 @@ public struct MediaImport: Sendable {
             }
             try fm.moveItem(at: partial, to: destination)
             written.append(destination)
-            known.insert(Self.key(item))
-            Self.saveMemory(known)
+            try Self.remember(Self.key(item))
         }
         progress(items.count, items.count)
         return written
@@ -199,7 +202,7 @@ extension WebMAN {
     /// include/cmd/sysbgm.h). webMAN cannot report the current setting: its "?" query changes it.
     /// Lasts until the console restarts. Logged.
     public func setGameMusic(_ on: Bool) async throws {
-        OperationLog.record("game-music", on ? "on" : "off")
+        OperationLog.record(.gameMusic, on ? "on" : "off")
         try await get("/sysbgm.ps3?\(on ? 1 : 0)", timeout: 15)
     }
 }
@@ -244,7 +247,7 @@ public enum UpdateBlock {
                 try await ftp.delete(remotePath)
             }
         }
-        OperationLog.record("update-block", on ? "on" : "off")
+        OperationLog.record(.updateBlock, on ? "on" : "off")
         events(on ? "System updates are blocked from the next start." : "System updates are no longer blocked from the next start.")
     }
 }

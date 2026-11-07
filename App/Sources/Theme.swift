@@ -56,16 +56,22 @@ enum Theme {
         FacetBackground(tint: hue(for: tab, theme: theme), intensity: theme == .midnightBlack ? 0.12 : 0.35)
     }
 
-    static func healthColor(_ score: Int) -> Color {
-        switch score {
-        case 85...: return good
-        case 65..<85: return warm
-        default: return hot
+    /// The bands come from PS3Kit's `HealthLevel`, as in `ps3 status`: good for Excellent, warm
+    /// for Good and OK, hot only for Warning (OK used to show as hot here).
+    static func healthColor(_ level: HealthLevel) -> Color {
+        switch level {
+        case .excellent: return good
+        case .good, .ok: return warm
+        case .warning: return hot
         }
     }
 
-    static func temperatureColor(_ value: Int, warnAt: Int) -> Color {
-        value >= warnAt + 10 ? hot : value >= warnAt ? warm : good
+    static func temperatureColor(_ level: Thermal.Level) -> Color {
+        switch level {
+        case .normal: return good
+        case .warm: return warm
+        case .hot: return hot
+        }
     }
 
     /// The type scale. Every text size in the app is one of these (icons may be any size).

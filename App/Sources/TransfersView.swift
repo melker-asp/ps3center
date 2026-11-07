@@ -178,7 +178,7 @@ struct TransfersView: View {
                         .help(transfers.isRunning ? "Pause the queue first; the test and the queue share the PS3's FTP" : "Sends to the PS3 for five seconds and reads back what arrived")
                 }
             }
-            if (transfers.lastSpeed?.network ?? console.snapshot?.network) == "Wi-Fi" {
+            if (transfers.lastSpeed?.network ?? console.snapshot?.network) == .wifi {
                 // One line with a mark instead of a paragraph in yellow; the reassurance is in the tooltip.
                 tip("wifi", "Wi-Fi only does 2.4 GHz on the PS3. With a cable, 10 GB takes \(SpeedTest.cableEstimate(bytes: 10_000_000_000)).")
                     .help("The Mac stays awake while the queue runs, and the PS3 is never shut down in the middle of a transfer.")
@@ -202,7 +202,7 @@ struct TransfersView: View {
     private var speedText: String {
         guard let speed = transfers.lastSpeed else { return "Not measured yet: measure for a time estimate in the queue." }
         // Format.day is always English; `formatted(date:)` followed the system language.
-        let network = speed.network.map { " over \($0)" } ?? ""
+        let network = speed.network.map { " over \($0.label)" } ?? ""
         return "\(Format.rate(speed.upload)) to the PS3\(network) · 10 GB takes about \(Format.estimate(10e9 / speed.upload)) · measured \(Format.day(speed.measuredAt))"
     }
 }

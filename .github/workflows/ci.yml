@@ -19,13 +19,39 @@ jobs:
     # variable CI_RUNNER=self-hosted runs the job on a Mac of your own (Settings → Actions →
     # Runners); never on a public one, where a pull request from a fork could run code on it.
     runs-on: ${{ vars.CI_RUNNER || 'macos-15' }}
+    # Actions are pinned to a commit (the v4 tag when this was written), so a moved tag can't
+    # change what runs here. Update them deliberately.
+    env:
+      XCODEGEN_VERSION: "2.46.0"
+      XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Show toolchain
         run: xcodebuild -version && swift --version
 
-      - name: Test PS3Kit
+      # The package's dependencies (swift-argument-parser), not the build itself.
+      - name: Cache Swift packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: |
+            .build/checkouts
+            .build/repositories
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      # The same XcodeGen as on the Mac (`xcodegen --version`), checked against the release's
+      # digest, instead of whatever Homebrew has that day.
+      - name: Install XcodeGen
+        run: |
+          dir="$RUNNER_TEMP/xcodegen-$XCODEGEN_VERSION"
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dir"
+          echo "$dir/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Test PS3Kit and the CLI
         run: swift test
 
       - name: Build CLI
@@ -33,7 +59,7 @@ jobs:
 
       - name: Build app
         run: |
-          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen --version
           make project
           xcodebuild -project App/PS3Center.xcodeproj -scheme PS3Center -derivedDataPath .build/xcode \
             -configuration Debug CODE_SIGNING_ALLOWED=NO build
@@ -53,7 +79,7 @@ jobs:
           test -f "$out/status.png" && test -f "$out/apps-detail.png"
 
       - name: Upload screenshots
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: screenshots
           path: .build/snapshots/*.png

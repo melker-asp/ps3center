@@ -1,4 +1,5 @@
 import Foundation
+import PS3Kit
 
 /// Canned console and catalog data, so the app can render every screen without a PS3
 /// (`PS3CENTER_FIXTURES=1`, used by CI to produce screenshots). The console strings are
@@ -383,7 +384,7 @@ public enum Fixtures {
         return queue
     }
 
-    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: "Wi-Fi", measuredAt: Date())
+    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: .wifi, measuredAt: Date())
 
     /// Sony's newer patches for Gran Turismo 5 (02.11 installed) and Red Dead Redemption, by game id.
     public static var patches: [String: [GamePatch]] {

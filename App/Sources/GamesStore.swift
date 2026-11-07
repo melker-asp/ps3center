@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import PS3Kit
+import PS3KitFixtures
 
 /// Backs the Games tab: the games on the console, their XMB icons and backgrounds, and the
 /// actions on them (start, mount, quit, remove), one at a time.
@@ -133,7 +134,7 @@ final class GamesStore {
         guard let netPath = game.netPath, busy == nil else { return }
         for mac in macGames { failures[mac.id] = nil }
         var copy = game
-        copy.path = "/net\(slot)" + netPath
+        copy.path = NetServer.mountPath(slot: slot, netPath: netPath)
         copy.source = .console
         let net = copy
         perform(.starting, on: game) { try await $0.play(net, exitingRunning: exitingRunning) }
@@ -259,11 +260,11 @@ final class GamesStore {
         guard var current = busy, current.id == id else { return }
         switch event {
         case .started(let route, _):
-            current.step = route.remote.hasPrefix("http") ? "Downloading from Sony…" : "Sending to the PS3…"
+            current.step = route.isDownload ? "Downloading from Sony…" : "Sending to the PS3…"
             current.progress = 0
         case .progress(let route, let sent, let total, _):
             let fraction = total > 0 ? Double(sent) / Double(total) : 0
-            current.step = (route.remote.hasPrefix("http") ? "Downloading " : "Sending ") + "\(Int(fraction * 100)) %"
+            current.step = (route.isDownload ? "Downloading " : "Sending ") + "\(Int(fraction * 100)) %"
             current.progress = fraction
         case .waitingForGame:
             current.step = "Waiting for the game to quit…"
@@ -341,7 +342,7 @@ final class GamesStore {
 
     /// Checks a PS3 game folder on the console against its IRD (the console works out the MD5s).
     func verify(_ game: Game) {
-        guard let host, busy == nil, game.isFolder, game.platform == .ps3 else { return }
+        guard let host, busy == nil, game.canVerifyWithIRD else { return }
         busy = Busy(id: game.id, kind: .verifying)
         failures[game.id] = nil
         let id = game.id
