@@ -33,7 +33,7 @@ import Testing
     s.freeBytes = 10_000_000_000
     s.computeHealth()
     #expect(s.health == 40)
-    #expect(s.healthLabel == "Varning")
+    #expect(s.healthLabel == "Warning")
 }
 
 @Test func extractsPS3MAPIResponses() {
@@ -55,8 +55,8 @@ import Testing
 
 @Test func encodesWebCommands() {
     #expect(WebMAN.encodeCommand("/install.ps3/dev_hdd0/packages/a b.pkg") == "/install.ps3/dev_hdd0/packages/a%20b.pkg")
-    #expect(WebMAN.encodeText("Klart & klart") == "Klart%20%26%20klart")
-    #expect(WebMAN.encodeText("Spel är klart") == "Spel%20%C3%A4r%20klart")
+    #expect(WebMAN.encodeText("Done & done") == "Done%20%26%20done")
+    #expect(WebMAN.encodeText("Pokémon is done") == "Pok%C3%A9mon%20is%20done")
 }
 
 @Test func parsesFTPListLines() {
@@ -248,8 +248,14 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(byDate.last?.title == "Journey")
     // Sorting keeps what the scan attached, such as installed updates.
     #expect(byDate.first { $0.titleID == "BCES00569" }?.updateVersion == "02.11")
+    #expect(GameOrder(argument: "Added") == .added)
+    #expect(GameOrder(argument: "size") == .size)
+    #expect(GameOrder.added.argument == "added")
+    #expect(GameOrder.added.label == "Recently Added")
+    // The Swedish words from before still work, for old scripts.
     #expect(GameOrder(argument: "Tillagt") == .added)
     #expect(GameOrder(argument: "storlek") == .size)
+    #expect(GameOrder(argument: "namn") == .name)
     #expect(GameOrder(argument: "ålder") == nil)
 }
 
@@ -266,25 +272,25 @@ private func entry(_ name: String, _ size: Int64 = 1, dir: Bool = false) -> FTPC
     #expect(SentGames.location(of: "/dev_hdd0/packages/Apollo.pkg") == nil)
 
     let routes = [
-        Route(local: URL(fileURLWithPath: "/Users/m/Spel/Demon's Souls/PS3_GAME/PARAM.SFO"),
+        Route(local: URL(fileURLWithPath: "/Users/m/Games/Demon's Souls/PS3_GAME/PARAM.SFO"),
               remote: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]/PS3_GAME/PARAM.SFO", kind: .ps3Folder, size: 1, title: nil),
-        Route(local: URL(fileURLWithPath: "/Users/m/Spel/PS1/Spyro.cue"), remote: "/dev_hdd0/PSXISO/Spyro.cue",
+        Route(local: URL(fileURLWithPath: "/Users/m/Games/PS1/Spyro.cue"), remote: "/dev_hdd0/PSXISO/Spyro.cue",
               kind: .psxISO, size: 1, title: nil),
     ]
-    #expect(SentGames.localPath(of: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", routes: routes) == "/Users/m/Spel/Demon's Souls")
-    #expect(SentGames.localPath(of: "/dev_hdd0/PSXISO/Spyro.cue", routes: routes) == "/Users/m/Spel/PS1/Spyro.cue")
+    #expect(SentGames.localPath(of: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", routes: routes) == "/Users/m/Games/Demon's Souls")
+    #expect(SentGames.localPath(of: "/dev_hdd0/PSXISO/Spyro.cue", routes: routes) == "/Users/m/Games/PS1/Spyro.cue")
     #expect(SentGames.localPath(of: "/dev_hdd0/PSXISO/Crash.cue", routes: routes) == nil)
 }
 
 @Test func estimatesTheTimeWithACable() {
     // No measurement over LAN: what others report, 10–40 MB/s.
-    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: [:]) == "ca 4–16 min")
-    #expect(SpeedTest.cableEstimate(bytes: 50_000_000_000, measured: [:]) == "ca 20 min–1 h 23 min")
+    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: [:]) == "about 4–16 min")
+    #expect(SpeedTest.cableEstimate(bytes: 50_000_000_000, measured: [:]) == "about 20 min–1 h 23 min")
     // A measurement with a cable wins, also while the console is back on Wi-Fi.
     let lan = SpeedResult(upload: 25_000_000, download: nil, network: "LAN", measuredAt: Date())
     let wifi = SpeedResult(upload: 3_000_000, download: nil, network: "Wi-Fi", measuredAt: Date())
-    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: ["LAN": lan, "Wi-Fi": wifi]) == "ca 6 min")
-    #expect(SpeedTest.cableEstimate(bytes: 500_000_000, measured: ["LAN": lan]) == "under en minut")
+    #expect(SpeedTest.cableEstimate(bytes: 9_642_180_608, measured: ["LAN": lan, "Wi-Fi": wifi]) == "about 6 min")
+    #expect(SpeedTest.cableEstimate(bytes: 500_000_000, measured: ["LAN": lan]) == "under a minute")
 }
 
 @Test func readsSonysUpdateList() {
@@ -427,11 +433,11 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     let hen = ConsoleProfile(firmware: "4.93", kind: .cex, exploit: .hen)
     let cfwOnHEN = Compatibility.check(.cfwOnly, on: hen)
     #expect(cfwOnHEN.verdict == .incompatible)
-    #expect(cfwOnHEN.reasons == ["Kräver CFW, din PS3 kör HEN"])
+    #expect(cfwOnHEN.reasons == ["Requires CFW, your PS3 runs HEN"])
     #expect(throws: PS3Error.self) { try cfwOnHEN.enforce("Test") }
     #expect(Compatibility.check(.dexOnly, on: hen).blocksInstall)
     #expect(Compatibility.check(Requirements(minFirmware: "4.80"), on: hen) == .compatible)
-    #expect(Compatibility.check(Requirements(maxFirmware: "4.88"), on: hen).reasons == ["Fungerar bara till och med firmware 4.88, din har 4.93"])
+    #expect(Compatibility.check(Requirements(maxFirmware: "4.88"), on: hen).reasons == ["Only works up to firmware 4.88, yours is 4.93"])
     // Requirements that cannot be checked block too; programs without any never do.
     #expect(Compatibility.check(.cfwOnly, on: ConsoleProfile()).verdict == .unknown)
     #expect(Compatibility.check(.any, on: ConsoleProfile()) == .compatible)
@@ -459,7 +465,7 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     let old = service.status(for: entry, installedFile: makeSFO(["APP_VER": "01.00"]), console: console, release: .success(release))
     #expect(old.state == .updateAvailable)
     #expect(!old.canInstall)
-    #expect(old.note == "Kräver CFW, din PS3 kör HEN")
+    #expect(old.note == "Requires CFW, your PS3 runs HEN")
 
     let apollo = try #require(Catalog.entry(titleID: "np0apollo"))
     #expect(apollo.id == "apollo")
@@ -512,11 +518,11 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
         .heading(level: 2, text: "Changelog"),
         .list(items: [.init(text: "☑ Done", depth: 0), .init(text: "Item with continued here", depth: 0), .init(text: "Nested", depth: 1)], ordered: false),
         .image(.init(url: URL(string: "https://raw.githubusercontent.com/o/r/main/shot.png")!, alt: "shot")),
-        .quote("**Varning**\nCan freeze the console."),
+        .quote("**Warning**\nCan freeze the console."),
         .table(rows: [["Key", "Action"], ["X", "Select"]]),
         .code("<b>not html</b>"),
     ])
-    #expect(Readme.plainText("Se **[Apollo](https://x.invalid/a)** och `kod`, *kursiv*, ds45pad_vsh*2") == "Se Apollo (https://x.invalid/a) och kod, kursiv, ds45pad_vsh*2")
+    #expect(Readme.plainText("See **[Apollo](https://x.invalid/a)** and `code`, *italic*, ds45pad_vsh*2") == "See Apollo (https://x.invalid/a) and code, italic, ds45pad_vsh*2")
 }
 
 // MARK: Fixtures
@@ -540,7 +546,7 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(byID["yoplayer"]?.latest == nil)
     #expect(byID["ezremote"]?.installable == true)
     #expect(statuses.allSatisfy { !$0.blocked })
-    // Two updates "Uppdatera alla" can install, and one the user has ignored.
+    // Two updates "Update All" can install, and one the user has ignored.
     #expect(statuses.filter { $0.isPendingUpdate && $0.canInstall }.map(\.id) == ["webman", "apollo"])
     #expect(byID["artemis"]?.state == .updateAvailable)
     #expect(byID["artemis"]?.ignored == true)
@@ -925,7 +931,7 @@ private final class NetClient {
 
     let game = Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5.iso", title: "Gran Turismo 5", platform: .ps3)
     #expect(log.record(for: game)?.title == "Gran Turismo 5")
-    #expect(Format.playTime(9) == "under en minut")
+    #expect(Format.playTime(9) == "under a minute")
     #expect(Format.playTime(3 * 3600 + 20 * 60) == "3 h 20 min")
 }
 
@@ -940,7 +946,7 @@ private final class NetClient {
     #expect(StorageAnalyzer.parseStat("<p>Size: 0.1 MB (512 bytes)<br>Dir(s): 0<br>File(s): 1")?.bytes == 512)
     #expect(StorageAnalyzer.parseStat("Not found") == nil)
 
-    let map = StorageMap(areas: [StorageUsage(name: "Spel", path: "/dev_hdd0/game", bytes: 100)], largest: [], free: 300, total: 1000)
+    let map = StorageMap(areas: [StorageUsage(name: "Games", path: "/dev_hdd0/game", bytes: 100)], largest: [], free: 300, total: 1000)
     #expect(map.other == 600)
 }
 
@@ -1004,9 +1010,12 @@ private final class NetClient {
 
 @Test func retriesOnlyNetworkFailures() {
     #expect(RetryPolicy.isTransient(PS3Error.unreachable(host: "10.0.1.35")))
-    #expect(RetryPolicy.isTransient(PS3Error.timeout("väntar på svar från PS3:an")))
+    #expect(RetryPolicy.isTransient(PS3Error.timeout("waiting for an answer from the PS3")))
     #expect(RetryPolicy.isTransient(PS3Error.ftp(code: 426, message: "Connection closed; transfer aborted")))
-    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("storleken på /dev_hdd0/PS3ISO/A.iso.part stämmer inte efter uppladdningen")))
+    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("the size of /dev_hdd0/PS3ISO/A.iso.part does not match after the upload")))
+    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("the connection was closed")))
+    #expect(!RetryPolicy.isTransient(PS3Error.ftpProtocol("not connected")))
+    #expect(!RetryPolicy.isTransient(PS3Error.ftpProtocol("webMAN gave no MD5 for /dev_hdd0/PS3ISO/A.iso.")))
     #expect(!RetryPolicy.isTransient(PS3Error.notEnoughSpace(needed: 10, free: 1)))
     #expect(!RetryPolicy.isTransient(PS3Error.ftp(code: 550, message: "Permission denied")))
     #expect(!RetryPolicy.isTransient(CancellationError()))

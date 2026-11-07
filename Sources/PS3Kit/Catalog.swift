@@ -37,8 +37,8 @@ public struct CatalogEntry: Sendable {
         public var label: String {
             switch self {
             case .system: return "System"
-            case .tools: return "Program"
-            case .webmanAddons: return "webMAN-tillägg"
+            case .tools: return "Tools"
+            case .webmanAddons: return "webMAN Add-ons"
             }
         }
     }
@@ -106,155 +106,155 @@ public enum Catalog {
     public static let entries: [CatalogEntry] = [
         // System
         CatalogEntry(
-            id: "hen", name: "PS3HEN", summary: "Homebrew Enabler – grunden för allt annat",
+            id: "hen", name: "PS3HEN", summary: "Homebrew Enabler – the base for everything else",
             category: .system, installed: .hen, source: .henSource, installedStyle: .dotted,
-            action: .notifyOnly("Uppdatera HEN först när du vet att dina plugins (t.ex. ds45pad) fungerar med den nya versionen. Installeras via HFW-webbläsaren eller HEN-installeraren."),
+            action: .notifyOnly("Update HEN only once you know your plugins (e.g. ds45pad) work with the new version. Installed through the HFW browser or the HEN installer."),
             homepage: "https://github.com/PS3Xploit/PS3HEN",
             // README: OFW 4.80–4.82, HFW 4.83–4.93; "CFWs can be used for testing, but not recommended".
-            requirements: Requirements(exploits: [.hen], minFirmware: "4.80", note: "På CFW behövs inte HEN")),
+            requirements: Requirements(exploits: [.hen], minFirmware: "4.80", note: "HEN is not needed on CFW")),
         CatalogEntry(
-            id: "webman", name: "webMAN MOD", summary: "Spelmeny, FTP, ISO-montering och webbkommandon",
+            id: "webman", name: "webMAN MOD", summary: "Game menu, FTP, ISO mounting and web commands",
             category: .system, installed: .webman,
             source: .github(repo: webmanRepo, asset: #"^webMAN_MOD_.*_Installer\.pkg$"#), installedStyle: .dotted,
-            action: .installPackageThenManual("Starta webMAN MOD-installeraren under Spel i XMB och starta sedan om konsolen."),
+            action: .installPackageThenManual("Start the webMAN MOD installer under Game in the XMB, then restart the console."),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases"),
         CatalogEntry(
-            id: "ds45pad", name: "ds45pad (DualSense)", summary: "Plugin för DualSense och DualShock 4",
+            id: "ds45pad", name: "ds45pad (DualSense)", summary: "Plugin for DualSense and DualShock 4",
             category: .system, installed: .pluginFile(remotePath: "/dev_hdd0/plugins/ds45pad/ds45pad_vsh.sprx"),
             source: .github(repo: "domyno6773/DualSense-PS3", asset: #"^ds45pad_vsh\.sprx$"#), installedStyle: .dotted,
-            action: .notifyOnly("Uppdatera manuellt: en trasig sprx kan få konsolen att frysa vid HEN. Läs releaseanteckningarna och ha _Nödläge/boot_plugins.txt redo."),
+            action: .notifyOnly("Update manually: a broken sprx can make the console freeze when HEN starts. Read the release notes and have _Emergency/boot_plugins.txt ready."),
             homepage: "https://github.com/domyno6773/DualSense-PS3/releases"),
 
         // Programs
         CatalogEntry(
-            id: "apollo", name: "Apollo Save Tool", summary: "Säkerhetskopiera, flytta och patcha sparfiler",
+            id: "apollo", name: "Apollo Save Tool", summary: "Backs up, moves and patches saves",
             category: .tools, installed: .paramSFO(titleID: "NP0APOLLO"),
             source: .github(repo: "bucanero/apollo-ps3", asset: #"^apollo-ps3\.pkg$"#), releaseStyle: .semverAsAppVer,
             homepage: "https://github.com/bucanero/apollo-ps3/releases"),
         CatalogEntry(
-            id: "pkgi", name: "PKGi PS3", summary: "Ladda ner PSN-spel, DLC och uppdateringar på konsolen",
+            id: "pkgi", name: "PKGi PS3", summary: "Downloads PSN games, DLC and updates on the console",
             category: .tools, installed: .paramSFO(titleID: "NP00PKGI3"),
             source: .github(repo: "bucanero/pkgi-ps3", asset: #"^pkgi-ps3\.pkg$"#), releaseStyle: .semverAsAppVer,
             homepage: "https://github.com/bucanero/pkgi-ps3/releases"),
         CatalogEntry(
-            id: "artemis", name: "Artemis PS3", summary: "Fuskkoder (bara offline)",
+            id: "artemis", name: "Artemis PS3", summary: "Cheat codes (offline only)",
             category: .tools, installed: .paramSFO(titleID: "ARTPS3001"),
             source: .github(repo: "bucanero/ArtemisPS3", asset: #"^ArtemisPS3-GUI\.pkg$"#), releaseStyle: .artemis,
             homepage: "https://github.com/bucanero/ArtemisPS3/releases"),
         CatalogEntry(
-            id: "ezremote", name: "ezRemote Client", summary: "Hämta filer från FTP-, SMB-, WebDAV- och HTTP-servrar",
+            id: "ezremote", name: "ezRemote Client", summary: "Downloads files from FTP, SMB, WebDAV and HTTP servers",
             category: .tools, installed: .paramSFO(titleID: "RMTC00001"),
             source: .github(repo: "cy33hc/ps3-ezremote-client", asset: #"\.pkg$"#),
             homepage: "https://github.com/cy33hc/ps3-ezremote-client/releases"),
         CatalogEntry(
-            id: "irisman", name: "IRISMAN", summary: "Backup-hanterare och filhanterare (alternativ till multiMAN)",
+            id: "irisman", name: "IRISMAN", summary: "Backup manager and file manager (an alternative to multiMAN)",
             category: .tools, installed: .paramSFO(titleID: "IRISMAN00"),
             source: .github(repo: "aldostools/IRISMAN", asset: #"^IRISMAN_[\d.]+\.pkg$"#),
             homepage: "https://github.com/aldostools/IRISMAN/releases"),
         CatalogEntry(
-            id: "managunz", name: "ManaGunZ", summary: "Backup-hanterare med filhanterare och spelfixar",
+            id: "managunz", name: "ManaGunZ", summary: "Backup manager with a file manager and game fixes",
             category: .tools, installed: .paramSFO(titleID: "MANAGUNZ0"),
             source: .github(repo: "Zarh/ManaGunZ", asset: #"^ManaGunZ_v[\d.]+\.pkg$"#),
             homepage: "https://github.com/Zarh/ManaGunZ/releases"),
         CatalogEntry(
-            id: "ps3health", name: "PS3 Health", summary: "Visar hårddiskens SMART-hälsa på TV:n",
+            id: "ps3health", name: "PS3 Health", summary: "Shows the hard drive's SMART health on the TV",
             category: .tools, installed: .paramSFO(titleID: "HDSH00001"),
             source: .github(repo: "lucasdaddiego/ps3-health", asset: #"^PS3-Health-v[\d.]+\.pkg$"#), releaseStyle: .semverAsAppVer,
             homepage: "https://github.com/lucasdaddiego/ps3-health/releases",
-            requirements: Requirements(untestedOn: [.cfw], note: "Enligt README kan ett diskkommando frysa konsolen på otestade system")),
+            requirements: Requirements(untestedOn: [.cfw], note: "According to the README, a disk command can freeze the console on untested systems")),
         CatalogEntry(
-            id: "ps3loadx", name: "PS3LoadX", summary: "Starta homebrew skickat över nätverket (för utvecklare)",
+            id: "ps3loadx", name: "PS3LoadX", summary: "Starts homebrew sent over the network (for developers)",
             category: .tools, installed: .paramSFO(titleID: "PSL145310"),
             source: .github(repo: "bucanero/ps3loadx", asset: #"^ps3loadx\.pkg$"#), releaseStyle: .semverAsAppVer,
             homepage: "https://github.com/bucanero/ps3loadx/releases"),
         // mohasi's apps (github.com/mohasi/ps3-dev). Their tags are build numbers ("191-3541f8d"),
         // not APP_VER, so updates are not tracked.
         CatalogEntry(
-            id: "filemanager", name: "File Manager", summary: "Filhanterare på konsolen (mohasi)",
+            id: "filemanager", name: "File Manager", summary: "File manager on the console (mohasi)",
             category: .tools, installed: .paramSFO(titleID: "FILEMGR01"),
             source: .github(repo: mohasiRepo, asset: #"^file-manager\.pkg$"#),
             homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "yoplayer", name: "Yo! Player", summary: "YouTube på TV:n, upp till 1080p",
+            id: "yoplayer", name: "Yo! Player", summary: "YouTube on the TV, up to 1080p",
             category: .tools, installed: .paramSFO(titleID: "YOPLAYER1"),
             source: .github(repo: mohasiRepo, asset: #"^yo-player\.pkg$"#),
             homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "cellstream", name: "Cell Stream", summary: "Strömmar bild från datorn till PS3:an",
+            id: "cellstream", name: "Cell Stream", summary: "Streams the computer's screen to the PS3",
             category: .tools, installed: .paramSFO(titleID: "CELSTRM01"),
             source: .github(repo: mohasiRepo, asset: #"^cell-stream\.pkg$"#),
             homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "thermalbench", name: "Thermal Bench", summary: "Testar värme, fläkt och klockfrekvenser och sparar varje körning",
+            id: "thermalbench", name: "Thermal Bench", summary: "Tests heat, fan and clock speeds and saves every run",
             category: .tools, installed: .paramSFO(titleID: "THERMAL01"),
             source: .github(repo: mohasiRepo, asset: #"^thermal-bench\.pkg$"#),
             homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "renpy", name: "Ren'Py Player", summary: "Spelar visual novels gjorda i Ren'Py (.rpk)",
+            id: "renpy", name: "Ren'Py Player", summary: "Plays visual novels made in Ren'Py (.rpk)",
             category: .tools, installed: .paramSFO(titleID: "RENPLAY01"),
             source: .github(repo: mohasiRepo, asset: #"^renpy-player\.pkg$"#),
             homepage: "https://github.com/mohasi/ps3-dev/releases", tracksUpdates: false),
 
         // Packages aldostools collects in Resources' "Addons" release; their versions do not follow it.
         CatalogEntry(
-            id: "movian", name: "Movian", summary: "Mediaspelare för film, musik och bilder (M7)",
+            id: "movian", name: "Movian", summary: "Media player for movies, music and photos (M7)",
             category: .tools, installed: .paramSFO(titleID: "HTSS00003"),
             source: .github(repo: resourcesRepo, asset: #"^movianM7-deank-playstation3\.pkg$"#, tag: "Addons"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
         CatalogEntry(
-            id: "jellyfin", name: "JellyFin", summary: "Spelar film och serier från en Jellyfin-server",
+            id: "jellyfin", name: "JellyFin", summary: "Plays movies and shows from a Jellyfin server",
             category: .tools, installed: .paramSFO(titleID: "JFPS30000"),
             source: .github(repo: resourcesRepo, asset: #"^JellyFin-PS3\.pkg$"#, tag: "Addons"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
         CatalogEntry(
-            id: "simplefm", name: "Simple File Manager MOD", summary: "Filhanterare för exFAT, NTFS, FAT32, ext2/3/4 och UFS2",
+            id: "simplefm", name: "Simple File Manager MOD", summary: "File manager for exFAT, NTFS, FAT32, ext2/3/4 and UFS2",
             category: .tools, installed: .paramSFO(titleID: "PS3SFM001"),
             source: .github(repo: resourcesRepo, asset: #"^Simple_File_Manager_MOD\.pkg$"#, tag: "Addons"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
         CatalogEntry(
-            id: "teeremoteplay", name: "TEE Remote Play", summary: "Strömmar bild från datorn till PS3:an",
+            id: "teeremoteplay", name: "TEE Remote Play", summary: "Streams the computer's screen to the PS3",
             category: .tools, installed: .paramSFO(titleID: "TEECRPMX1"),
             source: .github(repo: resourcesRepo, asset: #"^TEE-Remote-Play\.pkg$"#, tag: "Addons"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
         CatalogEntry(
-            id: "teevanced", name: "TEE Vanced", summary: "YouTube på TV:n",
+            id: "teevanced", name: "TEE Vanced", summary: "YouTube on the TV",
             category: .tools, installed: .paramSFO(titleID: "TEEVANCED"),
             source: .github(repo: resourcesRepo, asset: #"^TEE-Vanced-PS3\.pkg$"#, tag: "Addons"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Addons", tracksUpdates: false),
 
         // webMAN add-ons: shipped inside webMAN's own release, so their versions do not follow the tag.
         CatalogEntry(
-            id: "ps2launcher", name: "PS2 Classics Launcher", summary: "Startar PS2 Classics (.BIN.ENC), det enda sätt PS2-spel startar på HEN",
+            id: "ps2launcher", name: "PS2 Classics Launcher", summary: "Starts PS2 Classics (.BIN.ENC), the only way PS2 games start on HEN",
             category: .webmanAddons, installed: .paramSFO(titleID: "PS2U10000"),
             source: .github(repo: webmanRepo, asset: #"^PS2_Classics_Launcher\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "ps2config", name: "PS2 CONFIG Database", summary: "Kompatibilitetsfixar för PS2-spel",
+            id: "ps2config", name: "PS2 CONFIG Database", summary: "Compatibility fixes for PS2 games",
             category: .webmanAddons, installed: .paramSFO(titleID: "PS2CONFIG"),
             source: .github(repo: webmanRepo, asset: #"^PS2CONFIG\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "pspremasters", name: "PSP Remasters Launcher", summary: "Startar PSP-ISO:er (prova först)",
+            id: "pspremasters", name: "PSP Remasters Launcher", summary: "Starts PSP ISOs (try this first)",
             category: .webmanAddons, installed: .paramSFO(titleID: "PSPC66820"),
             source: .github(repo: webmanRepo, asset: #"^PSP_Remasters_Launcher\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "pspminis", name: "PSP Minis Launcher", summary: "Startar PSP-ISO:er (om Remasters inte fungerar)",
+            id: "pspminis", name: "PSP Minis Launcher", summary: "Starts PSP ISOs (if Remasters does not work)",
             category: .webmanAddons, installed: .paramSFO(titleID: "PSPM66820"),
             source: .github(repo: webmanRepo, asset: #"^PSP_Minis_Launcher\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "prepiso", name: "prepISO", summary: "Förbereder ISO:er på NTFS-diskar för webMAN",
+            id: "prepiso", name: "prepISO", summary: "Prepares ISOs on NTFS drives for webMAN",
             category: .webmanAddons, installed: .paramSFO(titleID: "BLES80616"),
             source: .github(repo: webmanRepo, asset: #"^prepISO_[\d.]+\.pkg$"#),
             homepage: "https://github.com/aldostools/webMAN-MOD/releases", tracksUpdates: false),
         CatalogEntry(
-            id: "reloadxmb", name: "Reload XMB", summary: "Låter webMAN ladda om XMB så nya spel syns direkt",
+            id: "reloadxmb", name: "Reload XMB", summary: "Lets webMAN reload the XMB so new games show right away",
             category: .webmanAddons, installed: .paramSFO(titleID: "RELOADXMB"),
             source: .github(repo: resourcesRepo, asset: #"^Reload_XMB\.pkg$"#, tag: "Launchers"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Launchers", tracksUpdates: false),
         CatalogEntry(
-            id: "romlauncher", name: "ROMS/PKG Launcher", summary: "Startar ROM:ar och PKG från webMANs spelmeny",
+            id: "romlauncher", name: "ROMS/PKG Launcher", summary: "Starts ROMs and PKGs from webMAN's game menu",
             category: .webmanAddons, installed: .paramSFO(titleID: "PKGLAUNCH"),
             source: .github(repo: resourcesRepo, asset: #"^ROMS_PKG_Launcher\.pkg$"#, tag: "Launchers"),
             homepage: "https://github.com/aldostools/Resources/releases/tag/Launchers", tracksUpdates: false),

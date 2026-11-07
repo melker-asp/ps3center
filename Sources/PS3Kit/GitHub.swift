@@ -56,12 +56,12 @@ public enum GitHub {
     }
 
     static func validate(_ response: URLResponse, repo: String, notFound: String? = nil) throws {
-        guard let http = response as? HTTPURLResponse else { throw PS3Error.github("Inget svar från GitHub.") }
+        guard let http = response as? HTTPURLResponse else { throw PS3Error.github("No answer from GitHub.") }
         if http.statusCode == 403 || http.statusCode == 429 {
-            throw PS3Error.github("GitHub begränsar antalet anrop just nu. Vänta en stund eller sätt GITHUB_TOKEN.")
+            throw PS3Error.github("GitHub is rate-limiting requests right now. Wait a while or set GITHUB_TOKEN.")
         }
         if http.statusCode == 404, let notFound { throw PS3Error.github(notFound) }
-        guard http.statusCode == 200 else { throw PS3Error.github("GitHub svarade \(http.statusCode) för \(repo).") }
+        guard http.statusCode == 200 else { throw PS3Error.github("GitHub answered \(http.statusCode) for \(repo).") }
     }
 
     /// The repo's README, parsed. Relative image paths resolve against the raw file's folder
@@ -81,11 +81,11 @@ public enum GitHub {
         }
         let url = URL(string: "https://api.github.com/repos/\(repo)/readme")!
         let (data, response) = try await URLSession.shared.data(for: request(url))
-        try validate(response, repo: repo, notFound: "\(repo) har ingen README.")
+        try validate(response, repo: repo, notFound: "\(repo) has no README.")
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         guard payload.encoding == "base64",
               let decoded = Data(base64Encoded: payload.content, options: .ignoreUnknownCharacters) else {
-            throw PS3Error.github("Kunde inte läsa README för \(repo).")
+            throw PS3Error.github("Could not read the README for \(repo).")
         }
         // A few older READMEs (IRISMAN's) are Latin-1.
         let markdown = String(data: decoded, encoding: .utf8) ?? String(String.UnicodeScalarView(decoded.map { Unicode.Scalar($0) }))
@@ -100,7 +100,7 @@ public enum GitHub {
         let (data, _) = try await URLSession.shared.data(for: request(url))
         let source = String(decoding: data, as: UTF8.self)
         guard let m = ConsoleSnapshot.firstMatch(#"#define\s+HEN_REV\s+0x0*([0-9a-fA-F]{3})\b"#, in: source) else {
-            throw PS3Error.github("Hittade ingen HEN_REV i PS3HEN-källkoden.")
+            throw PS3Error.github("Found no HEN_REV in the PS3HEN source code.")
         }
         return m[1].map(String.init).joined(separator: ".")
     }
@@ -108,7 +108,7 @@ public enum GitHub {
     public static func download(_ url: URL, to destination: URL) async throws {
         let (temp, response) = try await URLSession.shared.download(for: request(url))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw PS3Error.github("Nedladdningen av \(url.lastPathComponent) misslyckades.")
+            throw PS3Error.github("Downloading \(url.lastPathComponent) failed.")
         }
         let fm = FileManager.default
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -125,12 +125,12 @@ public enum GitHub {
         let actual = ((try? fm.attributesOfItem(atPath: file.path))?[.size] as? NSNumber)?.int64Value ?? -1
         guard actual == size else {
             try? fm.removeItem(at: file)
-            throw PS3Error.github("\(file.lastPathComponent) blev \(Format.bytes(max(actual, 0))) men ska vara \(Format.bytes(size)). Filen togs bort; försök igen.")
+            throw PS3Error.github("\(file.lastPathComponent) came to \(Format.bytes(max(actual, 0))) but should be \(Format.bytes(size)). The file was deleted; try again.")
         }
         guard let digest, digest.lowercased().hasPrefix("sha256:") else { return false }
         guard try sha256(of: file) == digest.dropFirst("sha256:".count).lowercased() else {
             try? fm.removeItem(at: file)
-            throw PS3Error.github("Kontrollsumman för \(file.lastPathComponent) stämmer inte med GitHubs. Filen togs bort; försök igen.")
+            throw PS3Error.github("The checksum of \(file.lastPathComponent) does not match GitHub's. The file was deleted; try again.")
         }
         return true
     }

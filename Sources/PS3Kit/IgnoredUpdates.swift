@@ -1,6 +1,6 @@
 import Foundation
 
-/// Updates the user has chosen to skip ("Ignorera" in the app, `ps3 apps ignore` in the CLI).
+/// Updates the user has chosen to skip ("Ignore" in the app, `ps3 apps ignore` in the CLI).
 /// What is skipped is one release: when a newer tag comes out, the update shows again. Kept as
 /// `ignoredUpdates` in config.json, so the app and the CLI agree. Only the Mac's settings change,
 /// never the console.

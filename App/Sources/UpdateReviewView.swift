@@ -1,7 +1,7 @@
 import PS3Kit
 import SwiftUI
 
-/// The review before "Uppdatera alla", as DESIGN.md describes: the updates in groups with check
+/// The review before "Update All", as DESIGN.md describes: the updates in groups with check
 /// boxes and sizes, what is left out and why, and a white button that says exactly what happens.
 struct UpdateReviewView: View {
     @Environment(ConsoleStore.self) private var console
@@ -25,11 +25,11 @@ struct UpdateReviewView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Uppdatera program")
-                .font(.system(size: 30, weight: .light))
+            Text("Update Apps")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Paketen hämtas från GitHub och installeras ett i taget. Kopian arkiveras i _Installerat/Paket.")
-                .font(.system(size: 13))
+            Text("The packages are downloaded from GitHub and installed one at a time. A copy is archived in _Installed/Packages.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 6)
                 .padding(.bottom, 12)
@@ -46,23 +46,23 @@ struct UpdateReviewView: View {
             Divider().overlay(Theme.cardStroke).padding(.vertical, 14)
 
             VStack(alignment: .leading, spacing: 8) {
-                fact("Att hämta", Format.bytes(total))
+                fact("To download", Format.bytes(total))
                 if let free = console.snapshot?.freeBytes {
-                    fact("Ledigt på PS3:an", Format.bytes(free), warn: free < total * 2)
+                    fact("Free on the PS3", Format.bytes(free), warn: free < total * 2)
                 }
                 ForEach(notices, id: \.self) { notice in
                     Text(notice)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if archiveMissing {
                     HStack(spacing: 10) {
-                        Text("Appen hittar inte PS3-mappen där paketen arkiveras.")
-                            .font(.system(size: 12))
+                        Text("The app can't find the PS3 folder where packages are archived.")
+                            .font(.ui(.footnote))
                             .foregroundStyle(Theme.hot)
                         Spacer()
-                        Button("Välj mapp…") {
+                        Button("Choose Folder…") {
                             apps.chooseMirrorFolder()
                             archiveMissing = MirrorRoot.resolve() == nil
                         }
@@ -74,7 +74,7 @@ struct UpdateReviewView: View {
             Spacer(minLength: 16)
             HStack(spacing: 10) {
                 Spacer()
-                Button("Avbryt") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
                 Button(mainTitle) {
@@ -93,9 +93,9 @@ struct UpdateReviewView: View {
 
     private var mainTitle: String {
         switch chosen.count {
-        case 0: return "Inget valt"
-        case 1: return "Uppdatera \(chosen[0].name)"
-        default: return "Installera \(chosen.count) uppdateringar"
+        case 0: return "Nothing Selected"
+        case 1: return "Update \(chosen[0].name)"
+        default: return "Install \(chosen.count) Updates"
         }
     }
 
@@ -104,7 +104,7 @@ struct UpdateReviewView: View {
     private var notices: [String] {
         var lines: [String] = []
         if let snapshot = console.snapshot, snapshot.isGameRunning {
-            lines.append("\(snapshot.mountedGameName ?? "Ett spel") körs. Installationerna börjar när du har avslutat spelet.")
+            lines.append("\(snapshot.mountedGameName ?? "A game") is running. The installs start once you quit the game.")
         }
         for status in chosen {
             if let note = status.note { lines.append("\(status.name): \(note)") }
@@ -123,7 +123,7 @@ struct UpdateReviewView: View {
                 }
             }
             if !plan.skipped.isEmpty {
-                groupTitle("Hoppas över")
+                groupTitle("Skipped")
                 ForEach(plan.skipped) { skippedRow($0) }
             }
         }
@@ -131,7 +131,7 @@ struct UpdateReviewView: View {
 
     private func groupTitle(_ text: String) -> some View {
         Text(text.uppercased())
-            .font(.system(size: 11, weight: .bold))
+            .font(.ui(.caption, weight: .bold))
             .tracking(1.2)
             .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 10)
@@ -146,13 +146,13 @@ struct UpdateReviewView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 17))
+                    .font(.ui(.title3))
                     .foregroundStyle(on ? Theme.accent : Theme.tertiaryText)
                 AppIcon(image: apps.icons[status.id], name: status.name, category: status.category,
                         symbol: AppRow.symbols[status.id], size: CGSize(width: 48, height: 27))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(status.name)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.ui(.callout, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     HStack(spacing: 5) {
@@ -160,11 +160,11 @@ struct UpdateReviewView: View {
                         Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(Theme.tertiaryText)
                         Text(status.latest ?? "?").foregroundStyle(Theme.accent).fontWeight(.semibold)
                     }
-                    .font(.system(size: 12, design: .rounded))
+                    .font(.ui(.footnote, design: .rounded))
                 }
                 Spacer()
                 Text(status.assetSize.map(Format.bytes) ?? "–")
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .monospacedDigit()
             }
@@ -178,20 +178,20 @@ struct UpdateReviewView: View {
     private func skippedRow(_ skip: AppsStore.UpdatePlan.Skip) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "minus.circle")
-                .font(.system(size: 15))
+                .font(.ui(.headline))
                 .foregroundStyle(Theme.tertiaryText)
                 .frame(width: 17)
             Text(skip.status.name)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(Theme.secondaryText)
                 .lineLimit(1)
             Text(AppsStore.versionChange(skip.status))
-                .font(.system(size: 12, design: .rounded))
+                .font(.ui(.footnote, design: .rounded))
                 .foregroundStyle(Theme.tertiaryText)
                 .lineLimit(1)
             Spacer(minLength: 12)
             Text(skip.reason)
-                .font(.system(size: 12))
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.tertiaryText)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -203,17 +203,17 @@ struct UpdateReviewView: View {
 
     private func fact(_ label: String, _ value: String, warn: Bool = false) -> some View {
         HStack {
-            Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            Text(label).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(warn ? Theme.hot : Theme.primaryText)
                 .monospacedDigit()
         }
     }
 }
 
-/// The report after "Uppdatera alla": Klart, Misslyckades and Hoppade över, with the reason
+/// The report after "Update All": Done, Failed and Skipped, with the reason
 /// right-aligned in grey. Stays above the list until it is closed.
 struct UpdateReportCard: View {
     let report: AppsStore.UpdateReport
@@ -223,23 +223,23 @@ struct UpdateReportCard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
                 Image(systemName: report.failed.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 16))
+                    .font(.ui(.headline))
                     .foregroundStyle(report.failed.isEmpty ? Theme.good : Theme.warm)
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.ui(.headline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
-                Text(report.finished.formatted(date: .omitted, time: .shortened))
-                    .font(.system(size: 12))
+                Text(Theme.time(report.finished))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
                 Spacer()
                 Button(action: close) { Image(systemName: "xmark") }
                     .buttonStyle(CircleIconButtonStyle(size: 28))
-                    .help("Stäng rapporten")
+                    .iconLabel("Close the report")
             }
             .padding(.bottom, 6)
-            group("Klart", report.done, symbol: "checkmark", color: Theme.good, detail: Theme.secondaryText)
-            group("Misslyckades", report.failed, symbol: "xmark", color: Theme.hot, detail: Theme.hot)
-            group("Hoppade över", report.skipped, symbol: "minus", color: Theme.tertiaryText, detail: Theme.tertiaryText)
+            group("Done", report.done, symbol: "checkmark", color: Theme.good, detail: Theme.secondaryText)
+            group("Failed", report.failed, symbol: "xmark", color: Theme.hot, detail: Theme.hotText)
+            group("Skipped", report.skipped, symbol: "minus", color: Theme.tertiaryText, detail: Theme.tertiaryText)
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardFill))
@@ -249,15 +249,15 @@ struct UpdateReportCard: View {
     private var title: String {
         let done = report.done.count
         let tried = done + report.failed.count
-        if report.failed.isEmpty { return done == 1 ? "1 program uppdaterat" : "\(done) program uppdaterade" }
-        return "\(done) av \(tried) program uppdaterade"
+        if report.failed.isEmpty { return done == 1 ? "1 app updated" : "\(done) apps updated" }
+        return "\(done) of \(tried) apps updated"
     }
 
     @ViewBuilder
     private func group(_ title: String, _ lines: [AppsStore.UpdateReport.Line], symbol: String, color: Color, detail: Color) -> some View {
         if !lines.isEmpty {
             Text("\(title.uppercased())  \(lines.count)")
-                .font(.system(size: 11, weight: .bold))
+                .font(.ui(.caption, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 8)
@@ -265,16 +265,16 @@ struct UpdateReportCard: View {
             ForEach(lines) { line in
                 HStack(spacing: 10) {
                     Image(systemName: symbol)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.ui(.caption, weight: .bold))
                         .foregroundStyle(color)
                         .frame(width: 16)
                     Text(line.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.ui(.body, weight: .medium))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     Spacer(minLength: 16)
                     Text(line.detail)
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(detail)
                         .lineLimit(1)
                         .truncationMode(.tail)

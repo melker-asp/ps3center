@@ -4,54 +4,54 @@ import PS3Kit
 
 struct Apps: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Homebrew på PS3:an: versioner, uppdateringar och installation av paket.",
-        subcommands: [List.self, Available.self, Info.self, Update.self, Install.self, Uninstall.self, Ignore.self, Unignore.self],
+        abstract: "Homebrew on the PS3: versions, updates and package installation.",
+        subcommands: [List.self, Available.self, Mac.self, Info.self, Update.self, Install.self, Uninstall.self, Ignore.self, Unignore.self],
         defaultSubcommand: List.self
     )
 
     struct List: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "list",
-            abstract: "Visa installerade program och om det finns nyare versioner (standard)."
+            abstract: "Show installed apps and whether newer versions exist."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         func run() async throws {
             let asJSON = json || !UI.isTTY
             let host = try await Console.host(global, quiet: asJSON)
-            if !asJSON { UI.progress("Kollar versioner på PS3:an och GitHub…") }
+            if !asJSON { UI.progress("Checking versions on the PS3 and GitHub…") }
             let statuses = try await AppsService(host: host).check()
             if asJSON { UI.json(statuses); return }
             UI.endProgress()
             Apps.render(statuses)
             if statuses.contains(where: { $0.canInstall && !$0.ignored }) {
-                print("\n  Kör " + UI.paint("ps3 apps update", .bold) + " för att granska och installera.")
+                print("\n  Run " + UI.paint("ps3 apps update", .bold) + " to review and install.")
             }
         }
     }
 
     struct Update: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Granska och installera uppdateringar. Frågar per program om inte --yes anges.",
-            discussion: "HEN och plugins installeras aldrig automatiskt – de visas bara med råd."
+            abstract: "Review and install updates. Asks per app unless --yes is given.",
+            discussion: "HEN and plugins are never installed automatically – they only show advice."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Uppdatera bara dessa (t.ex. apollo pkgi), även ignorerade. Utelämna för alla utom de ignorerade.")
+        @Argument(help: "Update only these (e.g. apollo pkgi), even ignored ones. Leave out for all except the ignored.")
         var names: [String] = []
 
-        @Flag(name: [.short, .long], help: "Svara ja på alla frågor.")
+        @Flag(name: [.short, .long], help: "Answer yes to all questions.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle installeras utan att göra det.")
+        @Flag(name: .long, help: "Show what would be installed without doing it.")
         var dryRun = false
 
-        @Flag(name: .long, help: "Installera även om ett spel körs.")
+        @Flag(name: .long, help: "Install even if a game is running.")
         var force = false
 
         func run() async throws {
@@ -60,31 +60,31 @@ struct Apps: AsyncParsableCommand {
             if !names.isEmpty {
                 entries = try names.map(Apps.resolve)
             }
-            UI.progress("Kollar versioner på PS3:an och GitHub…")
+            UI.progress("Checking versions on the PS3 and GitHub…")
             let statuses = try await AppsService(host: host).check(entries: entries)
             UI.endProgress()
 
             // An ignored update is left out unless it was named.
             let skipsIgnored = names.isEmpty
             for status in statuses where skipsIgnored && status.ignored {
-                UI.skip("\(status.name) \(status.latest ?? "") ignoreras  (ps3 apps unignore \(status.id))")
+                UI.skip("\(status.name) \(status.latest ?? "") is ignored  (ps3 apps unignore \(status.id))")
             }
             let installable = statuses.filter { $0.canInstall && !(skipsIgnored && $0.ignored) }
             let advisories = statuses.filter { $0.state == .updateAvailable && !$0.canInstall && !(skipsIgnored && $0.ignored) }
             for status in advisories {
-                UI.warn("\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?"): \(status.note ?? "uppdatera manuellt")")
+                UI.warn("\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?"): \(status.note ?? "update manually")")
             }
             guard !installable.isEmpty else {
-                UI.ok("Allt som kan uppdateras automatiskt är redan aktuellt.")
+                UI.ok("Everything that can be updated automatically is already up to date.")
                 return
             }
 
-            UI.header(dryRun ? "Förhandsvisning" : "Uppdateringar", detail: "\(installable.count) st")
+            UI.header(dryRun ? "Preview" : "Updates", detail: "\(installable.count)")
             for status in installable where status.compatibility.verdict == .untested {
                 UI.warn("\(status.name): \(status.compatibility.summary).")
             }
             guard let root = MirrorRoot.resolve() else {
-                throw PS3Error.invalidFile("Hittar inte PS3-mappen (med dev_hdd0/ och _Installerat/). Ange den med `ps3 config set root <sökväg>`.")
+                throw PS3Error.invalidFile("Cannot find the PS3 folder (with dev_hdd0/ and _Installed/). Set it with `ps3 config set root <path>`.")
             }
             let archive = MirrorRoot.packageArchive(in: root)
             var options = TransferOptions()
@@ -99,8 +99,8 @@ struct Apps: AsyncParsableCommand {
                     UI.step(line + UI.paint("  \(status.assetName ?? "")", .gray))
                     continue
                 }
-                guard yes || UI.confirm("Installera \(line)?", defaultYes: true) else {
-                    UI.skip("\(status.name) hoppades över")
+                guard yes || UI.confirm("Install \(line)?", defaultYes: true) else {
+                    UI.skip("\(status.name) skipped")
                     continue
                 }
                 try await AppsService(host: host).update(status, archive: archive, options: options) { printer.handle($0) }
@@ -108,25 +108,25 @@ struct Apps: AsyncParsableCommand {
                 installed += 1
             }
             if !dryRun, installed > 0 {
-                try? await WebMAN(host: host).popup("\(installed) program uppdaterade från Macen")
+                try? await WebMAN(host: host).popup("\(UI.count(installed, "app")) updated from the Mac")
             }
         }
     }
 
     struct Available: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Visa homebrew som kan installeras direkt från GitHub, och vad du redan har."
+            abstract: "Show homebrew that can be installed straight from GitHub, and what you already have."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         func run() async throws {
             let asJSON = json || !UI.isTTY
             let host = try await Console.host(global, quiet: asJSON)
-            if !asJSON { UI.progress("Hämtar katalogen…") }
+            if !asJSON { UI.progress("Fetching the catalog…") }
             let statuses = try await AppsService(host: host).check().filter { $0.installable || $0.installed != nil || $0.blocked }
             if asJSON { UI.json(statuses); return }
             UI.endProgress()
@@ -142,7 +142,7 @@ struct Apps: AsyncParsableCommand {
                     switch (s.installed, s.state) {
                     case (.none, _) where s.blocked:
                         marker = UI.paint("⊘", .red)
-                        plain = "fungerar inte"
+                        plain = "does not work"
                         version = UI.paint(plain, .red)
                     case (.some(let v), .updateAvailable) where s.ignored:
                         marker = UI.paint("↑", .gray)
@@ -164,43 +164,47 @@ struct Apps: AsyncParsableCommand {
                     let pad = String(repeating: " ", count: max(1, 18 - plain.count))
                     let id = UI.paint(s.id.padding(toLength: 13, withPad: " ", startingAt: 0), .gray)
                     let detail = s.blocked ? s.compatibility.summary
-                        : s.ignored ? "ignorerad: \(s.summary)"
-                        : s.isNewRelease() ? "ny version: \(s.summary)" : s.summary
+                        : s.ignored ? "ignored: \(s.summary)"
+                        : s.isNewRelease() ? "new version: \(s.summary)" : s.summary
                     print("  \(marker) \(name)\(id)\(version)\(pad)" + UI.paint(detail, .gray))
                 }
                 print()
             }
-            print("  Installera med " + UI.paint("ps3 apps install <namn>", .bold) + ", t.ex. " + UI.paint("ps3 apps install ezremote", .bold) + ".")
-            print("  Mer om ett program: " + UI.paint("ps3 apps info <namn>", .bold) + ".")
+            print("  Install with " + UI.paint("ps3 apps install <name>", .bold) + ", e.g. " + UI.paint("ps3 apps install ezremote", .bold) + ".")
+            print("  More about an app: " + UI.paint("ps3 apps info <name>", .bold) + ".")
         }
     }
 
     struct Install: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Installera homebrew på PS3:an – via namn från katalogen eller en .pkg-fil.",
+            abstract: "Install homebrew on the PS3 – by name from the catalog or from a .pkg file.",
             discussion: """
-            ps3 apps install ezremote        Hämtar senaste versionen från GitHub och installerar den
-            ps3 apps install X.pkg           Installerar en egen fil
-            Paketen arkiveras i _Installerat/Paket (äldre versioner av samma program läggs i papperskorgen).
-            Se `ps3 apps available` för vad som finns.
+            ps3 apps install ezremote        Installs the latest version from GitHub
+            ps3 apps install X.pkg           Installs a file of your own
+            ps3 apps install RetroArch.pkg   A package in a package folder (see ps3 apps mac)
+            Packages are archived in _Installed/Packages (older versions of the
+            same app go to the Trash). Packages in the package folders (ps3
+            config folder add PKG) stay where they are. See `ps3 apps
+            available` for what is on offer.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Programnamn (se ps3 apps available) eller .pkg-filer.", completion: .file(extensions: ["pkg"]))
+        @Argument(help: "App names (see ps3 apps available), .pkg files or packages in the package folders (see ps3 apps mac).",
+                  completion: .file(extensions: ["pkg"]))
         var items: [String]
 
-        @Flag(name: .long, help: "Installera även om samma version redan är installerad.")
+        @Flag(name: .long, help: "Install even if the same version is already installed.")
         var reinstall = false
 
-        @Flag(name: .long, help: "Låt egna .pkg-filer ligga kvar där de är i stället för att arkivera dem.")
+        @Flag(name: .long, help: "Leave your own .pkg files where they are instead of archiving them.")
         var keep = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända utan att göra det.")
+        @Flag(name: .long, help: "Show what would happen without doing it.")
         var dryRun = false
 
-        @Flag(name: .long, help: "Installera även om ett spel körs.")
+        @Flag(name: .long, help: "Install even if a game is running.")
         var force = false
 
         enum Item {
@@ -209,18 +213,25 @@ struct Apps: AsyncParsableCommand {
         }
 
         func run() async throws {
-            let resolved: [Item] = try items.map { item in
-                let url = URL(fileURLWithPath: (item as NSString).expandingTildeInPath).standardizedFileURL
-                if item.lowercased().hasSuffix(".pkg") || FileManager.default.fileExists(atPath: url.path) {
-                    guard PKGInfo(url: url) != nil else { throw PS3Error.invalidFile("\(url.lastPathComponent) är inget giltigt PS3-paket.") }
-                    return .file(url)
-                }
-                let entry = try Apps.resolve(item)
+            func catalogItem(_ entry: CatalogEntry) throws -> Item {
                 guard entry.isInstallable else {
-                    if case .notifyOnly(let note) = entry.action { throw PS3Error.invalidFile("\(entry.name) installeras inte automatiskt. \(note)") }
-                    throw PS3Error.invalidFile("\(entry.name) kan inte installeras automatiskt. Se \(entry.homepage)")
+                    if case .notifyOnly(let note) = entry.action { throw PS3Error.invalidFile("\(entry.name) is not installed automatically. \(note)") }
+                    throw PS3Error.invalidFile("\(entry.name) cannot be installed automatically. See \(entry.homepage)")
                 }
                 return .catalog(entry)
+            }
+            // A file, then a program in the catalog, then a package in the package folders.
+            let resolved: [Item] = try items.map { item in
+                let url = URL(fileURLWithPath: (item as NSString).expandingTildeInPath).standardizedFileURL
+                if FileManager.default.fileExists(atPath: url.path) {
+                    guard PKGInfo(url: url) != nil else { throw PS3Error.invalidFile("\(url.lastPathComponent) is not a valid PS3 package.") }
+                    return .file(url)
+                }
+                let isFileName = item.lowercased().hasSuffix(".pkg")
+                if !isFileName, case .found(let entry) = Catalog.lookup(item) { return try catalogItem(entry) }
+                if let package = try Apps.localPackage(item) { return .file(package.url) }
+                if isFileName { throw PS3Error.invalidFile("Cannot find \(item), neither as a file nor in the package folders (see ps3 apps mac).") }
+                return try catalogItem(Apps.resolve(item))
             }
 
             let host = try await Console.host(global)
@@ -230,7 +241,7 @@ struct Apps: AsyncParsableCommand {
             options.dryRun = dryRun
             let printer = TransferPrinter(dryRun: dryRun)
             let apps = AppsService(host: host)
-            UI.header(dryRun ? "Förhandsvisning" : "Installerar", detail: "\(resolved.count) st")
+            UI.header(dryRun ? "Preview" : "Installing", detail: "\(resolved.count)")
 
             var installedNames: [String] = []
             var blocked = 0
@@ -240,7 +251,7 @@ struct Apps: AsyncParsableCommand {
                     // A package from the catalog gets the same safety check as when installed by name.
                     if let known = try await apps.checkPackage(file) {
                         if known.compatibility.blocksInstall {
-                            UI.fail("\(file.lastPathComponent) (\(known.entry.name)) fungerar inte på din PS3: \(known.compatibility.summary).")
+                            UI.fail("\(file.lastPathComponent) (\(known.entry.name)) does not work on your PS3: \(known.compatibility.summary).")
                             blocked += 1
                             continue
                         }
@@ -248,34 +259,35 @@ struct Apps: AsyncParsableCommand {
                     }
                     try await TransferService(host: host).installPackage(file, options: options) { printer.handle($0) }
                     installedNames.append(file.deletingPathExtension().lastPathComponent)
-                    guard !dryRun, !keep, let root else { continue }
+                    // A package in a package folder belongs there, like a game in a game folder.
+                    guard !dryRun, !keep, !PackageFolders.contains(file), let root else { continue }
                     let archive = MirrorRoot.packageArchive(in: root)
                     if file.deletingLastPathComponent().standardizedFileURL != archive.standardizedFileURL {
                         let moved = try apps.archivePackage(file, into: archive)
-                        UI.skip("Arkiverad i \(moved.path.replacingOccurrences(of: root.path + "/", with: ""))")
+                        UI.skip("Archived in \(moved.path.replacingOccurrences(of: root.path + "/", with: ""))")
                     }
 
                 case .catalog(let entry):
                     let compatibility = try await apps.compatibility(of: entry)
                     if compatibility.blocksInstall {
-                        UI.fail("\(entry.name) fungerar inte på din PS3: \(compatibility.summary).")
+                        UI.fail("\(entry.name) does not work on your PS3: \(compatibility.summary).")
                         blocked += 1
                         continue
                     }
                     if !reinstall, let current = try await apps.check(entries: [entry]).first,
                        let version = current.installed, current.state == .upToDate {
-                        UI.skip("\(entry.name) är redan installerad (\(version)). Använd --reinstall för att installera om.")
+                        UI.skip("\(entry.name) is already installed (\(version)). Use --reinstall to install again.")
                         continue
                     }
                     guard let root else {
-                        throw PS3Error.invalidFile("Hittar inte PS3-mappen (med dev_hdd0/ och _Installerat/). Ange den med `ps3 config set root <sökväg>`.")
+                        throw PS3Error.invalidFile("Cannot find the PS3 folder (with dev_hdd0/ and _Installed/). Set it with `ps3 config set root <path>`.")
                     }
                     try await apps.install(entry, archive: MirrorRoot.packageArchive(in: root), options: options) { printer.handle($0) }
                     installedNames.append(entry.name)
                 }
             }
             if !dryRun, !installedNames.isEmpty {
-                try? await WebMAN(host: host).popup(installedNames.count == 1 ? "\(installedNames[0]) installerat" : "\(installedNames.count) program installerade")
+                try? await WebMAN(host: host).popup(installedNames.count == 1 ? "\(installedNames[0]) installed" : "\(installedNames.count) apps installed")
             }
             if blocked > 0 { throw ExitCode.failure }
         }
@@ -283,22 +295,22 @@ struct Apps: AsyncParsableCommand {
 
     struct Info: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Visa allt om ett program: version, om det fungerar på din PS3 och README från GitHub.",
+            abstract: "Show everything about an app: version, whether it works on your PS3, and the README from GitHub.",
             discussion: """
-            ps3 apps info apollo             Status, kompatibilitet och README
-            ps3 apps info pkgi --no-readme   Bara status och kompatibilitet
+            ps3 apps info apollo             Status, compatibility and README
+            ps3 apps info pkgi --no-readme   Only status and compatibility
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Programnamn (se ps3 apps available).")
+        @Argument(help: "App name (see ps3 apps available).")
         var name: String
 
-        @Flag(name: .long, help: "Hoppa över README.")
+        @Flag(name: .long, help: "Skip the README.")
         var noReadme = false
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         struct Output: Encodable {
@@ -313,7 +325,7 @@ struct Apps: AsyncParsableCommand {
             let asJSON = json || !UI.isTTY
             let entry = try Apps.resolve(name)
             let host = try await Console.host(global, quiet: asJSON)
-            if !asJSON { UI.progress("Kollar \(entry.name) på PS3:an och GitHub…") }
+            if !asJSON { UI.progress("Checking \(entry.name) on the PS3 and GitHub…") }
             let skipReadme = noReadme
             async let readmeResult = Self.fetchReadme(entry, skip: skipReadme)
             guard let status = try await AppsService(host: host).check(entries: [entry]).first else { return }
@@ -351,36 +363,128 @@ struct Apps: AsyncParsableCommand {
         switch Catalog.lookup(name) {
         case .found(let entry): return entry
         case .ambiguous(let matches):
-            throw PS3Error.invalidFile("\(name) kan betyda flera: \(matches.map(\.id).joined(separator: ", ")).")
+            throw PS3Error.invalidFile("\(name) could mean several: \(matches.map(\.id).joined(separator: ", ")).")
         case .missing:
-            throw PS3Error.invalidFile("Okänt program: \(name). Se `ps3 apps available` för vad som finns.")
+            throw PS3Error.invalidFile("Unknown app: \(name). See `ps3 apps available` for what is on offer.")
+        }
+    }
+
+    /// A package in the package folders by file name (with or without .pkg) or title ID.
+    static func localPackage(_ name: String) throws -> LocalPackage? {
+        let query = name.lowercased()
+        let matches = PackageLibrary.scan().filter {
+            $0.fileName.lowercased() == query || ($0.fileName as NSString).deletingPathExtension.lowercased() == query
+                || $0.titleID?.lowercased() == query
+        }
+        guard matches.count <= 1 else {
+            throw PS3Error.invalidFile("\(name) could mean several packages: \(matches.map(\.path).joined(separator: ", ")). Give the full path.")
+        }
+        return matches.first
+    }
+
+    struct Mac: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "mac",
+            abstract: "The packages (.pkg) in the Mac's package folders and whether they are already installed on the PS3.",
+            discussion: """
+            Link a folder with `ps3 config folder add PKG ~/Packages`. PS3
+            Center looks in the folder and the folders directly under it.
+            Install with `ps3 apps install <file name>`; the package stays in
+            the folder.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Flag(name: .long, help: "Only packages that are not installed.")
+        var missing = false
+
+        @Flag(name: .long, help: "Do not ask the PS3.")
+        var offline = false
+
+        @Flag(name: .long, help: "Print JSON.")
+        var json = false
+
+        struct Row: Encodable {
+            let package: LocalPackage
+            /// APP_VER on the console ("" without one), nil when not installed or not asked.
+            let installed: String?
+        }
+
+        func run() async throws {
+            let asJSON = json || !UI.isTTY
+            let folders = PackageFolders.linked()
+            guard !folders.isEmpty else {
+                if asJSON { UI.json([Row]()); return }
+                UI.skip("No package folders. Link one with `ps3 config folder add PKG ~/Packages`.")
+                return
+            }
+            if !asJSON { UI.progress("Reading the Mac's package folders…") }
+            let packages = PackageLibrary.scan(folders: folders)
+            var installed: [String: String]?
+            if !offline, !packages.isEmpty {
+                do {
+                    let host = try await Console.host(global, quiet: true)
+                    if !asJSON { UI.progress("Comparing with the PS3…") }
+                    installed = try await AppsService(host: host).installedVersions(of: packages.compactMap(\.titleID))
+                } catch {
+                    if !asJSON { UI.endProgress(); UI.warn("The PS3 is not answering, so what is already installed cannot be shown.") }
+                }
+            }
+            var rows = packages.map { package in
+                Row(package: package, installed: package.titleID.flatMap { installed?[$0.uppercased()] })
+            }
+            if missing, installed != nil { rows = rows.filter { $0.installed == nil } }
+            if asJSON { UI.json(rows); return }
+            UI.endProgress()
+            guard !packages.isEmpty else {
+                UI.skip("No .pkg files in the package folders (\(folders.map { ($0.path as NSString).abbreviatingWithTildeInPath }.joined(separator: ", "))).")
+                return
+            }
+            for folder in folders {
+                let group = rows.filter { $0.package.folder == folder.path }
+                guard !group.isEmpty else { continue }
+                UI.header((folder.path as NSString).abbreviatingWithTildeInPath,
+                          detail: "\(group.count) · \(Format.bytes(group.map(\.package.size).reduce(0, +)))")
+                for row in group {
+                    let marker = installed == nil ? " " : row.installed == nil ? UI.paint("↑", .cyan) : UI.paint("✓", .green)
+                    let title = row.package.title.count > 34 ? String(row.package.title.prefix(33)) + "…" : row.package.title
+                    print("  \(marker) \(title.padding(toLength: 36, withPad: " ", startingAt: 0))"
+                          + UI.paint((row.package.titleID ?? "").padding(toLength: 12, withPad: " ", startingAt: 0), .gray)
+                          + Format.bytes(row.package.size).padding(toLength: 11, withPad: " ", startingAt: 0)
+                          + (installed == nil ? "" : UI.paint(PackageLibrary.installedLabel(row.installed), .gray)))
+                    print("    " + UI.paint(String(row.package.path.dropFirst(folder.path.count + 1)), .gray))
+                }
+                print()
+            }
+            print("  Install with " + UI.paint("ps3 apps install <file name>", .bold) + ". The package stays in the folder.")
         }
     }
 
     static func renderInfo(entry: CatalogEntry, status: AppStatus, console: ConsoleProfile) {
         UI.header(entry.name, detail: entry.category.label)
-        UI.row("Om", entry.summary)
-        if let repo = entry.repository { UI.row("Källa", "https://github.com/\(repo)") } else { UI.row("Källa", entry.homepage) }
-        UI.row("Installerad", status.installed ?? UI.paint("nej", .gray))
+        UI.row("About", entry.summary)
+        if let repo = entry.repository { UI.row("Source", "https://github.com/\(repo)") } else { UI.row("Source", entry.homepage) }
+        UI.row("Installed", status.installed ?? UI.paint("no", .gray))
         if let latest = status.latest {
             if status.ignored {
-                UI.row("Senaste", latest + UI.paint("  (ignorerad, visa igen med ps3 apps unignore \(entry.id))", .gray))
+                UI.row("Latest", latest + UI.paint("  (ignored, show again with ps3 apps unignore \(entry.id))", .gray))
             } else {
-                UI.row("Senaste", status.state == .updateAvailable ? UI.paint(latest, .bold, .yellow) : latest)
+                UI.row("Latest", status.state == .updateAvailable ? UI.paint(latest, .bold, .yellow) : latest)
             }
         }
-        UI.row("Din PS3", console.label)
+        UI.row("Your PS3", console.label)
         let compatibility = status.compatibility
         switch compatibility.verdict {
-        case .compatible: UI.row("Fungerar", UI.paint("✓ ", .green) + compatibility.summary)
-        case .untested: UI.row("Fungerar", UI.paint("! ", .yellow) + compatibility.summary)
-        case .incompatible, .unknown: UI.row("Fungerar", UI.paint("✗ ", .red) + compatibility.summary + UI.paint("  (installeras inte)", .gray))
+        case .compatible: UI.row("Works", UI.paint("✓ ", .green) + compatibility.summary)
+        case .untested: UI.row("Works", UI.paint("! ", .yellow) + compatibility.summary)
+        case .incompatible, .unknown: UI.row("Works", UI.paint("✗ ", .red) + compatibility.summary + UI.paint("  (will not be installed)", .gray))
         }
-        if let note = status.note { UI.row("Obs", UI.paint(note, .gray)) }
+        if let note = status.note { UI.row("Note", UI.paint(note, .gray)) }
         if status.installable, status.installed == nil {
-            print("\n  Installera med " + UI.paint("ps3 apps install \(entry.id)", .bold) + ".")
+            print("\n  Install with " + UI.paint("ps3 apps install \(entry.id)", .bold) + ".")
         } else if status.canInstall {
-            print("\n  Uppdatera med " + UI.paint("ps3 apps update \(entry.id)", .bold) + ".")
+            print("\n  Update with " + UI.paint("ps3 apps update \(entry.id)", .bold) + ".")
         }
     }
 
@@ -426,7 +530,7 @@ struct Apps: AsyncParsableCommand {
                 for line in code.components(separatedBy: "\n") { print("    " + UI.paint(line, .gray)) }
                 print()
             case .image(let image):
-                print("  " + UI.paint("▣ \(image.alt.isEmpty ? "Bild" : image.alt): \(image.url.absoluteString)", .gray))
+                print("  " + UI.paint("▣ \(image.alt.isEmpty ? "Image" : image.alt): \(image.url.absoluteString)", .gray))
             case .table(let rows):
                 for (index, row) in rows.enumerated() {
                     let line = row.map(Readme.plainText).joined(separator: "  ·  ")
@@ -437,7 +541,7 @@ struct Apps: AsyncParsableCommand {
                 print("  " + UI.paint(String(repeating: "─", count: 40), .gray))
             }
         }
-        if let url = readme.htmlURL { print("  " + UI.paint("Hela README: \(url.absoluteString)", .gray)) }
+        if let url = readme.htmlURL { print("  " + UI.paint("Full README: \(url.absoluteString)", .gray)) }
     }
 
     static func render(_ statuses: [AppStatus]) {
@@ -450,34 +554,34 @@ struct Apps: AsyncParsableCommand {
         func name(_ s: AppStatus) -> String { s.name.padding(toLength: 22, withPad: " ", startingAt: 0) }
 
         if !updates.isEmpty {
-            UI.header("Uppdateringar", detail: "\(updates.count)")
+            UI.header("Updates", detail: "\(updates.count)")
             for s in updates {
                 let arrow = "\(s.installed ?? "?") → " + UI.paint(s.latest ?? "?", .bold, .yellow)
-                let tag = s.canInstall ? "" : UI.paint("  manuell", .gray)
+                let tag = s.canInstall ? "" : UI.paint("  manual", .gray)
                 print("  " + UI.paint("↑", .yellow) + " " + name(s) + arrow + tag)
                 if !s.canInstall, let note = s.note { print("      " + UI.paint(note, .gray)) }
             }
             print()
         }
-        UI.header("Aktuella", detail: "\(current.count)")
+        UI.header("Up to Date", detail: "\(current.count)")
         for s in current { UI.ok(name(s) + UI.paint(s.installed ?? "", .gray)) }
         if !manual.isEmpty {
             print()
-            UI.header("Kolla manuellt", detail: "\(manual.count)")
+            UI.header("Check Manually", detail: "\(manual.count)")
             for s in manual { UI.skip(name(s) + (s.installed ?? "") + "  " + (s.note ?? "")) }
         }
         if !ignored.isEmpty {
             print()
-            UI.header("Ignorerade", detail: "\(ignored.count)")
+            UI.header("Ignored", detail: "\(ignored.count)")
             for s in ignored {
                 UI.skip(name(s) + "\(s.installed ?? "?") → \(s.latest ?? "?")  ps3 apps unignore \(s.id)")
             }
         }
         if !missing.isEmpty {
             print()
-            UI.header("Inte installerade", detail: "\(missing.count)")
+            UI.header("Not Installed", detail: "\(missing.count)")
             for s in missing {
-                UI.skip(name(s) + (s.blocked ? "fungerar inte på din PS3: \(s.compatibility.summary)" : s.latest.map { "senaste \($0)" } ?? ""))
+                UI.skip(name(s) + (s.blocked ? "does not work on your PS3: \(s.compatibility.summary)" : s.latest.map { "latest \($0)" } ?? ""))
             }
         }
     }
@@ -486,19 +590,19 @@ struct Apps: AsyncParsableCommand {
 extension Apps {
     struct Uninstall: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Avinstallera ett program (mappen i /dev_hdd0/game). Inte HEN, webMAN eller plugins.",
-            discussion: "Programmets sparfiler ligger kvar, och det går att installera igen med `ps3 apps install`."
+            abstract: "Uninstall an app (its folder in /dev_hdd0/game). Not HEN, webMAN or plugins.",
+            discussion: "The app's save files stay, and it can be installed again with `ps3 apps install`."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Programnamn (se ps3 apps).")
+        @Argument(help: "App name (see ps3 apps).")
         var name: String
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
@@ -507,7 +611,7 @@ extension Apps {
             var options = TransferOptions()
             options.dryRun = dryRun
             if !dryRun {
-                guard yes || UI.confirm("Avinstallera \(entry.name) från PS3:an?") else { return }
+                guard yes || UI.confirm("Uninstall \(entry.name) from the PS3?") else { return }
             }
             let printer = TransferPrinter(dryRun: dryRun)
             try await AppsService(host: host).uninstall(entry, options: options) { printer.handle($0) }
@@ -518,67 +622,68 @@ extension Apps {
 extension Apps {
     struct Ignore: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Hoppa över den senaste versionen av ett program. Utan namn visas vad som ignoreras.",
+            abstract: "Skip the latest version of an app. Without a name, shows what is ignored.",
             discussion: """
-            ps3 apps ignore artemis          Visa inte Artemis senaste version som en uppdatering
-            ps3 apps ignore                  Lista det som ignoreras
-            Det gäller bara den versionen: kommer en nyare visas uppdateringen igen. Bara Macens
-            inställningar ändras (ignoredUpdates i config.json), aldrig konsolen. `ps3 apps update`
-            hoppar över det som ignoreras, utom när programmet anges med namn.
+            ps3 apps ignore artemis          Stop showing Artemis's latest as an update
+            ps3 apps ignore                  List what is ignored
+            This only applies to that version: if a newer one comes out, the
+            update shows again. Only the Mac's settings change (ignoredUpdates
+            in config.json), never the console. `ps3 apps update` skips what
+            is ignored, except when the app is given by name.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Programnamn (se ps3 apps).")
+        @Argument(help: "App name (see ps3 apps).")
         var names: [String] = []
 
         func run() async throws {
             guard !names.isEmpty else {
                 let ignored = IgnoredUpdates.load()
                 guard !ignored.isEmpty else {
-                    UI.ok("Inga uppdateringar ignoreras.")
+                    UI.ok("No updates are ignored.")
                     return
                 }
-                UI.header("Ignorerade", detail: "\(ignored.count)")
+                UI.header("Ignored", detail: "\(ignored.count)")
                 for (id, version) in ignored.sorted(by: { $0.key < $1.key }) {
                     let name = Catalog.entries.first { $0.id == id }?.name ?? id
                     UI.skip(name.padding(toLength: 22, withPad: " ", startingAt: 0) + version)
                 }
-                print("\n  Visa igen med " + UI.paint("ps3 apps unignore <namn>", .bold) + ".")
+                print("\n  Show again with " + UI.paint("ps3 apps unignore <name>", .bold) + ".")
                 return
             }
             let entries = try names.map(Apps.resolve)
             let host = try await Console.host(global)
-            UI.progress("Kollar versioner på PS3:an och GitHub…")
+            UI.progress("Checking versions on the PS3 and GitHub…")
             let statuses = try await AppsService(host: host).check(entries: entries)
             UI.endProgress()
             for status in statuses {
                 guard status.state == .updateAvailable, let latest = status.latest else {
-                    UI.skip("\(status.name) har ingen uppdatering att ignorera.")
+                    UI.skip("\(status.name) has no update to ignore.")
                     continue
                 }
                 try IgnoredUpdates.ignore(status.id, version: latest)
-                UI.ok("\(status.name) \(latest) ignoreras. Kommer en nyare version visas den igen.")
+                UI.ok("\(status.name) \(latest) is ignored. If a newer version comes out, it shows again.")
             }
         }
     }
 
     struct Unignore: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Visa ett programs uppdateringar igen efter ps3 apps ignore."
+            abstract: "Show an app's updates again after ps3 apps ignore."
         )
 
-        @Argument(help: "Programnamn (se ps3 apps ignore).")
+        @Argument(help: "App name (see ps3 apps ignore).")
         var names: [String]
 
         func run() throws {
             for name in names {
                 let entry = try Apps.resolve(name)
                 if try IgnoredUpdates.unignore(entry.id) {
-                    UI.ok("\(entry.name) visas igen när det finns en uppdatering.")
+                    UI.ok("\(entry.name) shows again when there is an update.")
                 } else {
-                    UI.skip("\(entry.name) ignorerades inte.")
+                    UI.skip("\(entry.name) was not ignored.")
                 }
             }
         }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// The Mac's game folders, one or more per kind: linked in the app or with
-/// `ps3 config folder add PS3ISO ~/Spel/PS3`, plus the mirror folder's dev_hdd0/<KIND>.
+/// `ps3 config folder add PS3ISO ~/Games/PS3`, plus the mirror folder's dev_hdd0/<KIND>.
 public enum GameFolders {
     public struct Kind: Sendable, Identifiable, Equatable {
         /// The folder's name on the console, also the key in config.json: "PS3ISO", "GAMES" …
@@ -13,13 +13,13 @@ public enum GameFolders {
     }
 
     public static let kinds: [Kind] = [
-        Kind(name: "PS3ISO", label: "PS3-spel (ISO)", content: .ps3ISO),
-        Kind(name: "GAMES", label: "PS3-spel (mappar)", content: .ps3Folder),
-        Kind(name: "PS2ISO", label: "PS2-spel", content: .ps2ISO),
-        Kind(name: "PSXISO", label: "PS1-spel", content: .psxISO),
-        Kind(name: "PSPISO", label: "PSP-spel", content: .pspISO),
-        Kind(name: "BDISO", label: "Blu-ray-filmer", content: .bluRayISO),
-        Kind(name: "DVDISO", label: "DVD-filmer", content: .dvdISO),
+        Kind(name: "PS3ISO", label: "PS3 Games (ISO)", content: .ps3ISO),
+        Kind(name: "GAMES", label: "PS3 Games (Folders)", content: .ps3Folder),
+        Kind(name: "PS2ISO", label: "PS2 Games", content: .ps2ISO),
+        Kind(name: "PSXISO", label: "PS1 Games", content: .psxISO),
+        Kind(name: "PSPISO", label: "PSP Games", content: .pspISO),
+        Kind(name: "BDISO", label: "Blu-ray Movies", content: .bluRayISO),
+        Kind(name: "DVDISO", label: "DVD Movies", content: .dvdISO),
     ]
 
     public static func kind(named name: String) -> Kind? {
@@ -214,9 +214,9 @@ public enum MacGameState: String, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .notOnConsole: return "Bara på Macen"
-        case .onConsole: return "På PS3:an"
-        case .partial: return "Delvis skickad"
+        case .notOnConsole: return "Only on Mac"
+        case .onConsole: return "On PS3"
+        case .partial: return "Partly Sent"
         }
     }
 }
@@ -250,7 +250,7 @@ extension Game {
     /// The uploads that put a game from the Mac on the console: the image with its split parts
     /// or tracks, or the whole game folder, in the folder of its kind.
     public func routes() throws -> [Route] {
-        guard source == .mac, let remotePath else { throw PS3Error.refused("\(title) ligger inte på Macen.") }
+        guard source == .mac, let remotePath else { throw PS3Error.refused("\(title) is not on the Mac.") }
         let folder = (remotePath as NSString).deletingLastPathComponent
         let files = ([path] + companions).map { URL(fileURLWithPath: $0) }
         return try FileRouter.routes(for: files, mirrorRoot: nil, remoteFolder: folder).map { route in

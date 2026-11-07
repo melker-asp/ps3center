@@ -138,7 +138,7 @@ public struct GameLibraryService: Sendable {
     /// Mounts a game as /dev_bdvd without starting it, so it can be started from the XMB.
     public func mount(_ game: Game, exitingRunning: Bool = false) async throws {
         guard !game.isInstalled else {
-            throw PS3Error.refused("\(game.title) är installerat i XMB:n och monteras inte. Starta det i stället.")
+            throw PS3Error.refused("\(game.title) is installed in the XMB and is not mounted. Start it instead.")
         }
         try await quitRunningGame(allowed: exitingRunning)
         try await webman.get("/mount.ps3" + game.path, timeout: 30)
@@ -172,7 +172,7 @@ public struct GameLibraryService: Sendable {
     private func waitForXMB(timeout: TimeInterval = 40) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while try await webman.runningProcess() != nil {
-            guard Date() < deadline else { throw PS3Error.timeout("spelet avslutades inte inom \(Int(timeout)) sekunder") }
+            guard Date() < deadline else { throw PS3Error.timeout("the game did not quit within \(Int(timeout)) seconds") }
             try await Task.sleep(nanoseconds: 2_000_000_000)
         }
         try await Task.sleep(nanoseconds: 3_000_000_000)
@@ -190,15 +190,15 @@ public struct GameLibraryService: Sendable {
         let snapshot = try await webman.snapshot()
         let mounted = snapshot.mountedGamePath == game.path
         if mounted, snapshot.isGameRunning {
-            throw PS3Error.refused("\(game.title) körs. Avsluta spelet först.")
+            throw PS3Error.refused("\(game.title) is running. Quit the game first.")
         }
         // An installed game runs from its folder without being mounted, so nothing may run.
         if game.isInstalled, snapshot.isGameRunning {
-            throw PS3Error.refused("Ett spel körs. Avsluta det först, så att \(game.title) inte används medan det tas bort.")
+            throw PS3Error.refused("A game is running. Quit it first, so that \(game.title) is not in use while it is deleted.")
         }
         let files = game.isFolder ? [game.path] : [game.path] + game.companions
         if options.dryRun {
-            for file in files { events(.note("Skulle ta bort \(file)")) }
+            for file in files { events(.note("Would delete \(file)")) }
             return
         }
         if mounted { try await webman.get("/mount.ps3/unmount", timeout: 30) }
@@ -212,9 +212,9 @@ public struct GameLibraryService: Sendable {
         OperationLog.record(game.isInstalled ? "uninstall" : "delete", game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
         if game.isInstalled {
             let reload = await XMBReload.afterRemoval(host: host)
-            events(.note("\(game.title) är avinstallerat. Sparfilerna ligger kvar. \(reload)"))
+            events(.note("\(game.title) is uninstalled. Its saves are kept. \(reload)"))
         } else {
-            events(.note("\(game.title) är borttaget från PS3:an"))
+            events(.note("\(game.title) is deleted from the PS3"))
         }
         guard options.refresh else { return }
         try await TransferService(host: host).waitUntilIdle(force: options.force, events: events)
@@ -230,11 +230,11 @@ public enum UninstallGuard {
     public static func refusal(titleID: String?, title: String, path: String) -> String? {
         let parts = path.split(separator: "/")
         guard parts.count == 3, parts[0] == "dev_hdd0", parts[1] == "game" else {
-            return "\(title) ligger inte direkt i /dev_hdd0/game och avinstalleras inte härifrån."
+            return "\(title) is not directly in /dev_hdd0/game and is not uninstalled from here."
         }
         let name = title.uppercased()
         if name.contains("PS3HEN") || name.range(of: #"\bHEN\b"#, options: .regularExpression) != nil || titleID == "PS3XPLOIT" {
-            return "\(title) behövs för att aktivera HEN, och utan HEN startar inte webMAN. PS3 Center tar inte bort det."
+            return "\(title) is needed to enable HEN, and without HEN webMAN does not start. PS3 Center does not delete it."
         }
         return nil
     }
@@ -258,8 +258,8 @@ enum GameListing {
         Folder(name: "PS2ISO", platform: .ps2, extensions: [".iso", ".bin.enc", ".cue", ".bin", ".img", ".mdf"]),
         Folder(name: "PSXISO", platform: .ps1, extensions: [".cue", ".bin", ".iso", ".img", ".mdf"]),
         Folder(name: "PSPISO", platform: .psp, extensions: [".iso", ".cso"]),
-        Folder(name: "BDISO", platform: .bluRay, extensions: [".iso"]),
-        Folder(name: "DVDISO", platform: .dvd, extensions: [".iso"]),
+        Folder(name: "BDISO", platform: .bluRay, extensions: [".iso", ".iso.0"]),
+        Folder(name: "DVDISO", platform: .dvd, extensions: [".iso", ".iso.0"]),
     ]
 
     /// multiMAN borrows an official-looking title ID.

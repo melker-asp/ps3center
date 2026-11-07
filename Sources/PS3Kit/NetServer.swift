@@ -60,7 +60,7 @@ public final class NetServer: @unchecked Sendable {
             case .ready:
                 self?.update { $0.isRunning = true; $0.error = nil }
             case .failed(let error):
-                self?.update { $0.isRunning = false; $0.error = "Spelservern kunde inte starta: \(error.localizedDescription)" }
+                self?.update { $0.isRunning = false; $0.error = "The game server could not start: \(error.localizedDescription)" }
             case .cancelled:
                 self?.update { $0.isRunning = false; $0.clients = 0 }
             default:

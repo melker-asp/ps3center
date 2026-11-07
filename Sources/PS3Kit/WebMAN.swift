@@ -64,7 +64,7 @@ public struct WebMAN: Sendable {
 
     func fetch(encoded command: String, timeout: TimeInterval?, session: URLSession) async throws -> Data {
         guard let url = URL(string: "http://\(host)\(command)") else {
-            throw PS3Error.ftpProtocol("ogiltig adress: \(command)")
+            throw PS3Error.ftpProtocol("invalid address: \(command)")
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = timeout ?? self.timeout

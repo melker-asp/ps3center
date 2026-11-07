@@ -109,10 +109,10 @@ public struct GameUpdateService: Sendable {
             .compactMap { Version($0, style: .dotted) }.max()
         if let needed {
             guard let firmware = snapshot.firmware, let console = Version(firmware, style: .dotted) else {
-                throw PS3Error.incompatible("Konsolens systemprogramvara går inte att läsa, så uppdateringen av \(game.title) installeras inte.")
+                throw PS3Error.incompatible("The console's system software version cannot be read, so the update for \(game.title) will not be installed.")
             }
             if console < needed {
-                throw PS3Error.incompatible("Uppdateringen av \(game.title) kräver systemprogramvara \(needed.raw), konsolen har \(firmware). Den installeras inte.")
+                throw PS3Error.incompatible("The update for \(game.title) requires system software \(needed.raw); the console has \(firmware). It will not be installed.")
             }
         }
         let folder = GameLibraryService.cacheDirectory("updates")
@@ -120,14 +120,14 @@ public struct GameUpdateService: Sendable {
             let file = folder.appendingPathComponent(patch.fileName)
             let route = Route(local: file, remote: patch.url.absoluteString, kind: .package, size: patch.size, title: game.title)
             if options.dryRun {
-                events(.note("Skulle hämta och installera \(game.title) \(patch.version) (\(Format.bytes(patch.size)))"))
+                events(.note("Would download and install \(game.title) \(patch.version) (\(Format.bytes(patch.size)))"))
                 continue
             }
             if FileRouter.fileSize(file) != patch.size || !Self.matches(file, sha1: patch.sha1) {
                 try await Self.download(patch, to: file, route: route, events: events)
                 guard Self.matches(file, sha1: patch.sha1) else {
                     try? FileManager.default.removeItem(at: file)
-                    throw PS3Error.invalidFile("\(patch.fileName) stämmer inte med Sonys kontrollsumma. Inget installerades.")
+                    throw PS3Error.invalidFile("\(patch.fileName) does not match Sony's checksum. Nothing was installed.")
                 }
             }
             try await TransferService(host: host).installPackage(file, options: options, events: events)

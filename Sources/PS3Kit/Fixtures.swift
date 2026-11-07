@@ -33,12 +33,12 @@ public enum Fixtures {
         }
     }
 
-    // MARK: Underhåll
+    // MARK: Maintenance
 
     public static let saves: [SaveGame] = [
-        SaveGame(user: "00000001", folder: "BCES00569-GT5PROFILE", title: "Gran Turismo 5", subtitle: "Spelprofil",
+        SaveGame(user: "00000001", folder: "BCES00569-GT5PROFILE", title: "Gran Turismo 5", subtitle: "Game Profile",
                  size: 3_481_600, modified: Date(timeIntervalSince1970: 1_792_670_400)),
-        SaveGame(user: "00000001", folder: "BCES00757-SAVE0001", title: "Uncharted 2: Among Thieves", subtitle: "Kapitel 14",
+        SaveGame(user: "00000001", folder: "BCES00757-SAVE0001", title: "Uncharted 2: Among Thieves", subtitle: "Chapter 14",
                  size: 262_144, modified: Date(timeIntervalSince1970: 1_792_400_000)),
         SaveGame(user: "00000001", folder: "BLES01807-AUTO", title: "Grand Theft Auto V", subtitle: "Franklin – 61 %",
                  size: 524_288, modified: Date(timeIntervalSince1970: 1_791_900_000)),
@@ -49,31 +49,31 @@ public enum Fixtures {
     public static let maintenanceReport = MaintenanceReport(
         findings: [
             MaintenanceFinding(kind: .leftoverPackage, title: "IRISMAN_4.90.pkg",
-                               detail: "Ett paket som ligger kvar i /dev_hdd0/packages. Installerade program behöver det inte.",
+                               detail: "A package or theme left in /dev_hdd0/packages. What it installed does not need it.",
                                path: "/dev_hdd0/packages/IRISMAN_4.90.pkg", size: 31_457_280, canFix: true),
             MaintenanceFinding(kind: .partialUpload, title: "Killzone 2 (Europe).iso",
-                               detail: "En överföring som inte blev klar. Den syns inte i XMB:n.",
+                               detail: "A transfer that never finished. It does not show in the XMB.",
                                path: "/dev_hdd0/PS3ISO/Killzone 2 (Europe).iso.part", size: 4_294_967_296, canFix: true),
             MaintenanceFinding(kind: .duplicate, title: "Gran Turismo 5",
-                               detail: "BCES00569 finns 2 gånger: /dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso, /dev_hdd0/GAMES/BCES00569-[Gran Turismo 5]. Ta bort den du inte behöver i Spel-fliken.",
+                               detail: "BCES00569 is there 2 times: /dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso, /dev_hdd0/GAMES/BCES00569-[Gran Turismo 5]. Delete the one you don't need in the Games tab.",
                                size: 14_470_000_000),
             MaintenanceFinding(kind: .missingPlugin, title: "ds45pad.sprx",
-                               detail: "boot_plugins.txt pekar på /dev_hdd0/plugins/ds45pad.sprx, som inte finns. PS3 Center ändrar aldrig listan; ta bort raden själv.",
+                               detail: "boot_plugins.txt points to /dev_hdd0/plugins/ds45pad.sprx, which does not exist. PS3 Center never changes the list; remove the line yourself.",
                                path: "/dev_hdd0/plugins/ds45pad.sprx"),
-            MaintenanceFinding(kind: .updates, title: "Systemuppdateringar blockeras inte",
-                               detail: "Uppdaterar PS3:an systemprogramvaran av misstag kan HEN sluta fungera. Blockera uppdateringar här eller med ps3 maintain block-updates; det gäller från nästa start."),
+            MaintenanceFinding(kind: .updates, title: "System updates are not blocked",
+                               detail: "If the PS3 updates its system software by mistake, HEN can stop working. Blocking takes effect from the next start."),
         ],
-        passed: ["webMAN:s cache är liten", "Gott om ledigt utrymme"])
+        passed: ["webMAN's cache is small", "Plenty of free space"])
 
     public static let storageMap = StorageMap(
         areas: [
-            StorageUsage(name: "PS3-ISO:er", path: "/dev_hdd0/PS3ISO", bytes: 61_200_000_000),
-            StorageUsage(name: "Installerade spel och program", path: "/dev_hdd0/game", bytes: 38_400_000_000),
-            StorageUsage(name: "Spelmappar", path: "/dev_hdd0/GAMES", bytes: 14_470_000_000),
-            StorageUsage(name: "PS2-ISO:er", path: "/dev_hdd0/PS2ISO", bytes: 9_800_000_000),
-            StorageUsage(name: "Tillfälligt och webMAN:s cache", path: "/dev_hdd0/tmp", bytes: 4_430_000_000),
-            StorageUsage(name: "Användare och sparfiler", path: "/dev_hdd0/home", bytes: 1_250_000_000),
-            StorageUsage(name: "Paket", path: "/dev_hdd0/packages", bytes: 31_457_280),
+            StorageUsage(name: "PS3 ISOs", path: "/dev_hdd0/PS3ISO", bytes: 61_200_000_000),
+            StorageUsage(name: "Installed games and apps", path: "/dev_hdd0/game", bytes: 38_400_000_000),
+            StorageUsage(name: "Game folders", path: "/dev_hdd0/GAMES", bytes: 14_470_000_000),
+            StorageUsage(name: "PS2 ISOs", path: "/dev_hdd0/PS2ISO", bytes: 9_800_000_000),
+            StorageUsage(name: "Temporary files and webMAN's cache", path: "/dev_hdd0/tmp", bytes: 4_430_000_000),
+            StorageUsage(name: "Users and saves", path: "/dev_hdd0/home", bytes: 1_250_000_000),
+            StorageUsage(name: "Packages", path: "/dev_hdd0/packages", bytes: 31_457_280),
         ],
         largest: [
             StorageUsage(name: "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", bytes: 9_600_000_000),
@@ -106,7 +106,7 @@ public enum Fixtures {
     private static let versions: [String: (installed: String?, latest: String)] = [
         "hen": (nil, "3.6.0"),  // read from the console snapshot
         "webman": (nil, "1.47.51"),  // read from the console snapshot
-        "ds45pad": ("installerad", "v2.0.0"),
+        "ds45pad": ("installed", "v2.0.0"),
         "apollo": ("02.40", "v2.4.1"),
         "pkgi": ("01.30", "v1.3.0"),
         "artemis": ("00.64", "r6.5"),  // an update the user has ignored (see ignoredUpdates)
@@ -142,7 +142,7 @@ public enum Fixtures {
     ]
     private static let defaultPackageSize: Int64 = 6_291_456
 
-    /// Days since the latest release, for "Nytt" in Hämta; the rest are older than 30 days.
+    /// Days since the latest release, for "New" in Browse; the rest are older than 30 days.
     private static let releaseAges: [String: Double] = ["apollo": 5, "ezremote": 12, "ps3health": 21, "pkgi": 60]
 
     static func releaseDate(for id: String, now: Date = Date()) -> String {
@@ -150,7 +150,7 @@ public enum Fixtures {
         return ISO8601DateFormatter().string(from: now.addingTimeInterval(-days * 86_400))
     }
 
-    /// Skipped in the fixtures, so the screens show the Ignorerade list.
+    /// Skipped in the fixtures, so the screens show the Ignored list.
     public static let ignoredUpdates = ["artemis": "r6.5"]
 
     /// Catalog rows as `AppsService.check` would return them for `console`.
@@ -259,35 +259,95 @@ public enum Fixtures {
 
     /// Games in the Mac's game folders: Gran Turismo 5 is on the console too, the others are not.
     public static let macGames: [Game] = GameListing.attach([:], to: [
-        Game(path: "/Users/melker/Spel/PS3/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
+        Game(path: "/Users/melker/Games/PS3/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
              platform: .ps3, size: 13_481_082_880, version: "01.00", source: .mac,
              remotePath: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", added: daysAgo(120)),
-        Game(path: "/Users/melker/Spel/PS3/Uncharted 2 - Among Thieves (Europe).iso", title: "Uncharted 2: Among Thieves",
+        Game(path: "/Users/melker/Games/PS3/Uncharted 2 - Among Thieves (Europe).iso", title: "Uncharted 2: Among Thieves",
              titleID: "BCES00757", platform: .ps3, size: 24_830_115_840, version: "01.00", source: .mac,
              remotePath: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso", added: daysAgo(0)),
-        Game(path: "/Users/melker/Spel/PS3/LittleBigPlanet 2 (Europe).iso", title: "LittleBigPlanet 2", titleID: "BCES00850",
+        Game(path: "/Users/melker/Games/PS3/LittleBigPlanet 2 (Europe).iso", title: "LittleBigPlanet 2", titleID: "BCES00850",
              platform: .ps3, size: 6_754_975_744, version: "01.00", source: .mac,
              remotePath: "/dev_hdd0/PS3ISO/LittleBigPlanet 2 (Europe).iso", added: daysAgo(3)),
-        Game(path: "/Users/melker/Spel/PS2/God of War [SCES-53133].iso", title: "God of War", titleID: "SCES-53133",
+        Game(path: "/Users/melker/Games/PS2/God of War [SCES-53133].iso", title: "God of War", titleID: "SCES-53133",
              platform: .ps2, size: 4_389_634_048, source: .mac, remotePath: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso", added: daysAgo(12)),
-        Game(path: "/Users/melker/Spel/PS1/Spyro the Dragon (Europe).cue", title: "Spyro the Dragon", titleID: "SCES-01438",
-             platform: .ps1, size: 621_455_088, companions: ["/Users/melker/Spel/PS1/Spyro the Dragon (Europe).bin"],
+        Game(path: "/Users/melker/Games/PS1/Spyro the Dragon (Europe).cue", title: "Spyro the Dragon", titleID: "SCES-01438",
+             platform: .ps1, size: 621_455_088, companions: ["/Users/melker/Games/PS1/Spyro the Dragon (Europe).bin"],
              source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue", added: daysAgo(40)),
     ])
 
-    /// Spelmappar: the folders behind `macGames`, the PS3 one watched, and one on a drive that is
+    /// Game Folders: the folders behind `macGames`, the PS3 one watched, and one on a drive that is
     /// not plugged in (`unpluggedFolders`).
     public static var folderConfig: PS3Config {
         var config = PS3Config(folders: [
-            "PS3ISO": ["/Users/melker/Spel/PS3", "/Volumes/Spel/PS3ISO"],
-            "PS2ISO": ["/Users/melker/Spel/PS2"],
-            "PSXISO": ["/Users/melker/Spel/PS1"],
+            "PS3ISO": ["/Users/melker/Games/PS3", "/Volumes/Games/PS3ISO"],
+            "PS2ISO": ["/Users/melker/Games/PS2"],
+            "PSXISO": ["/Users/melker/Games/PS1"],
         ])
-        config.watchedFolders = ["/Users/melker/Spel/PS3"]
+        config.watchedFolders = ["/Users/melker/Games/PS3"]
+        config.packageFolders = ["/Users/melker/Downloads/PS3", "/Users/melker/PS3/Homebrew", "/Volumes/Games/Packages"]
         return config
     }
 
-    public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO"]
+    public static let unpluggedFolders: Set<String> = ["/Volumes/Games/PS3ISO", "/Volumes/Games/Packages"]
+
+    // MARK: Packages on the Mac
+
+    /// The .pkg files in the package folders of `folderConfig`: Apollo and RetroArch are
+    /// installed on the console (`packageVersions`), PS3 Health (from the catalog) and multiMAN
+    /// (in a folder of its own) are not.
+    public static let packages: [LocalPackage] = [
+        LocalPackage(path: "/Users/melker/Downloads/PS3/apollo-ps3.pkg", folder: "/Users/melker/Downloads/PS3",
+                     contentID: "UP0001-NP0APOLLO_00-0000000000000000", size: 4_718_592, added: daysAgo(2)),
+        LocalPackage(path: "/Users/melker/Downloads/PS3/PS3-Health-v2.2.1.pkg", folder: "/Users/melker/Downloads/PS3",
+                     contentID: "UP0001-HDSH00001_00-0000000000000000", size: 1_153_434, added: daysAgo(0)),
+        LocalPackage(path: "/Users/melker/PS3/Homebrew/RetroArch_1.19.1_CEX.pkg", folder: "/Users/melker/PS3/Homebrew",
+                     contentID: "UP0001-SSNE10000_00-0000000000000002", size: 232_783_872, added: daysAgo(30)),
+        LocalPackage(path: "/Users/melker/PS3/Homebrew/multiMAN/multiMAN_04.93.00_BASE.pkg", folder: "/Users/melker/PS3/Homebrew",
+                     contentID: "EP0001-BLES80608_00-MULTIMANBASE0000", size: 48_496_640, added: daysAgo(90)),
+    ]
+
+    /// APP_VER on the console per title ID of `packages`, as `AppsService.installedVersions` reads it.
+    public static let packageVersions: [String: String] = ["NP0APOLLO": "02.40", "SSNE10000": "01.19"]
+
+    /// Two drives plugged in: a FAT32 stick for the console and an exFAT backup drive.
+    public static let usbVolumes: [USBDrive.Volume] = [
+        USBDrive.Volume(url: URL(fileURLWithPath: "/Volumes/PS3"), name: "PS3", format: "MS-DOS (FAT32)",
+                        free: 118_300_000_000, capacity: 128_000_000_000),
+        USBDrive.Volume(url: URL(fileURLWithPath: "/Volumes/Backup"), name: "Backup", format: "ExFAT",
+                        free: 640_000_000_000, capacity: 1_000_000_000_000),
+    ]
+
+    /// A game folder with a file over 4 GB, which becomes an ISO on a FAT32 drive.
+    static let folderGameWithBigFile = Game(path: "/Users/melker/Games/GAMES/Demon's Souls [BLES00932]", title: "Demon's Souls",
+                                            titleID: "BLES00932", platform: .ps3, size: 7_431_000_000, isFolder: true, source: .mac,
+                                            remotePath: "/dev_hdd0/GAMES/Demon's Souls [BLES00932]", added: daysAgo(2))
+
+    /// What `USBDrive.plan` gives for four of the Mac's games and the folder above on the PS3
+    /// stick: two split ISOs, the folder made into an ISO, a PS1 game as it is, and the PS2 ISO
+    /// over 4 GB left out.
+    public static var usbPlan: USBDrive.Plan {
+        let root = usbVolumes[0].url
+        func game(_ id: String) -> Game { macGames.first { $0.titleID == id }! }
+        let uncharted = game("BCES00757"), lbp = game("BCES00850"), gow = game("SCES-53133"), spyro = game("SCES-01438")
+        var plan = USBDrive.Plan()
+        plan.copies = [
+            USBDrive.Copy(game: uncharted, source: URL(fileURLWithPath: uncharted.path),
+                          destination: root.appendingPathComponent("PS3ISO/Uncharted 2 - Among Thieves (Europe).iso.0"),
+                          parts: PS3ISO.partCount(for: uncharted.size ?? 0), size: uncharted.size ?? 0),
+            USBDrive.Copy(game: lbp, source: URL(fileURLWithPath: lbp.path),
+                          destination: root.appendingPathComponent("PS3ISO/LittleBigPlanet 2 (Europe).iso.0"),
+                          parts: PS3ISO.partCount(for: lbp.size ?? 0), size: lbp.size ?? 0),
+            USBDrive.Copy(game: folderGameWithBigFile, source: URL(fileURLWithPath: folderGameWithBigFile.path),
+                          destination: root.appendingPathComponent("PS3ISO/Demon's Souls [BLES00932].iso.0"),
+                          parts: 2, size: 7_431_602_176, kind: .isoFromFolder),
+            USBDrive.Copy(game: spyro, source: URL(fileURLWithPath: spyro.path),
+                          destination: root.appendingPathComponent("PSXISO/Spyro the Dragon (Europe).cue"), parts: 1, size: 88),
+            USBDrive.Copy(game: spyro, source: URL(fileURLWithPath: spyro.companions[0]),
+                          destination: root.appendingPathComponent("PSXISO/Spyro the Dragon (Europe).bin"), parts: 1, size: 621_455_000),
+        ]
+        plan.skipped = [(gow, "God of War [SCES-53133].iso is over 4 GB, and only PS3 ISOs and movies can be split")]
+        return plan
+    }
 
     /// New on the console since the last import: two recordings and three screenshots.
     public static let mediaItems: [MediaImport.Item] = [

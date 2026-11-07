@@ -198,7 +198,7 @@ public struct Readme: Codable, Equatable, Sendable {
                 // GitHub alerts: "> [!WARNING]" on the first line.
                 var label: String?
                 if let first = lines.first, let kind = Self.match(#"^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$"#, first.trimmingCharacters(in: .whitespaces)) {
-                    label = ["[!NOTE]": "Obs", "[!TIP]": "Tips", "[!IMPORTANT]": "Viktigt", "[!WARNING]": "Varning", "[!CAUTION]": "Varning"][kind]
+                    label = ["[!NOTE]": "Note", "[!TIP]": "Tip", "[!IMPORTANT]": "Important", "[!WARNING]": "Warning", "[!CAUTION]": "Caution"][kind]
                     lines.removeFirst()
                 }
                 // Quotes keep their line breaks; headings inside them become bold lines.

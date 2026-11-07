@@ -13,16 +13,17 @@ enum MainMenu {
 
     static let items: [Item] = [
         Item(title: "Status", arguments: ["status"]),
-        Item(title: "Spelen på PS3:an", arguments: ["games"]),
-        Item(title: "Spelen på Macen", arguments: ["games", "mac"]),
-        Item(title: "Kön", arguments: ["queue"]),
-        Item(title: "Skicka kön", arguments: ["queue", "start"]),
-        Item(title: "Program och uppdateringar", arguments: ["apps"]),
-        Item(title: "Uppdatera program (frågar för varje)", arguments: ["apps", "update"]),
-        Item(title: "Hastighetstest", arguments: ["speedtest"]),
-        Item(title: "Säkerhetskopiera sparfiler och systemfiler", arguments: ["backup"]),
-        Item(title: "Städning (bara en rapport)", arguments: ["maintain"]),
-        Item(title: "Historik", arguments: ["history"]),
+        Item(title: "Games on the PS3", arguments: ["games"]),
+        Item(title: "Games on the Mac", arguments: ["games", "mac"]),
+        Item(title: "Queue", arguments: ["queue"]),
+        Item(title: "Send the queue", arguments: ["queue", "start"]),
+        Item(title: "Apps and updates", arguments: ["apps"]),
+        Item(title: "Update apps (asks for each)", arguments: ["apps", "update"]),
+        Item(title: "Packages on the Mac", arguments: ["apps", "mac"]),
+        Item(title: "Speed test", arguments: ["speedtest"]),
+        Item(title: "Back up saves and system files", arguments: ["backup"]),
+        Item(title: "Cleanup (report only)", arguments: ["maintain"]),
+        Item(title: "History", arguments: ["history"]),
     ]
 
     static var isInteractive: Bool { UI.isTTY && isatty(STDIN_FILENO) == 1 }
@@ -32,8 +33,8 @@ enum MainMenu {
         show()
         var first = true
         while true {
-            let hint = first ? "(Retur avslutar) " : "(1–\(items.count), m visar menyn, Retur avslutar) "
-            print("  " + UI.paint("?", .cyan) + " Välj en siffra eller skriv ett kommando " + UI.paint(hint, .gray), terminator: "")
+            let hint = first ? "(Return quits) " : "(1–\(items.count), m shows the menu, Return quits) "
+            print("  " + UI.paint("?", .cyan) + " Pick a number or type a command " + UI.paint(hint, .gray), terminator: "")
             fflush(stdout)
             guard let line = readLine(), let arguments = choice(for: line) else { return }
             first = false
@@ -53,13 +54,13 @@ enum MainMenu {
     }
 
     static func show() {
-        UI.header("PS3 Center", detail: "ps3 --help visar alla kommandon")
+        UI.header("PS3 Center", detail: "ps3 --help shows all commands")
         for (index, item) in items.enumerated() {
             let number = String(index + 1).leftPadded(to: 2)
             print("  " + UI.paint(number, .cyan) + "  " + item.title.padding(toLength: 44, withPad: " ", startingAt: 0)
                   + UI.paint("ps3 " + item.arguments.joined(separator: " "), .gray))
         }
-        print("  " + UI.paint(" h", .cyan) + "  Alla kommandon")
+        print("  " + UI.paint(" h", .cyan) + "  All commands")
         print()
     }
 
@@ -68,8 +69,8 @@ enum MainMenu {
     static func choice(for line: String) -> [String]? {
         let text = line.trimmingCharacters(in: .whitespaces)
         if text.isEmpty || ["q", "quit", "exit", "avsluta"].contains(text.lowercased()) { return nil }
-        if ["h", "hjälp", "help", "?"].contains(text.lowercased()) { return ["help"] }
-        if ["m", "meny", "menu"].contains(text.lowercased()) { return ["menu"] }
+        if ["h", "help", "hjälp", "?"].contains(text.lowercased()) { return ["help"] }
+        if ["m", "menu", "meny"].contains(text.lowercased()) { return ["menu"] }
         if let number = Int(text) {
             guard items.indices.contains(number - 1) else { return [] }
             return items[number - 1].arguments
@@ -105,13 +106,13 @@ enum MainMenu {
 
     private static func perform(_ arguments: [String]) async {
         guard let name = arguments.first else {
-            UI.fail("Välj en siffra från 1 till \(items.count).")
+            UI.fail("Pick a number from 1 to \(items.count).")
             return
         }
         // ArgumentParser would say this in English.
         let known = PS3.configuration.subcommands.map { $0._commandName }
         guard name.hasPrefix("-") || known.contains(name) else {
-            UI.fail("Okänt kommando: \(name). Skriv h för alla kommandon.")
+            UI.fail("Unknown command: \(name). Type h for all commands.")
             return
         }
         do {

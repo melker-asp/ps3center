@@ -4,39 +4,41 @@ import PS3Kit
 
 struct Send: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Ladda upp spel och filer till rätt mapp på PS3:an.",
+        abstract: "Upload games and files to the right folder on the PS3.",
         discussion: """
-        Mappen väljs utifrån filen: PS3/PS2/PS1/PSP-ISO:er, spelmappar (PS3_GAME), .pkg och .rap.
-        Filer i spegelmappen (dev_hdd0/...) får samma sökväg på konsolen.
-        Avbrutna uppladdningar fortsätter där de slutade. Efteråt uppdateras spellistan och en
-        popup visas på TV:n – men först när inget spel körs (eller direkt med --force).
+        The folder is chosen from the file: PS3/PS2/PS1/PSP ISOs, game folders
+        (PS3_GAME), .pkg and .rap. Files in the mirror folder (dev_hdd0/...)
+        get the same path on the console. Interrupted uploads resume where
+        they stopped. Afterwards the game list is refreshed and a popup is
+        shown on the TV, but only once no game is running (or right away with
+        --force).
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Filer eller mappar att skicka.", completion: .file())
+    @Argument(help: "Files or folders to send.", completion: .file())
     var paths: [String]
 
-    @Option(name: .long, help: "Skicka till en egen mapp på PS3:an, t.ex. /dev_hdd0/PS3ISO.")
+    @Option(name: .long, help: "Send to a custom folder on the PS3, e.g. /dev_hdd0/PS3ISO.")
     var to: String?
 
-    @Flag(name: .long, help: "Visa vad som skulle hända utan att skicka något.")
+    @Flag(name: .long, help: "Show what would happen without sending anything.")
     var dryRun = false
 
-    @Flag(name: .long, help: "Kör även om ett spel körs eller utrymmet verkar för litet.")
+    @Flag(name: .long, help: "Go ahead even if a game is running or free space looks too small.")
     var force = false
 
-    @Flag(name: .long, help: "Uppdatera inte spellistan efteråt.")
+    @Flag(name: .long, help: "Do not refresh the game list afterwards.")
     var noRefresh = false
 
-    @Flag(name: .long, help: "Visa ingen popup på TV:n.")
+    @Flag(name: .long, help: "Do not show a popup on the TV.")
     var noPopup = false
 
-    @Flag(name: .long, help: "Jämför MD5 på PS3:an med Macens efter varje stor fil (tar några minuter per spel).")
+    @Flag(name: .long, help: "Compare the PS3's MD5 with the Mac's after each large file (takes a few minutes per game).")
     var verify = false
 
-    @Flag(name: .long, help: "Stäng av PS3:an när allt är skickat (väntar tills inget spel körs).")
+    @Flag(name: .long, help: "Shut down the PS3 when everything is sent (waits until no game is running).")
     var shutdownWhenDone = false
 
     func run() async throws {
@@ -44,11 +46,11 @@ struct Send: AsyncParsableCommand {
         let inputs = paths.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
         let routes = try FileRouter.routes(for: inputs, mirrorRoot: root, remoteFolder: to)
         guard !routes.isEmpty else {
-            UI.skip("Inget att skicka.")
+            UI.skip("Nothing to send.")
             return
         }
         let total = routes.reduce(Int64(0)) { $0 + $1.size }
-        UI.header(dryRun ? "Förhandsvisning" : "Skickar till PS3", detail: "\(routes.count) fil\(routes.count == 1 ? "" : "er") · \(Format.bytes(total))")
+        UI.header(dryRun ? "Preview" : "Sending to PS3", detail: "\(routes.count) file\(routes.count == 1 ? "" : "s") · \(Format.bytes(total))")
 
         let host = try await Console.host(global)
         // A plain PS2 ISO does not start on HEN; say so before sending gigabytes.
@@ -63,8 +65,8 @@ struct Send: AsyncParsableCommand {
         options.dryRun = dryRun
         options.verify = verify
         let printer = TransferPrinter(dryRun: dryRun)
-        // Macen hålls vaken medan filerna går; en avbruten fil fortsätter nästa gång.
-        let awake = KeepAwake(reason: "Skickar till PS3:an")
+        // The Mac stays awake while the files go; an interrupted file resumes next time.
+        let awake = KeepAwake(reason: "Sending to the PS3")
         defer { withExtendedLifetime(awake) {} }
         if !dryRun, KeepAwake.isOnBattery { UI.warn(KeepAwake.batteryTip) }
         // Network failures get new tries, like the queue (RetryPolicy).
@@ -72,11 +74,11 @@ struct Send: AsyncParsableCommand {
             try await TransferService(host: host).send(routes, options: options) { printer.handle($0) }
         }
         if dryRun {
-            UI.skip("Inget skickades (--dry-run).")
+            UI.skip("Nothing was sent (--dry-run).")
         } else if shutdownWhenDone {
             try await TransferService(host: host).waitUntilIdle(force: false) { printer.handle($0) }
             try await WebMAN(host: host).shutdown()
-            UI.ok("PS3:an stängs av")
+            UI.ok("The PS3 is shutting down")
         }
     }
 }

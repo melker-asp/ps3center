@@ -43,7 +43,7 @@ enum Snapshot {
 
         render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { StatusView(scrolls: false) }
         render(.games, name: "games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
-        // Sorted by Senast tillagt: one list across platforms, with the dates. The viewer's own
+        // Sorted by Recently Added: one list across platforms, with the dates. The viewer's own
         // choice is put back afterwards.
         let savedOrder = UserDefaults.standard.string(forKey: "gamesOrder")
         UserDefaults.standard.set(GameOrder.added.rawValue, forKey: "gamesOrder")
@@ -81,6 +81,14 @@ enum Snapshot {
         games.source = .console
         games.selection = []
         write(FoldersView(live: false), name: "folders", into: directory)
+        write(USBCopyView(games: [], live: false), name: "usb", into: directory)
+        write(USBCopyView(games: [], live: false, copying: true), name: "usb-copying", into: directory)
+        if let ps2 = Fixtures.macGames.first(where: { $0.platform == .ps2 }) {
+            write(PS2ClassicView(game: ps2, live: false).environment(apps).environment(transfers).environment(games),
+                  name: "ps2classic", into: directory)
+            write(PS2ClassicView(game: ps2, live: false, fixtureKeys: true, working: true).environment(apps).environment(transfers).environment(games),
+                  name: "ps2classic-working", into: directory)
+        }
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
@@ -91,7 +99,7 @@ enum Snapshot {
             MaintenanceView(scrolls: false)
         }
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
-        // The review before "Uppdatera alla", and in the fixtures the report afterwards.
+        // The review before "Update All", and in the fixtures the report afterwards.
         write(UpdateReviewView(plan: apps.updatePlan(), scrolls: false).environment(console).environment(apps), name: "apps-review", into: directory)
         if usesFixtures {
             apps.loadFixtureReport()
@@ -99,6 +107,10 @@ enum Snapshot {
             apps.dismissReport()
         }
         render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .get, scrolls: false) }
+        // The Mac's packages, one section per package folder.
+        if !usesFixtures { await apps.loadPackages(host: console.host) }
+        render(.apps, name: "apps-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .mac, scrolls: false) }
+        write(PackageFoldersView(live: false), name: "package-folders", into: directory)
         if let entry = Catalog.entry(named: "apollo") {
             apps.selectedID = entry.id
             await apps.loadReadme(for: entry)

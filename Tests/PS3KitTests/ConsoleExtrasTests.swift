@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PS3Kit
 
-// Fas 9: what aldostools/Resources, webMAN MOD and PS3HEN brought in.
+// Phase 9: what aldostools/Resources, webMAN MOD and PS3HEN brought in.
 
 @Test func blocksUpdatesWithWebMANsOwnFile() {
     let text = String(decoding: UpdateBlock.contents, as: UTF8.self)
@@ -79,7 +79,7 @@ import Testing
     #expect(ConsoleErrorCode.parse("0x80010006") == 0x80010006)
     #expect(ConsoleErrorCode.parse("8001 0006") == 0x80010006)
     #expect(ConsoleErrorCode.info(0x80010006)?.name == "ENOENT")
-    let found = ConsoleErrorCode.explain(in: "Installationen misslyckades (80010017), igen 0x80010017 och 8002f2c5")
+    let found = ConsoleErrorCode.explain(in: "The install failed (80010017), again 0x80010017 and 8002f2c5")
     #expect(found.map(\.code) == [0x80010017])
     #expect(ConsoleErrorCode.describe(found[0]).hasPrefix("80010017 (EAUTHFAIL):"))
 
@@ -127,11 +127,11 @@ let testDiscFiles: [(String, Data)] = [
     // The whole image: the IRD's header and the files' blocks after it.
     var image = try Gzip.decompress(ird.header)
     for (_, data) in testDiscFiles { image += data + Data(count: 2048 - data.count) }
-    let iso = dir.appendingPathComponent("Testspelet.iso")
+    let iso = dir.appendingPathComponent("Test Game.iso")
     try image.write(to: iso)
     let isoReport = try await DiscVerifier.verify(iso: iso, ird: ird)
     #expect(isoReport.isIntact)
-    #expect(isoReport.summary.contains("alla 3 filer stämmer"))
+    #expect(isoReport.summary.contains("all 3 files match"))
 
     // A damaged IRD is refused.
     var broken = try Gzip.decompress(try #require(Data(base64Encoded: testIRD)))

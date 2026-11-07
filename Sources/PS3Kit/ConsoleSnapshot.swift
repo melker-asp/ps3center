@@ -92,27 +92,27 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
         var notes: [String] = []
         if let cpu = cpuTemp, cpu > 70 {
             score -= min(30, (cpu - 70) * 2)
-            notes.append("CPU varm (\(cpu) °C)")
+            notes.append("CPU hot (\(cpu) °C)")
         }
         if let rsx = rsxTemp, rsx > 75 {
             score -= min(30, (rsx - 75) * 2)
-            notes.append("RSX varm (\(rsx) °C)")
+            notes.append("RSX hot (\(rsx) °C)")
         }
         if let free = freeBytes {
             if free < 20_000_000_000 {
                 score -= 40
-                notes.append("nästan full hårddisk")
+                notes.append("hard drive almost full")
             } else if free < 50_000_000_000 {
                 score -= 15
-                notes.append("lite ledigt utrymme")
+                notes.append("low on free space")
             }
         }
         health = max(0, score)
         switch health {
-        case 85...: healthLabel = "Utmärkt"
-        case 65..<85: healthLabel = "Bra"
+        case 85...: healthLabel = "Excellent"
+        case 65..<85: healthLabel = "Good"
         case 45..<65: healthLabel = "OK"
-        default: healthLabel = "Varning"
+        default: healthLabel = "Warning"
         }
         healthNotes = notes
     }

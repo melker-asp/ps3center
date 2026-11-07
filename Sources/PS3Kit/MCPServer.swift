@@ -31,13 +31,13 @@ public final class MCPServer: @unchecked Sendable {
     public static let protocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
 
     public static let instructions = """
-    PS3 Center läser en PS3 med PS3HEN och webMAN MOD på hemnätverket. Börja med ps3_status: den \
-    visar temperaturer, fläkt, ledigt utrymme, vad som körs, versioner och en hälsopoäng med \
-    anmärkningar. ps3_apps jämför installerad homebrew med GitHub, ps3_games listar spelen, \
-    ps3_maintenance_report hittar kvarglömda paket, avbrutna överföringar och saknade plugins, och \
-    ps3_explain_error förklarar felkoder som 80010006. ps3_history visar vad PS3 Center har ändrat. \
-    Inget verktyg ändrar konsolen; ändringar görs med ps3 i terminalen eller i appen PS3 Center. \
-    Svarar inte webMAN är HEN oftast inte aktiverat efter en omstart.
+    PS3 Center reads a PS3 with PS3HEN and webMAN MOD on the home network. Start with ps3_status: it \
+    shows temperatures, fan, free space, what is running, versions and a health score with \
+    notes. ps3_apps compares installed homebrew with GitHub, ps3_games lists the games, \
+    ps3_maintenance_report finds leftover packages, unfinished transfers and missing plugins, and \
+    ps3_explain_error explains error codes such as 80010006. ps3_history shows what PS3 Center has changed. \
+    No tool changes the console; changes are made with ps3 in the terminal or in the PS3 Center app. \
+    If webMAN does not answer, HEN is usually not enabled after a restart.
     """
 
     let tools: [Tool]
@@ -68,10 +68,10 @@ public final class MCPServer: @unchecked Sendable {
         guard !trimmed.isEmpty else { return nil }
         guard let data = trimmed.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) else {
-            return Self.encode(Self.error(id: NSNull(), code: -32700, message: "Kunde inte tolka JSON."))
+            return Self.encode(Self.error(id: NSNull(), code: -32700, message: "Could not parse the JSON."))
         }
         guard let message = object as? [String: Any] else {
-            return Self.encode(Self.error(id: NSNull(), code: -32600, message: "Ett meddelande i taget."))
+            return Self.encode(Self.error(id: NSNull(), code: -32600, message: "One message at a time."))
         }
         return await handle(message).map(Self.encode)
     }
@@ -104,7 +104,7 @@ public final class MCPServer: @unchecked Sendable {
             }])
         case "tools/call":
             guard let name = params["name"] as? String, let tool = tools.first(where: { $0.name == name }) else {
-                return Self.error(id: id, code: -32602, message: "Okänt verktyg: \(params["name"] ?? "inget namn").")
+                return Self.error(id: id, code: -32602, message: "Unknown tool: \(params["name"] ?? "no name").")
             }
             let arguments = params["arguments"] as? [String: Any] ?? [:]
             do {
@@ -115,7 +115,7 @@ public final class MCPServer: @unchecked Sendable {
                 return Self.result(id: id, ["content": [["type": "text", "text": error.localizedDescription]], "isError": true])
             }
         default:
-            return Self.error(id: id, code: -32601, message: "Okänd metod: \(method ?? "ingen").")
+            return Self.error(id: id, code: -32601, message: "Unknown method: \(method ?? "none").")
         }
     }
 
@@ -130,7 +130,7 @@ public final class MCPServer: @unchecked Sendable {
     static func encode(_ message: [String: Any]) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys, .withoutEscapingSlashes]),
               let text = String(data: data, encoding: .utf8) else {
-            return #"{"error":{"code":-32603,"message":"Svaret gick inte att skriva."},"id":null,"jsonrpc":"2.0"}"#
+            return #"{"error":{"code":-32603,"message":"The answer could not be written."},"id":null,"jsonrpc":"2.0"}"#
         }
         return text
     }
@@ -151,33 +151,33 @@ extension MCPServer {
         let host: @Sendable () async throws -> String = { try await consoleHost(explicit) }
         return [
             Tool(name: "ps3_status", title: "Status",
-                 description: "Konsolens status just nu: CPU- och RSX-temperatur, fläkt, ledigt utrymme, nätverk, vad som körs och är monterat, firmware, HEN- och webMAN-version, och en hälsopoäng 0–100 med anmärkningar. Visar aldrig PSID eller IDPS.") { _ in
+                 description: "The console's status right now: CPU and RSX temperature, fan, free space, network, what is running and mounted, firmware, HEN and webMAN version, and a health score 0–100 with notes. Never shows the PSID or IDPS.") { _ in
                 try json(try await WebMAN(host: try await host()).snapshot())
             },
-            Tool(name: "ps3_apps", title: "Homebrew och uppdateringar",
-                 description: "Programmen i PS3 Centers katalog: installerad version jämförd med senaste releasen på GitHub, om det finns en uppdatering, om den är ignorerad och om programmet fungerar på konsolen (HEN/CFW, firmware). HEN och plugins installeras aldrig automatiskt.") { _ in
+            Tool(name: "ps3_apps", title: "Homebrew and Updates",
+                 description: "The apps in PS3 Center's catalog: the installed version compared with the latest release on GitHub, whether there is an update, whether it is ignored, and whether the app works on the console (HEN/CFW, firmware). HEN and plugins are never installed automatically.") { _ in
                 try json(try await AppsService(host: try await host()).check())
             },
-            Tool(name: "ps3_games", title: "Spelen på PS3:an",
-                 description: "Spelen på konsolen: PS3-ISO:er, mappar i GAMES, PSN-spel, PS2, PS1, PSP och filmer på hårddisken och USB, med titel, title ID, storlek, plats och installerad uppdatering.") { _ in
+            Tool(name: "ps3_games", title: "Games on the PS3",
+                 description: "The games on the console: PS3 ISOs, folders in GAMES, PSN games, PS2, PS1, PSP and movies on the hard drive and USB, with title, title ID, size, location and installed game update.") { _ in
                 try json(try await GameLibraryService(host: try await host()).scan())
             },
-            Tool(name: "ps3_maintenance_report", title: "Underhållsrapport",
-                 description: "Kontrollerar konsolen utan att ändra något: kvarglömda paket, avbrutna överföringar (.part), dubbletter, saknade plugins i boot_plugins.txt, webMAN:s cache, ledigt utrymme och om systemuppdateringar är blockerade. Tar upp till en minut.") { _ in
+            Tool(name: "ps3_maintenance_report", title: "Maintenance Report",
+                 description: "Checks the console without changing anything: leftover packages, unfinished transfers (.part), duplicates, missing plugins in boot_plugins.txt, webMAN's cache, free space and whether system updates are blocked. Takes up to a minute.") { _ in
                 try json(try await MaintenanceService(host: try await host()).check())
             },
-            Tool(name: "ps3_history", title: "Historik",
-                 description: "Vad PS3 Center har ändrat på konsolen (uppladdningar, installationer, avinstallationer, städning), senaste sist. Läses från loggen på Macen, så konsolen behöver inte svara.",
+            Tool(name: "ps3_history", title: "History",
+                 description: "What PS3 Center has changed on the console (uploads, installs, uninstalls, cleanup), latest last. Read from the log on the Mac, so the console does not need to answer.",
                  inputSchema: ["type": "object", "properties": [
-                     "limit": ["type": "integer", "description": "Hur många rader (standard 20, högst 200)."],
+                     "limit": ["type": "integer", "description": "How many lines (default 20, at most 200)."],
                  ]]) { arguments in
                 let limit = min(max((arguments["limit"] as? Int) ?? 20, 1), 200)
                 return try json(OperationLog.read(limit: limit))
             },
-            Tool(name: "ps3_explain_error", title: "Förklara en felkod",
-                 description: "Förklarar en felkod från PS3:an, t.ex. 80010006 eller 8001003D, eller alla koder i ett felmeddelande: vad den betyder och vad man kan göra med HEN och webMAN.",
+            Tool(name: "ps3_explain_error", title: "Explain an Error Code",
+                 description: "Explains an error code from the PS3, e.g. 80010006 or 8001003D, or every code in an error message: what it means and what can be done with HEN and webMAN.",
                  inputSchema: ["type": "object", "required": ["code"], "properties": [
-                     "code": ["type": "string", "description": "Koden (80010006, 0x80010006) eller ett helt felmeddelande."],
+                     "code": ["type": "string", "description": "The code (80010006, 0x80010006) or a whole error message."],
                  ]]) { arguments in
                 try explainError(arguments["code"] as? String ?? "")
             },
@@ -188,7 +188,7 @@ extension MCPServer {
         var infos = ConsoleErrorCode.explain(in: text)
         if infos.isEmpty, let code = ConsoleErrorCode.parse(text), let info = ConsoleErrorCode.info(code) { infos = [info] }
         guard !infos.isEmpty else {
-            throw PS3Error.refused("Ingen känd felkod i \u{201D}\(text)\u{201D}. PS3 Center känner till systemkoderna 0x8001xxxx och de vanligaste koderna för skiva, Blu-ray, video, nätverk och konto.")
+            throw PS3Error.refused("No known error code in \u{201C}\(text)\u{201D}. PS3 Center knows the system codes 0x8001xxxx and the most common codes for disc, Blu-ray, video, network and account.")
         }
         return infos.map(ConsoleErrorCode.describe).joined(separator: "\n")
     }

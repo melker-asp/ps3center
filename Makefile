@@ -17,7 +17,7 @@ test:
 install: build
 	mkdir -p $(PREFIX)/bin
 	ln -sf "$(CURDIR)/$(BIN)" $(PREFIX)/bin/ps3
-	@echo "Installerat: $(PREFIX)/bin/ps3"
+	@echo "Installed: $(PREFIX)/bin/ps3"
 
 uninstall:
 	rm -f $(PREFIX)/bin/ps3
@@ -39,7 +39,7 @@ install-app: project
 	@if pgrep -xq "PS3 Center"; then osascript -e 'quit app "PS3 Center"'; sleep 2; fi
 	rm -rf "$(APPS_DIR)/PS3 Center.app"
 	ditto "$(RELEASE_APP)" "$(APPS_DIR)/PS3 Center.app"
-	@echo "Installerat: $(APPS_DIR)/PS3 Center.app"
+	@echo "Installed: $(APPS_DIR)/PS3 Center.app"
 
 uninstall-app:
 	rm -rf "$(APPS_DIR)/PS3 Center.app"

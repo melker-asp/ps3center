@@ -2,17 +2,25 @@ import PS3Kit
 import SwiftUI
 
 /// Mole's Apps → Updates, for PS3 homebrew: updates first, then what is current, plus a
-/// "Hämta" list of everything the catalog can install.
+/// "Browse" list of everything the catalog can install, and "From Mac" with the .pkg files in
+/// the Mac's package folders, like the Mac's games in the Games tab.
 struct AppsView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case updates, get
+        case updates, get, mac
         var id: String { rawValue }
-        var title: String { self == .updates ? "Uppdateringar" : "Hämta" }
+        var title: String {
+            switch self {
+            case .updates: return "Updates"
+            case .get: return "Browse"
+            case .mac: return "From Mac"
+            }
+        }
     }
 
     @Environment(ConsoleStore.self) private var console
     @Environment(AppsStore.self) private var apps
     @State private var section: Section
+    @State private var showsFolders = false
     @State private var plan: AppsStore.UpdatePlan?
     var scrolls = true
 
@@ -41,6 +49,15 @@ struct AppsView: View {
             guard let host = console.host, apps.phase == .idle || apps.statuses.isEmpty else { return }
             await apps.load(host: host)
         }
+        .task(id: section) {
+            guard section == .mac, !apps.packagesLoaded, !apps.isLoadingPackages else { return }
+            await apps.loadPackages(host: console.host)
+        }
+        .sheet(isPresented: $showsFolders) {
+            PackageFoldersView {
+                Task { await apps.loadPackages(host: console.host) }
+            }
+        }
         .sheet(item: $plan) { UpdateReviewView(plan: $0) }
     }
 
@@ -57,7 +74,7 @@ struct AppsView: View {
                                 CountBadge(count: apps.updates.count)
                             }
                         }
-                        .font(.system(size: 14, weight: section == item ? .bold : .semibold))
+                        .font(.ui(.callout, weight: section == item ? .bold : .semibold))
                         .foregroundStyle(section == item ? Theme.primaryText : Theme.primaryText.opacity(0.7))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
@@ -71,40 +88,101 @@ struct AppsView: View {
             .background(Capsule().fill(Color.black.opacity(0.45)))
 
             Button {
-                guard let host = console.host else { return }
-                Task { await apps.load(host: host, refreshIcons: true) }
+                if section == .mac {
+                    Task { await apps.loadPackages(host: console.host) }
+                } else if let host = console.host {
+                    Task { await apps.load(host: host, refreshIcons: true) }
+                }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .rotationEffect(.degrees(apps.phase == .loading ? 360 : 0))
             }
             .buttonStyle(CircleIconButtonStyle())
-            .help("Kolla igen")
-            .disabled(apps.isBusy)
+            .iconLabel(section == .mac ? "Rescan the Mac's package folders" : "Check Again")
+            .disabled(apps.isBusy || apps.isLoadingPackages)
 
             Spacer()
 
-            if let checked = apps.lastChecked {
-                Text("Kollat \(checked.formatted(date: .omitted, time: .shortened))")
-                    .font(.system(size: 12))
+            if section == .mac {
+                Button {
+                    showsFolders = true
+                } label: {
+                    Label("Package Folders", systemImage: "folder")
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+            } else if let checked = apps.lastChecked {
+                Text("Checked \(Theme.time(checked))")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
             }
         }
     }
 
     @ViewBuilder private var content: some View {
+        if section == .mac {
+            macContent
+        } else {
+            catalogContent
+        }
+    }
+
+    /// The Mac's packages do not wait for the catalog: they are listed even when the console
+    /// does not answer.
+    @ViewBuilder private var macContent: some View {
+        if !apps.packagesLoaded {
+            VStack(spacing: 12) {
+                Spinner()
+                Text("Reading the Mac's package folders…").font(.ui(.body)).foregroundStyle(Theme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if apps.packages.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "shippingbox").font(.ui(.largeTitle, weight: .light)).foregroundStyle(Theme.secondaryText)
+                Text("No packages in the Mac's package folders").font(.ui(.title2, weight: .light)).foregroundStyle(Theme.primaryText)
+                Text("Add the folders where you keep .pkg files. The packages show up here and install on the PS3 with one click, and the files stay on the Mac.")
+                    .font(.ui(.body)).foregroundStyle(Theme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 440)
+                Button("Add Package Folders…") { showsFolders = true }
+                    .buttonStyle(PillButtonStyle())
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if scrolls {
+            ScrollView { packageList }.scrollIndicators(.hidden)
+        } else {
+            packageList
+        }
+    }
+
+    /// One section per linked folder, in the order they were linked.
+    private var packageList: some View {
+        LazyVStack(alignment: .leading, spacing: 4) {
+            let folders = apps.packages.reduce(into: [String]()) { if !$0.contains($1.folder) { $0.append($1.folder) } }
+            ForEach(folders, id: \.self) { folder in
+                let rows = apps.packages.filter { $0.folder == folder }
+                SectionHeader(title: (folder as NSString).lastPathComponent, count: rows.count,
+                              detail: (folder as NSString).abbreviatingWithTildeInPath)
+                ForEach(rows) { PackageRow(package: $0) }
+            }
+        }
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder private var catalogContent: some View {
         let firstLoad = apps.statuses.isEmpty && (apps.phase == .idle || apps.phase == .loading)
         switch apps.phase {
         case _ where firstLoad:
             VStack(spacing: 12) {
                 Spinner()
-                Text("Kollar versioner på PS3:an och GitHub…")
-                    .font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text("Checking versions on the PS3 and GitHub…")
+                    .font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message) where apps.statuses.isEmpty:
             VStack(spacing: 12) {
-                Text("Kunde inte hämta programlistan").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.primaryText)
-                Text(message).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                Text("Couldn't load the app list").font(.ui(.headline, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                Text(message).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         default:
@@ -121,6 +199,7 @@ struct AppsView: View {
             switch section {
             case .updates: updatesList
             case .get: getList
+            case .mac: EmptyView()
             }
         }
         .padding(.bottom, 12)
@@ -133,31 +212,34 @@ struct AppsView: View {
                 .padding(.top, 10)
         }
         if apps.updates.isEmpty {
-            SectionHeader(title: "Uppdateringar", count: 0)
-            Text("Allt är aktuellt.")
-                .font(.system(size: 14)).foregroundStyle(Theme.secondaryText)
+            SectionHeader(title: "Updates", count: 0)
+            Text("Everything is up to date.")
+                .font(.ui(.callout)).foregroundStyle(Theme.secondaryText)
                 .padding(.horizontal, 14).padding(.bottom, 12)
         } else {
-            // The review comes first; while its queue runs the rows show the progress.
-            SectionHeader(title: "Uppdateringar", count: apps.updates.count,
-                          action: apps.installableUpdates.isEmpty || apps.isUpdatingAll ? nil : ("Uppdatera alla…", { plan = apps.updatePlan() }))
+            // The review comes first; while its queue runs the rows show the progress. The button
+            // says how many it installs: HEN and plugins only get advice, so "all" could be wrong.
+            let installable = apps.installableUpdates.count
+            SectionHeader(title: "Updates", count: apps.updates.count,
+                          action: installable == 0 || apps.isUpdatingAll ? nil
+                              : (installable == apps.updates.count ? "Update All…" : "Update \(installable)…", { plan = apps.updatePlan() }))
             ForEach(apps.updates, id: \.id) { AppRow(status: $0, mode: .update) }
         }
-        SectionHeader(title: "Aktuella", count: apps.current.count)
+        SectionHeader(title: "Up to Date", count: apps.current.count)
         ForEach(apps.current, id: \.id) { AppRow(status: $0, mode: .current) }
         if !apps.manual.isEmpty {
-            SectionHeader(title: "Kolla manuellt", count: apps.manual.count)
+            SectionHeader(title: "Check Manually", count: apps.manual.count)
             ForEach(apps.manual, id: \.id) { AppRow(status: $0, mode: .manual) }
         }
         if !apps.ignoredUpdates.isEmpty {
-            SectionHeader(title: "Ignorerade", count: apps.ignoredUpdates.count)
+            SectionHeader(title: "Ignored", count: apps.ignoredUpdates.count)
             ForEach(apps.ignoredUpdates, id: \.id) { AppRow(status: $0, mode: .ignored) }
         }
     }
 
     @ViewBuilder private var getList: some View {
         if !apps.newReleases.isEmpty {
-            SectionHeader(title: "Nytt", count: apps.newReleases.count)
+            SectionHeader(title: "New", count: apps.newReleases.count)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 16)], alignment: .leading, spacing: 16) {
                 ForEach(apps.newReleases, id: \.id) { AppTile(status: $0) }
             }
@@ -176,15 +258,37 @@ struct AppsView: View {
     }
 }
 
+extension AppStatus {
+    /// The release tag in the console's own APP_VER form when the catalog knows how they map
+    /// ("v2.4.1" → "02.41"), so "02.40 → 02.41" compares like with like. Else the tag itself.
+    @MainActor var latestForDisplay: String? {
+        guard let latest else { return nil }
+        guard let entry = AppsStore.entry(for: self), entry.installedStyle == .appVer,
+              entry.releaseStyle == .semverAsAppVer || entry.releaseStyle == .artemis,
+              let version = Version(latest, style: entry.releaseStyle), version.parts.count == 2 else { return latest }
+        return String(format: "%02d.%02d", version.parts[0], version.parts[1])
+    }
+}
+
 struct SectionHeader: View {
     let title: String
     let count: Int
+    /// Small text after the count, such as the folder's path.
+    var detail: String?
     var action: (String, () -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(title).font(.system(size: 20, weight: .light)).foregroundStyle(Theme.primaryText)
-            Text("\(count)").font(.system(size: 14)).foregroundStyle(Theme.tertiaryText)
+            Text(title).font(.ui(.title2, weight: .light)).foregroundStyle(Theme.primaryText)
+            Text("\(count)").font(.ui(.callout)).foregroundStyle(Theme.tertiaryText)
+            if let detail {
+                Text(detail)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(Theme.tertiaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.leading, 4)
+            }
             Spacer()
             if let action {
                 Button(action.0, action: action.1).buttonStyle(PillButtonStyle())
@@ -213,7 +317,7 @@ struct AppRow: View {
             AppIcon(image: apps.icons[status.id], name: status.name, category: status.category, symbol: Self.symbols[status.id])
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(status.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                    Text(status.name).font(.ui(.headline, weight: .semibold)).foregroundStyle(Theme.primaryText)
                     Chip(text: sourceLabel)
                     if let badge = status.compatibility.badge {
                         Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
@@ -224,7 +328,7 @@ struct AppRow: View {
             Spacer()
             trailing
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(.footnote, weight: .semibold))
                 .foregroundStyle(Theme.tertiaryText.opacity(hovering ? 1 : 0.5))
         }
         .padding(.horizontal, 14)
@@ -234,7 +338,7 @@ struct AppRow: View {
         // Buttons in the row keep their own action; the rest of the row opens the detail page.
         .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id } }
         .onHover { hovering = $0 }
-        .help("Visa mer om \(status.name)")
+        .help("More about \(status.name)")
     }
 
     private var sourceLabel: String { Self.sourceLabel(for: status) }
@@ -253,25 +357,34 @@ struct AppRow: View {
     @ViewBuilder private var subtitle: some View {
         switch mode {
         case .update, .ignored:
-            HStack(spacing: 6) {
-                Text(status.installed ?? "?").foregroundStyle(Theme.secondaryText)
-                Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(Theme.tertiaryText)
-                Text(status.latest ?? "?")
-                    .foregroundStyle(mode == .ignored ? Theme.secondaryText : Theme.accent)
-                    .fontWeight(.semibold)
-                if mode == .ignored {
-                    Text("·  visas igen när en nyare version kommer").foregroundStyle(Theme.tertiaryText).lineLimit(1)
-                } else if !status.canInstall, let note = status.note {
-                    Text("·  \(note)").foregroundStyle(Theme.tertiaryText).lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(status.installed ?? "?").foregroundStyle(Theme.secondaryText)
+                    Image(systemName: "arrow.right").font(.ui(.caption)).foregroundStyle(Theme.tertiaryText)
+                    Text(status.latestForDisplay ?? "?")
+                        .foregroundStyle(mode == .ignored ? Theme.secondaryText : Theme.accent)
+                        .fontWeight(.semibold)
+                    if mode == .ignored {
+                        Text("·  shows again when a newer version comes out").foregroundStyle(Theme.tertiaryText).lineLimit(1)
+                    }
+                }
+                .font(.ui(.body, design: .rounded))
+                // The advice for HEN and plugins is the reason there is no Update button, so it
+                // gets its own lines instead of being cut off after the version.
+                if mode == .update, !status.canInstall, let note = status.note {
+                    Text(note)
+                        .font(.ui(.footnote))
+                        .foregroundStyle(Theme.warm)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .font(.system(size: 13, design: .rounded))
         case .current:
             Text([status.installed, status.summary].compactMap { $0 }.joined(separator: "  ·  "))
-                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
+                .font(.ui(.body)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         case .manual:
             Text([status.installed, status.note].compactMap { $0 }.joined(separator: "  ·  "))
-                .font(.system(size: 13)).foregroundStyle(Theme.secondaryText).lineLimit(1)
+                .font(.ui(.body)).foregroundStyle(Theme.secondaryText).lineLimit(1)
         }
     }
 
@@ -282,21 +395,22 @@ struct AppRow: View {
             switch mode {
             case .update:
                 HStack(spacing: 8) {
-                    Button("Ignorera") { withAnimation(.easeInOut(duration: 0.2)) { apps.ignore(status) } }
+                    Button("Ignore") { withAnimation(.easeInOut(duration: 0.2)) { apps.ignore(status) } }
                         .buttonStyle(PillButtonStyle(prominent: false))
-                        .help("Visa inte \(status.latest ?? "den här versionen") som en uppdatering. Kommer en nyare version visas den igen.")
+                        .help("Don't show \(status.latest ?? "this version") as an update. A newer version shows up again.")
+                    // Outlined: the white button on this screen is Update All.
                     if status.canInstall {
-                        Button("Uppdatera") { apps.install(status) }.buttonStyle(PillButtonStyle())
+                        Button("Update") { apps.install(status) }.buttonStyle(PillButtonStyle(prominent: false))
                     } else {
-                        Button("Läs mer") { apps.selectedID = status.id }
+                        Button("Learn More") { apps.selectedID = status.id }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     }
                 }
             case .ignored:
-                Button("Sluta ignorera") { withAnimation(.easeInOut(duration: 0.2)) { apps.unignore(status) } }
+                Button("Stop Ignoring") { withAnimation(.easeInOut(duration: 0.2)) { apps.unignore(status) } }
                     .buttonStyle(PillButtonStyle(prominent: false))
             case .manual:
-                Button("Öppna sidan") { if let url = URL(string: status.homepage) { openURL(url) } }
+                Button("Open Page") { if let url = URL(string: status.homepage) { openURL(url) } }
                     .buttonStyle(PillButtonStyle(prominent: false))
             case .current:
                 EmptyView()
@@ -305,7 +419,9 @@ struct AppRow: View {
     }
 }
 
-/// A tile in Hämta, like the PS app's library: the XMB icon large, name, summary and action.
+/// A tile in Browse, like the PS app's library: the XMB icon large, name, summary and action.
+/// Without a real XMB icon the tile is compact: a big tinted letter said nothing and took half
+/// the card.
 struct AppTile: View {
     @Environment(AppsStore.self) private var apps
     let status: AppStatus
@@ -313,29 +429,27 @@ struct AppTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Color.clear
-                .aspectRatio(320.0 / 176.0, contentMode: .fit)
-                .overlay {
-                    GeometryReader { proxy in
-                        AppIcon(image: apps.icons[status.id], name: status.name, category: status.category,
-                                symbol: AppRow.symbols[status.id], size: proxy.size)
+            if let image = apps.icons[status.id] {
+                Color.clear
+                    .aspectRatio(320.0 / 176.0, contentMode: .fit)
+                    .overlay {
+                        GeometryReader { proxy in
+                            AppIcon(image: image, name: status.name, category: status.category, size: proxy.size)
+                        }
                     }
+                titleAndSummary
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    AppIcon(image: nil, name: status.name, category: status.category,
+                            symbol: AppRow.symbols[status.id], size: CGSize(width: 80, height: 44))
+                    titleAndSummary
                 }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(status.name)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
-                Text(status.blocked ? status.compatibility.summary : status.summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(2, reservesSpace: true)
             }
             HStack(spacing: 8) {
                 Chip(text: AppRow.sourceLabel(for: status))
                 if status.isNewRelease() {
-                    Chip(text: "NYTT", color: Theme.good)
-                        .help(status.releasedAt.map { "Senaste versionen kom \($0.formatted(date: .long, time: .omitted))" } ?? "")
+                    Chip(text: "New", color: Theme.good)
+                        .help(status.releasedAt.map { "The latest version came out \(Format.day($0))" } ?? "")
                 }
                 if let badge = status.compatibility.badge {
                     Chip(text: badge, color: status.compatibility.blocksInstall ? Theme.hot : Theme.warm)
@@ -351,22 +465,109 @@ struct AppTile: View {
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id } }
         .onHover { hovering = $0 }
-        .help("Visa mer om \(status.name)")
+        .help("More about \(status.name)")
+    }
+
+    private var titleAndSummary: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(status.name)
+                .font(.ui(.headline, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .lineLimit(1)
+            Text(status.blocked ? status.compatibility.summary : status.summary)
+                .font(.ui(.footnote))
+                .foregroundStyle(Theme.secondaryText)
+                .lineLimit(2, reservesSpace: true)
+        }
     }
 
     @ViewBuilder private var action: some View {
         if let op = apps.operations[status.id] {
             OperationView(operation: op)
         } else if status.blocked {
-            Label("Fungerar inte", systemImage: "nosign")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.hot)
+            Label("Doesn't Work", systemImage: "nosign")
+                .font(.ui(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.hotText)
         } else if let installed = status.installed {
             Label(installed, systemImage: "checkmark")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(.footnote, weight: .semibold))
                 .foregroundStyle(Theme.good)
         } else if status.installable {
-            Button("Installera") { apps.install(status) }.buttonStyle(PillButtonStyle())
+            // Outlined: a grid of white buttons left nothing standing out.
+            Button("Install") { apps.install(status) }.buttonStyle(PillButtonStyle(prominent: false))
+        }
+    }
+}
+
+/// A .pkg in one of the Mac's package folders: title (the catalog's name when its title ID is
+/// known), file, size and whether it is installed. A package from the catalog opens that
+/// program's page and is blocked like it on a console that does not meet its requirements.
+struct PackageRow: View {
+    @Environment(AppsStore.self) private var apps
+    let package: LocalPackage
+    @State private var hovering = false
+
+    private var status: AppStatus? { apps.catalogStatus(of: package) }
+    private var installed: String? { apps.installedVersion(of: package) }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AppIcon(image: package.titleID.flatMap { apps.packageIcons[$0] } ?? package.catalogID.flatMap { apps.icons[$0] },
+                    name: package.title, category: status?.category ?? .tools,
+                    symbol: status == nil ? "shippingbox.fill" : nil)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(package.title)
+                        .font(.ui(.headline, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(1)
+                    if let titleID = package.titleID { Chip(text: titleID) }
+                    if let badge = status?.compatibility.badge {
+                        Chip(text: badge, color: status?.compatibility.blocksInstall == true ? Theme.hot : Theme.warm)
+                    }
+                }
+                Text(subtitle)
+                    .font(.ui(.body))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            trailing
+            Image(systemName: "chevron.right")
+                .font(.ui(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.tertiaryText.opacity(hovering ? 1 : 0.5))
+                .opacity(status == nil ? 0 : 1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(hovering && status != nil ? 0.04 : 0)))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard let status else { return }
+            withAnimation(.easeInOut(duration: 0.2)) { apps.selectedID = status.id }
+        }
+        .onHover { hovering = $0 }
+        .help(package.path)
+    }
+
+    private var subtitle: String {
+        var parts = [package.fileName, Format.bytes(package.size)]
+        if apps.packagesChecked { parts.append(PackageLibrary.installedLabel(installed)) }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if let op = apps.operations[package.id] {
+            OperationView(operation: op)
+        } else if status?.compatibility.blocksInstall == true {
+            Label("Doesn't Work", systemImage: "nosign")
+                .font(.ui(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.hotText)
+        } else if installed != nil {
+            Button("Reinstall") { apps.install(package) }.buttonStyle(PillButtonStyle(prominent: false))
+        } else {
+            Button("Install") { apps.install(package) }.buttonStyle(PillButtonStyle(prominent: false))
         }
     }
 }
@@ -378,31 +579,31 @@ struct OperationView: View {
         HStack(spacing: 10) {
             switch operation.stage {
             case .queued:
-                Text("I kö").foregroundStyle(Theme.tertiaryText)
+                Text("Queued").foregroundStyle(Theme.tertiaryText)
             case .downloading:
                 Spinner()
-                Text("Laddar ner…").foregroundStyle(Theme.secondaryText)
+                Text("Downloading…").foregroundStyle(Theme.secondaryText)
             case .uploading(let fraction):
                 PSProgressBar(fraction: fraction).frame(width: 110)
                 Text("\(Int(fraction * 100)) %").foregroundStyle(Theme.secondaryText).monospacedDigit()
             case .waitingForGame:
                 Image(systemName: "pause.circle").foregroundStyle(Theme.warm)
-                Text("Väntar på spelet").foregroundStyle(Theme.warm)
+                Text("Waiting for the game").foregroundStyle(Theme.warm)
             case .installing:
                 Spinner()
-                Text("Installerar…").foregroundStyle(Theme.secondaryText)
+                Text("Installing…").foregroundStyle(Theme.secondaryText)
             case .uninstalling:
                 Spinner()
-                Text("Avinstallerar…").foregroundStyle(Theme.secondaryText)
+                Text("Uninstalling…").foregroundStyle(Theme.secondaryText)
             case .done:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
-                Text("Installerat").foregroundStyle(Theme.good)
+                Text("Installed").foregroundStyle(Theme.good)
             case .failed(let message):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.hot)
-                Text(message).foregroundStyle(Theme.hot).lineLimit(1).frame(maxWidth: 260, alignment: .trailing)
+                Text(message).foregroundStyle(Theme.hotText).lineLimit(1).frame(maxWidth: 260, alignment: .trailing)
             }
         }
-        .font(.system(size: 13, weight: .medium))
+        .font(.ui(.body, weight: .medium))
     }
 }
 
@@ -461,10 +662,10 @@ struct WaitingBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "gamecontroller.fill").foregroundStyle(Theme.warm)
-            Text("\(game) körs. Installationen väntar tills du har avslutat spelet.")
-                .font(.system(size: 13)).foregroundStyle(Theme.primaryText)
+            Text("\(game) is running. The install waits until you quit the game.")
+                .font(.ui(.body)).foregroundStyle(Theme.primaryText)
             Spacer()
-            Button("Installera ändå", action: force).buttonStyle(PillButtonStyle(tint: Theme.warm))
+            Button("Install Anyway", action: force).buttonStyle(PillButtonStyle(tint: Theme.warm))
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.warm.opacity(0.1)))
@@ -477,10 +678,10 @@ struct MissingFolderBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "folder.badge.questionmark").foregroundStyle(Theme.hot)
-            Text("Appen hittar inte PS3-mappen där paketen arkiveras (_Installerat/Paket).")
-                .font(.system(size: 13)).foregroundStyle(Theme.primaryText)
+            Text("The app can't find the PS3 folder where packages are archived (_Installed/Packages).")
+                .font(.ui(.body)).foregroundStyle(Theme.primaryText)
             Spacer()
-            Button("Välj mapp…", action: choose).buttonStyle(PillButtonStyle(tint: Theme.hot))
+            Button("Choose Folder…", action: choose).buttonStyle(PillButtonStyle(tint: Theme.hot))
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.hot.opacity(0.1)))

@@ -2,7 +2,7 @@ import AppKit
 import PS3Kit
 import SwiftUI
 
-/// Underhåll: backups of the saves and system files, the check that finds leftovers, the
+/// Maintenance: backups of the saves and system files, the check that finds leftovers, the
 /// storage map and copying the disc, as cards in Mole's style.
 struct MaintenanceView: View {
     @Environment(ConsoleStore.self) private var console
@@ -23,20 +23,20 @@ struct MaintenanceView: View {
             }
         }
         .sheet(isPresented: $showsSaves) { SavesView() }
-        .confirmationDialog("Ta bort \(store.fixable.count) filer från PS3:an?", isPresented: $confirmsFix) {
-            Button("Ta bort", role: .destructive) { store.fix() }
+        .confirmationDialog("Delete \(store.fixable.count) files from the PS3?", isPresented: $confirmsFix) {
+            Button("Delete", role: .destructive) { store.fix() }
         } message: {
             Text(store.fixable.map(\.title).joined(separator: ", "))
         }
-        .confirmationDialog("Kopiera skivan till PS3:ans hårddisk?", isPresented: $confirmsRip) {
-            Button("Kopiera") { store.rip() }
+        .confirmationDialog("Copy the disc to the PS3's hard drive?", isPresented: $confirmsRip) {
+            Button("Copy") { store.rip() }
         } message: {
-            Text(store.disc.map { "\($0.title) (\(Format.bytes($0.bytes))) hamnar i \($0.destination)." } ?? "")
+            Text(store.disc.map { "\($0.title) (\(Format.bytes($0.bytes))) goes to \($0.destination)." } ?? "")
         }
-        .confirmationDialog("Blockera systemuppdateringar?", isPresented: $confirmsBlock) {
-            Button("Blockera") { store.blockUpdates() }
+        .confirmationDialog("Block system updates?", isPresented: $confirmsBlock) {
+            Button("Block") { store.blockUpdates() }
         } message: {
-            Text("PS3 Center lägger webMAN MOD:s ps3-updatelist.txt i /dev_hdd0. Från nästa start pekar webMAN XMB:ns uppdateringskoll på den, så ingen systemuppdatering kan hämtas av misstag. Inget i systemflashen ändras, och filen kan tas bort igen.")
+            Text("PS3 Center puts webMAN MOD's ps3-updatelist.txt in /dev_hdd0. From the next start, webMAN points the XMB's update check at it, so no system update can be downloaded by mistake. Nothing in the system flash changes, and the file can be removed again.")
         }
         .task(id: console.host) {
             store.host = console.host
@@ -72,7 +72,7 @@ struct MaintenanceView: View {
             }
             Spacer()
         }
-        .font(.system(size: 13))
+        .font(.ui(.body))
         .foregroundStyle(Theme.secondaryText)
         .padding(.horizontal, 4)
     }
@@ -80,102 +80,114 @@ struct MaintenanceView: View {
     // MARK: Backups
 
     private var savesCard: some View {
-        Card(icon: "externaldrive.badge.checkmark", title: "Sparfiler", chip: store.autoBackup ? "Varje vecka" : nil, chipColor: Theme.good) {
-            BigValue(value: "\(store.localSaves.count)", unit: "säkerhetskopierade")
-            Footnote(text: store.lastSaveBackup.map { "Senast \(Format.day($0))" } ?? "Inte kopierade än")
+        Card(icon: "externaldrive.badge.checkmark", title: "Saves") {
+            BigValue(value: "\(store.localSaves.count)", unit: "backed up")
+            // The weekly switch has its label next to it (it used to be a bare switch and a chip).
+            HStack(spacing: 8) {
+                Footnote(text: store.lastSaveBackup.map { "Last \(Format.day($0))" } ?? "Not backed up yet")
+                Spacer(minLength: 4)
+                Text("Weekly").font(.ui(.footnote)).foregroundStyle(Theme.secondaryText)
+                PillToggle(isOn: store.autoBackup, label: "Back up weekly") { store.setAutoBackup($0) }
+                    .scaleEffect(0.8)
+                    .frame(width: 36, height: 22)
+                    .help("Back up the saves once a week while the PS3 is on and no game is running")
+            }
             Spacer(minLength: 0)
             HStack(spacing: 8) {
-                Button("Kopiera nu") { store.backupSaves() }
-                    .buttonStyle(PillButtonStyle())
-                Button("Visa…") { showsSaves = true }
+                Button("Back Up Now") { store.backupSaves() }
                     .buttonStyle(PillButtonStyle(prominent: false))
-                Spacer(minLength: 0)
-                PillToggle(isOn: store.autoBackup) { store.setAutoBackup($0) }
-                    .scaleEffect(0.8)
-                    .help("Kopiera sparfilerna en gång i veckan när PS3:an är på och inget spel körs")
+                    .fixedSize()
+                Button("Show…") { showsSaves = true }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .fixedSize()
             }
             .disabled(store.busy != nil)
         }
     }
 
     private var systemCard: some View {
-        Card(icon: "gearshape.2", title: "Systemfiler", chip: "Bara läsning") {
-            BigValue(value: "\(store.systemBackups.count)", unit: store.systemBackups.count == 1 ? "kopia" : "kopior")
-            Footnote(text: store.systemBackups.first.map { "Senast \(Format.day($0))" } ?? "Inga kopior än")
+        Card(icon: "gearshape.2", title: "System Files", chip: "Read Only") {
+            BigValue(value: "\(store.systemBackups.count)", unit: store.systemBackups.count == 1 ? "copy" : "copies")
+            Footnote(text: store.systemBackups.first.map { "Last \(Format.day($0))" } ?? "No copies yet")
             Spacer(minLength: 0)
-            Text("Systeminställningarna, webMAN:s inställningar och boot_plugins.")
-                .font(.system(size: 12))
+            Text("System settings, webMAN's settings and boot_plugins.")
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.tertiaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Kopiera nu") { store.backupSystem() }
+            Button("Back Up Now") { store.backupSystem() }
                 .buttonStyle(PillButtonStyle(prominent: false))
+                .fixedSize()
                 .disabled(store.busy != nil)
         }
     }
 
     private var discCard: some View {
-        Card(icon: "opticaldisc", title: "Skivan", chip: store.disc?.titleID) {
+        Card(icon: "opticaldisc", title: "Disc", chip: store.disc?.titleID) {
             if let disc = store.disc {
                 Text(disc.title)
-                    .font(.system(size: 20, weight: .light))
+                    .font(.ui(.title2, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(2)
                 Footnote(text: Format.bytes(disc.bytes))
                 Spacer(minLength: 0)
-                if let ripped = store.ripped, store.busy == "Kopierar skivan" {
+                if let ripped = store.ripped, store.isRipping {
                     PSProgressBar(fraction: disc.bytes > 0 ? Double(ripped) / Double(disc.bytes) : 0)
                         .frame(height: 6)
                     HStack {
-                        Footnote(text: "\(Format.bytes(ripped)) av \(Format.bytes(disc.bytes))")
+                        Footnote(text: "\(Format.bytes(ripped)) of \(Format.bytes(disc.bytes))")
                         Spacer()
-                        Button("Stoppa") { store.abortRip() }
+                        Button("Stop") { store.abortRip() }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     }
                 } else {
-                    Button("Kopiera till hårddisken") { confirmsRip = true }
+                    Button("Copy to Hard Drive") { confirmsRip = true }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(store.busy != nil)
                 }
             } else {
-                Text(store.discNote ?? "Ingen PS3-skiva i spelaren.")
-                    .font(.system(size: 13))
+                Text(store.discNote ?? "No PS3 disc in the drive.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                Button("Titta igen") { store.loadDisc() }
+                Button("Look Again") { store.loadDisc() }
                     .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
     }
 
-    // MARK: Films and pictures
+    // MARK: Videos and photos
 
     private var mediaCard: some View {
         let items = store.media ?? []
         let videos = items.filter(\.isVideo).count
-        return Card(icon: "film.stack", title: "Filmer och bilder", chip: items.isEmpty ? nil : "\(items.count) nya", chipColor: Theme.good) {
-            BigValue(value: "\(videos)", unit: videos == 1 ? "film" : "filmer")
-            Footnote(text: "\(items.count - videos) bilder · \(Format.bytes(items.reduce(0) { $0 + $1.size }))")
+        // Two lines of text at most: a third made this card taller than the row, so it sat
+        // higher than the three beside it.
+        return Card(icon: "film.stack", title: "Videos & Photos", chip: items.isEmpty ? nil : "\(items.count) new", chipColor: Theme.good) {
+            BigValue(value: "\(videos)", unit: videos == 1 ? "video" : "videos")
+            Footnote(text: "\(items.count - videos) \(items.count - videos == 1 ? "photo" : "photos") · \(Format.bytes(items.reduce(0) { $0 + $1.size }))")
             Spacer(minLength: 0)
-            Text("Inspelningar från webMAN och skärmbilder från spel. Inget tas bort från PS3:an.")
-                .font(.system(size: 12))
+            Text("Recordings and in-game screenshots. Nothing is deleted from the PS3.")
+                .font(.ui(.footnote))
                 .foregroundStyle(Theme.tertiaryText)
+                .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
-                Button("Hämta till Macen") { store.importMedia() }
-                    .buttonStyle(PillButtonStyle())
+                Button("Import to Mac") { store.importMedia() }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .fixedSize()
                     .disabled(items.isEmpty || store.busy != nil)
                 Button { NSWorkspace.shared.open(MediaImport.defaultFolder) } label: { Image(systemName: "folder") }
                     .buttonStyle(CircleIconButtonStyle(size: 30))
-                    .help("Visa mappen Bilder/PS3 Center")
+                    .iconLabel("Show the folder in Finder")
             }
         }
     }
 
-    // MARK: Cleaning up
+    // MARK: Cleanup
 
     private var cleanupCard: some View {
-        Card(icon: "sparkles", title: "Städning", chip: store.report.map { $0.findings.isEmpty ? "Allt bra" : "\($0.findings.count) att titta på" },
+        Card(icon: "sparkles", title: "Cleanup", chip: store.report.map { $0.findings.isEmpty ? "All good" : "\($0.findings.count) to look at" },
              chipColor: store.report?.findings.isEmpty == false ? Theme.warm : Theme.good) {
             if let report = store.report {
                 VStack(alignment: .leading, spacing: 10) {
@@ -184,22 +196,23 @@ struct MaintenanceView: View {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
                             Text(passed).foregroundStyle(Theme.secondaryText)
                         }
-                        .font(.system(size: 13))
+                        .font(.ui(.body))
                     }
                     ForEach(report.findings) { finding in findingRow(finding) }
                 }
             } else {
-                Text("Letar efter kvarglömda paket, avbrutna överföringar, spel som finns två gånger, en stor cache och plugins som saknas. Läser bara, tills du väljer att ta bort.")
-                    .font(.system(size: 13))
+                Text("Looks for leftover packages, interrupted transfers, games that are there twice, a large cache and missing plugins. Only reads, until you choose to delete.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 8) {
-                Button(store.report == nil ? "Kontrollera" : "Kontrollera igen") { store.check() }
+                Button(store.report == nil ? "Check" : "Check Again") { store.check() }
                     .buttonStyle(PillButtonStyle(prominent: store.report == nil))
                 if !store.fixable.isEmpty {
-                    Button("Ta bort \(store.fixable.count) filer · \(Format.bytes(store.fixable.compactMap(\.size).reduce(0, +)))") { confirmsFix = true }
-                        .buttonStyle(PillButtonStyle())
+                    // Red: it deletes from the console, even if only leftovers.
+                    Button("Delete \(store.fixable.count) \(store.fixable.count == 1 ? "File" : "Files") · \(Format.bytes(store.fixable.compactMap(\.size).reduce(0, +)))…") { confirmsFix = true }
+                        .buttonStyle(PillButtonStyle(destructive: true))
                 }
             }
             .disabled(store.busy != nil)
@@ -212,18 +225,18 @@ struct MaintenanceView: View {
                 .foregroundStyle(finding.canFix ? Theme.warm : Theme.secondaryText)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(finding.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                    Text(finding.title).font(.ui(.body, weight: .semibold)).foregroundStyle(Theme.primaryText)
                     if let size = finding.size { Chip(text: Format.bytes(size)) }
                 }
                 Text(finding.detail)
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if finding.kind == .updates {
                 Spacer()
-                Button("Blockera") { confirmsBlock = true }
-                    .buttonStyle(PillButtonStyle())
+                Button("Block…") { confirmsBlock = true }
+                    .buttonStyle(PillButtonStyle(prominent: false))
                     .disabled(store.busy != nil)
             }
         }
@@ -232,36 +245,36 @@ struct MaintenanceView: View {
     // MARK: Storage
 
     private var storageCard: some View {
-        Card(icon: "chart.bar.xaxis", title: "Lagring", chip: storageChip) {
+        Card(icon: "chart.bar.xaxis", title: "Storage", chip: storageChip) {
             if let map = store.storage {
                 StorageBar(map: map).frame(height: 26)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
                     ForEach(map.areas.indices, id: \.self) { index in
                         legend(StorageBar.color(index), map.areas[index].name, map.areas[index].bytes)
                     }
-                    if let other = map.other, other > 0 { legend(Color.white.opacity(0.25), "Övrigt och systemet", other) }
+                    if let other = map.other, other > 0 { legend(Color.white.opacity(0.25), "Other and system", other) }
                 }
                 if !map.largest.isEmpty {
-                    Text("STÖRSTA FILERNA")
-                        .font(.system(size: 11, weight: .bold))
+                    Text("LARGEST FILES")
+                        .font(.ui(.caption, weight: .bold))
                         .tracking(1.2)
                         .foregroundStyle(Theme.secondaryText)
                         .padding(.top, 4)
                     ForEach(map.largest.prefix(5)) { file in
                         HStack {
-                            Text(file.name).font(.system(size: 12)).foregroundStyle(Theme.primaryText).lineLimit(1).truncationMode(.middle)
+                            Text(file.name).font(.ui(.footnote)).foregroundStyle(Theme.primaryText).lineLimit(1).truncationMode(.middle)
                             Spacer()
-                            Text(Format.bytes(file.bytes)).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.secondaryText)
+                            Text(Format.bytes(file.bytes)).font(.ui(.footnote, weight: .semibold)).foregroundStyle(Theme.secondaryText)
                         }
                     }
                 }
             } else {
-                Text("Räknar hur mycket varje mapp på /dev_hdd0 tar, på konsolen med webMAN. Tar en stund för stora mappar.")
-                    .font(.system(size: 13))
+                Text("Counts how much each folder on /dev_hdd0 takes, on the console with webMAN. Takes a while for large folders.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button(store.storage == nil ? "Räkna" : "Räkna igen") { store.analyze() }
+            Button(store.storage == nil ? "Count" : "Recount") { store.analyze() }
                 .buttonStyle(PillButtonStyle(prominent: false))
                 .disabled(store.busy != nil)
         }
@@ -269,15 +282,15 @@ struct MaintenanceView: View {
 
     private var storageChip: String? {
         guard let free = store.storage?.free else { return nil }
-        return "\(Format.bytes(free)) ledigt"
+        return "\(Format.bytes(free)) free"
     }
 
     private func legend(_ color: Color, _ name: String, _ bytes: Int64) -> some View {
         HStack(spacing: 8) {
             RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 12, height: 12)
-            Text(name).font(.system(size: 12)).foregroundStyle(Theme.primaryText).lineLimit(1)
+            Text(name).font(.ui(.footnote)).foregroundStyle(Theme.primaryText).lineLimit(1)
             Spacer(minLength: 4)
-            Text(Format.bytes(bytes)).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.secondaryText)
+            Text(Format.bytes(bytes)).font(.ui(.footnote, weight: .semibold)).foregroundStyle(Theme.secondaryText)
         }
     }
 }
@@ -320,19 +333,19 @@ struct SavesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Sparfiler")
-                    .font(.system(size: 30, weight: .light))
+                Text("Saves")
+                    .font(.ui(.display, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                 Spacer()
                 HStack(spacing: 6) {
-                    sourcePill("På PS3:an", selected: onConsole) { onConsole = true }
-                    sourcePill("På Macen", selected: !onConsole) { onConsole = false }
+                    sourcePill("On PS3", selected: onConsole) { onConsole = true }
+                    sourcePill("On Mac", selected: !onConsole) { onConsole = false }
                 }
             }
             Text(onConsole
-                 ? "Sparfilerna på PS3:an. En sparfil som tas bort kopieras till Macen först, så den går att lägga tillbaka."
-                 : "Säkerhetskopian på Macen. Det som ligger på PS3:an sparas först när du lägger tillbaka en sparfil, och det går inte medan ett spel körs.")
-                .font(.system(size: 13))
+                 ? "The saves on the PS3. A save you delete is copied to the Mac first, so it can be restored."
+                 : "The backup on the Mac. What is on the PS3 is backed up first when you restore a save, and restoring doesn't work while a game is running.")
+                .font(.ui(.body))
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -344,16 +357,13 @@ struct SavesView: View {
                 Spacer(minLength: 0)
             }
             HStack {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut(.cancelAction)
-                    .help("Tillbaka")
-                Spacer()
                 if let busy = store.busy {
-                    Text(busy).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                    Text(busy).font(.ui(.footnote)).foregroundStyle(Theme.secondaryText)
                 } else if let note = store.note {
-                    Text(note).font(.system(size: 12)).foregroundStyle(Theme.secondaryText).lineLimit(2)
+                    Text(note).font(.ui(.footnote)).foregroundStyle(Theme.secondaryText).lineLimit(2)
                 }
+                Spacer()
+                DoneButton()
             }
             .padding(.top, 16)
         }
@@ -364,17 +374,17 @@ struct SavesView: View {
             guard live, store.consoleSaves == nil else { return }
             store.loadConsoleSaves()
         }
-        .confirmationDialog("Lägga tillbaka \(restoring?.title ?? "")?", isPresented: Binding(get: { restoring != nil }, set: { if !$0 { restoring = nil } }),
+        .confirmationDialog("Restore \(restoring?.title ?? "")?", isPresented: Binding(get: { restoring != nil }, set: { if !$0 { restoring = nil } }),
                             presenting: restoring) { save in
-            Button("Skriv över på PS3:an", role: .destructive) { store.restore(save) }
+            Button("Overwrite on PS3", role: .destructive) { store.restore(save) }
         } message: { save in
-            Text("Sparfilen i \(save.folder) på PS3:an ersätts med kopian från \(save.modified.map(Format.day) ?? "säkerhetskopian").")
+            Text("The save in \(save.folder) on the PS3 is replaced with the copy from \(save.modified.map(Format.day) ?? "the backup").")
         }
-        .confirmationDialog("Ta bort \(deleting?.title ?? "") från PS3:an?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+        .confirmationDialog("Delete \(deleting?.title ?? "") from the PS3?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             presenting: deleting) { save in
-            Button("Ta bort", role: .destructive) { store.deleteSave(save) }
+            Button("Delete", role: .destructive) { store.deleteSave(save) }
         } message: { save in
-            Text("\(save.folder) tas bort från PS3:an. En kopia sparas på Macen först, så du kan lägga tillbaka den under På Macen.")
+            Text("\(save.folder) is deleted from the PS3. A copy is saved on the Mac first, so you can restore it under On Mac.")
         }
     }
 
@@ -382,33 +392,33 @@ struct SavesView: View {
         let saves = onConsole ? (store.consoleSaves ?? []) : store.localSaves
         VStack(spacing: 0) {
             if onConsole, store.consoleSaves == nil {
-                Text(store.busy ?? "Sparfilerna på PS3:an har inte lästs än.")
-                    .font(.system(size: 13))
+                Text(store.busy ?? "The saves on the PS3 haven't been read yet.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .padding(.vertical, 10)
             } else if saves.isEmpty {
-                Text(onConsole ? "Inga sparfiler på PS3:an." : "Ingen säkerhetskopia än.")
-                    .font(.system(size: 13))
+                Text(onConsole ? "No saves on the PS3." : "No backup yet.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
                     .padding(.vertical, 10)
             }
             ForEach(saves) { save in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(save.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.primaryText)
+                        Text(save.title).font(.ui(.callout, weight: .semibold)).foregroundStyle(Theme.primaryText)
                         Text([save.subtitle, save.folder, save.modified.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
-                            .font(.system(size: 12))
+                            .font(.ui(.footnote))
                             .foregroundStyle(Theme.secondaryText)
                             .lineLimit(1)
                     }
                     Spacer()
-                    Text(Format.bytes(save.size)).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                    Text(Format.bytes(save.size)).font(.ui(.footnote)).foregroundStyle(Theme.secondaryText)
                     if onConsole {
-                        Button("Ta bort") { deleting = save }
-                            .buttonStyle(PillButtonStyle(prominent: false))
+                        Button("Delete…") { deleting = save }
+                            .buttonStyle(PillButtonStyle(destructive: true))
                             .disabled(store.busy != nil)
                     } else {
-                        Button("Lägg tillbaka") { restoring = save }
+                        Button("Restore…") { restoring = save }
                             .buttonStyle(PillButtonStyle(prominent: false))
                             .disabled(store.busy != nil)
                     }
@@ -422,7 +432,7 @@ struct SavesView: View {
     private func sourcePill(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(.footnote, weight: .semibold))
                 .foregroundStyle(selected ? Color.black : Theme.primaryText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)

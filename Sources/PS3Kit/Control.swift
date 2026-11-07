@@ -23,7 +23,7 @@ public enum PadButton: String, CaseIterable, Sendable {
         case .left: return "←"
         case .right: return "→"
         case .accept: return "OK"
-        case .cancel: return "Tillbaka"
+        case .cancel: return "Back"
         case .cross: return "✕"
         case .circle: return "◯"
         case .square: return "□"
@@ -35,7 +35,8 @@ public enum PadButton: String, CaseIterable, Sendable {
         }
     }
 
-    /// A name as typed in the CLI, in English or Swedish ("ner", "x", "ok", "tillbaka").
+    /// A name as typed in the CLI ("down", "x", "ok", "back"). The Swedish names from before
+    /// ("ner", "tillbaka" …) still work.
     public init?(name: String) {
         let aliases: [String: PadButton] = [
             "upp": .up, "ner": .down, "ned": .down, "vänster": .left, "höger": .right,
@@ -83,7 +84,7 @@ extension WebMAN {
             let image = try await data(encoded: Self.encodeCommand(source), timeout: 20)
             if ImageKind(image) != nil { return image }
         }
-        throw PS3Error.invalidFile("webMAN gav ingen skärmbild. Den går bara att ta i XMB:n, inte under ett spel.")
+        throw PS3Error.invalidFile("webMAN gave no screenshot. It can only be taken on the XMB, not during a game.")
     }
 
     /// The first `<img src="/…">` on a page from the console itself.
@@ -119,10 +120,10 @@ public enum FanControl {
     /// Why the target cannot be set to `celsius` now, or nil when it can.
     public static func refusal(target celsius: Int, snapshot: ConsoleSnapshot) -> String? {
         guard snapshot.fanTargetMax != nil else {
-            return "webMAN styr inte fläkten med ett mål just nu (SYSCON, AUTO eller fast hastighet). PS3 Center ändrar bara målet i det dynamiska läget; läget väljs i webMAN:s inställningar."
+            return "webMAN is not controlling the fan with a target right now (SYSCON, AUTO or a fixed speed). PS3 Center only changes the target in the dynamic mode; the mode is chosen in webMAN's settings."
         }
         guard targets.contains(celsius) else {
-            return "Målet måste vara mellan \(targets.lowerBound) och \(targets.upperBound) °C."
+            return "The target must be between \(targets.lowerBound) and \(targets.upperBound) °C."
         }
         return nil
     }
@@ -133,7 +134,7 @@ extension WebMAN {
     public func setFanTarget(_ celsius: Int) async throws {
         let current = try await snapshot()
         if let refusal = FanControl.refusal(target: celsius, snapshot: current) { throw PS3Error.refused(refusal) }
-        OperationLog.record("fan", "\(host) max \(celsius) °C (förut \(current.fanTargetMax ?? 0) °C)")
+        OperationLog.record("fan", "\(host) max \(celsius) °C (was \(current.fanTargetMax ?? 0) °C)")
         // The answer is the status page, which shows PSID/IDPS: it is not kept.
         _ = try await get("/cpursx.ps3?max=\(celsius)")
     }
@@ -151,7 +152,7 @@ public enum Reachability {
     }
 
     public static func henOffAdvice(host: String) -> String {
-        "PS3:an på \(host) är på, men webMAN svarar inte: HEN är inte aktiverat. Aktivera HEN på PS3:an (\u{201D}Enable HEN\u{201D} under Spel) så ansluter PS3 Center av sig själv."
+        "The PS3 at \(host) is on, but webMAN is not answering: HEN is not enabled. Enable HEN on the PS3 (\u{201C}Enable HEN\u{201D} under Game) and PS3 Center connects by itself."
     }
 
     public static func probe(_ host: String, timeout: TimeInterval = 2) async -> State {

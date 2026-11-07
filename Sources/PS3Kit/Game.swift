@@ -1,6 +1,6 @@
 import Foundation
 
-/// A game on the console, as `ps3 games` and the Spel tab show it.
+/// A game on the console, as `ps3 games` and the Games tab show it.
 public struct Game: Codable, Equatable, Sendable, Identifiable {
     public enum Platform: String, Codable, Sendable, CaseIterable {
         case ps3, psn, ps2, ps1, psp, bluRay, dvd
@@ -54,7 +54,7 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     /// For a game on the Mac: its path on the Mac's game server ("/PS3ISO/Game.iso"), which
     /// webMAN reaches as /net0/PS3ISO/Game.iso.
     public var netPath: String?
-    /// When the file or folder came to where it is, for "Senast tillagt": the listing's date on
+    /// When the file or folder came to where it is, for "Recently Added": the listing's date on
     /// the console, the date it was added to the folder on the Mac.
     public var added: Date?
 
@@ -89,7 +89,7 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     public var isOnMac: Bool { source == .mac }
 }
 
-/// How the Spel tab and `ps3 games --sort` order the games.
+/// How the Games tab and `ps3 games --sort` order the games.
 public enum GameOrder: String, CaseIterable, Codable, Sendable, Identifiable {
     case name, size, added
 
@@ -97,24 +97,21 @@ public enum GameOrder: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .name: return "Namn"
-        case .size: return "Storlek"
-        case .added: return "Senast tillagt"
+        case .name: return "Name"
+        case .size: return "Size"
+        case .added: return "Recently Added"
         }
     }
 
     /// The word `ps3 games --sort` takes.
-    public var argument: String {
-        switch self {
-        case .name: return "namn"
-        case .size: return "storlek"
-        case .added: return "tillagt"
-        }
-    }
+    public var argument: String { rawValue }
+
+    /// The Swedish words `--sort` took before, still accepted so old scripts keep working.
+    static let swedishArguments: [String: GameOrder] = ["namn": .name, "storlek": .size, "tillagt": .added]
 
     public init?(argument: String) {
         let word = argument.lowercased()
-        guard let match = Self.allCases.first(where: { $0.argument == word || $0.rawValue == word }) else { return nil }
+        guard let match = Self.allCases.first(where: { $0.argument == word }) ?? Self.swedishArguments[word] else { return nil }
         self = match
     }
 
@@ -144,10 +141,10 @@ public enum Region: String, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .europe: return "Europa"
+        case .europe: return "Europe"
         case .usa: return "USA"
         case .japan: return "Japan"
-        case .asia: return "Asien"
+        case .asia: return "Asia"
         }
     }
 

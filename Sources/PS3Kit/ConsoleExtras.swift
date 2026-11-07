@@ -30,9 +30,9 @@ enum XMBReload {
     static func afterRemoval(host: String) async -> String {
         let webman = WebMAN(host: host)
         if (try? await webman.reloadsXMBQuietly()) == true, (try? await webman.reloadXMB()) != nil {
-            return "XMB:n laddades om, så ikonen är borta."
+            return "The XMB was reloaded, so the icon is gone."
         }
-        return "Ikonen syns i XMB:n tills den laddas om: Ladda om XMB i Status-fliken eller ps3 refresh --xmb."
+        return "The icon stays in the XMB until it is reloaded: Reload XMB in the Status tab, or ps3 refresh --xmb."
     }
 }
 
@@ -49,11 +49,11 @@ extension WebMAN {
     @discardableResult
     public func toggleRecording() async throws -> Bool {
         guard try await runningProcess() != nil else {
-            throw PS3Error.refused("Inget spel körs. webMAN spelar bara in medan ett spel körs.")
+            throw PS3Error.refused("No game is running. webMAN only records while a game is running.")
         }
         let page = try await get("/videorec.ps3", timeout: 30)
         let recording = Self.isRecording(page)
-        OperationLog.record("record", recording ? "start" : "stopp")
+        OperationLog.record("record", recording ? "start" : "stop")
         return recording
     }
 
@@ -68,7 +68,7 @@ extension WebMAN {
     /// Lets the XMB's own "save screenshot" work in every game (`/xmb.ps3$ingame_screenshot`,
     /// include/feat/ingame_screenshot.h). It lasts until the console restarts. Logged.
     public func enableGameScreenshots() async throws {
-        OperationLog.record("screenshots", "på i spel")
+        OperationLog.record("screenshots", "on in games")
         try await get("/xmb.ps3$ingame_screenshot", timeout: 15)
     }
 }
@@ -136,6 +136,17 @@ public struct MediaImport: Sendable {
         }
     }
 
+    /// The subfolders of the import folder for recordings and for photos.
+    public static let videoFolderName = "Videos"
+    public static let photoFolderName = "Photos"
+
+    /// Renames the subfolders from their Swedish names (Filmer, Bilder) when only the old one
+    /// exists; when both exist the new one is used and the old one is left alone.
+    static func migrateNames(in folder: URL) {
+        BackupFolder.migrate("Filmer", to: videoFolderName, in: folder)
+        BackupFolder.migrate("Bilder", to: photoFolderName, in: folder)
+    }
+
     /// Copies `items` into `folder` (videos and photos in their own subfolders) and remembers
     /// them. Returns the files written. A name already taken gets a number.
     public func copy(_ items: [Item], to folder: URL = MediaImport.defaultFolder,
@@ -143,9 +154,10 @@ public struct MediaImport: Sendable {
         var known = Self.loadMemory()
         var written: [URL] = []
         let fm = FileManager.default
+        Self.migrateNames(in: folder)
         for (index, item) in items.enumerated() {
             progress(index, items.count)
-            let target = folder.appendingPathComponent(item.isVideo ? "Filmer" : "Bilder", isDirectory: true)
+            let target = folder.appendingPathComponent(item.isVideo ? Self.videoFolderName : Self.photoFolderName, isDirectory: true)
             try fm.createDirectory(at: target, withIntermediateDirectories: true)
             let destination = Self.freeName(item.name, in: target)
             let partial = destination.appendingPathExtension("part")
@@ -187,7 +199,7 @@ extension WebMAN {
     /// include/cmd/sysbgm.h). webMAN cannot report the current setting: its "?" query changes it.
     /// Lasts until the console restarts. Logged.
     public func setGameMusic(_ on: Bool) async throws {
-        OperationLog.record("game-music", on ? "på" : "av")
+        OperationLog.record("game-music", on ? "on" : "off")
         try await get("/sysbgm.ps3?\(on ? 1 : 0)", timeout: 15)
     }
 }
@@ -219,20 +231,20 @@ public enum UpdateBlock {
     /// Puts the file in place (or removes it with `on == false`). Takes effect at the next start.
     public static func set(_ on: Bool, host: String, dryRun: Bool = false, events: @Sendable (String) -> Void = { _ in }) async throws {
         if dryRun {
-            events(on ? "Skulle skriva \(remotePath) (\(contents.count) byte)" : "Skulle ta bort \(remotePath)")
+            events(on ? "Would write \(remotePath) (\(contents.count) bytes)" : "Would delete \(remotePath)")
             return
         }
         try await TransferService(host: host).withFTP { ftp in
             if on {
                 try await ftp.upload(contents: contents, to: remotePath)
                 guard try await ftp.size(remotePath) == Int64(contents.count) else {
-                    throw PS3Error.ftpProtocol("\(remotePath) blev inte rätt på PS3:an.")
+                    throw PS3Error.ftpProtocol("\(remotePath) did not come out right on the PS3.")
                 }
             } else if try await ftp.size(remotePath) != nil {
                 try await ftp.delete(remotePath)
             }
         }
-        OperationLog.record("update-block", on ? "på" : "av")
-        events(on ? "Systemuppdateringar blockeras från nästa start." : "Systemuppdateringar blockeras inte längre från nästa start.")
+        OperationLog.record("update-block", on ? "on" : "off")
+        events(on ? "System updates are blocked from the next start." : "System updates are no longer blocked from the next start.")
     }
 }

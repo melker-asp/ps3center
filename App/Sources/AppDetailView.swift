@@ -40,9 +40,9 @@ struct AppDetailView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
-                Text("Appar")
+                Text("Apps")
             }
-            .font(.system(size: 14, weight: .semibold))
+            .font(.ui(.callout, weight: .semibold))
             .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
@@ -94,7 +94,7 @@ struct AppDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Text(status.name)
-                        .font(.system(size: 30, weight: .light))
+                        .font(.ui(.display, weight: .light))
                         .foregroundStyle(Theme.primaryText)
                     Chip(text: status.category.label)
                     if let badge = status.compatibility.badge {
@@ -102,32 +102,34 @@ struct AppDetailView: View {
                     }
                 }
                 Text(status.summary)
-                    .font(.system(size: 14))
+                    .font(.ui(.callout))
                     .foregroundStyle(Color.white.opacity(0.75))
                 HStack(spacing: 10) {
                     action
                     if status.state == .updateAvailable, apps.operations[status.id] == nil {
-                        Button(status.ignored ? "Sluta ignorera" : "Ignorera") {
+                        Button(status.ignored ? "Stop Ignoring" : "Ignore") {
                             if status.ignored { apps.unignore(status) } else { apps.ignore(status) }
                         }
                         .buttonStyle(PillButtonStyle(prominent: false))
-                        .help(status.ignored ? "Visa uppdateringen igen" : "Hoppa över \(status.latest ?? "den här versionen"). Kommer en nyare version visas den igen.")
+                        .help(status.ignored ? "Show the update again" : "Skip \(status.latestForDisplay ?? "this version"). A newer version shows up again.")
                     }
                     if let url = sourceURL {
-                        Button(entry?.repository == nil ? "Öppna sidan" : "Öppna på GitHub") { openURL(url) }
+                        Button(entry?.repository == nil ? "Open Page" : "Open on GitHub") { openURL(url) }
                             .buttonStyle(PillButtonStyle(prominent: false))
                     }
                     if canUninstall {
-                        Button("Avinstallera") { confirmingUninstall = true }
-                            .buttonStyle(PillButtonStyle(prominent: false))
+                        // Apart from the other buttons, and red.
+                        Spacer(minLength: 24)
+                        Button("Uninstall…") { confirmingUninstall = true }
+                            .buttonStyle(PillButtonStyle(destructive: true))
                     }
                 }
                 .padding(.top, 4)
-                .confirmationDialog("Avinstallera \(status.name)?", isPresented: $confirmingUninstall, titleVisibility: .visible) {
-                    Button("Avinstallera", role: .destructive) { apps.uninstall(status) }
-                    Button("Avbryt", role: .cancel) {}
+                .confirmationDialog("Uninstall \(status.name)?", isPresented: $confirmingUninstall, titleVisibility: .visible) {
+                    Button("Uninstall", role: .destructive) { apps.uninstall(status) }
+                    Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text("Programmet tas bort från PS3:ans hårddisk (/dev_hdd0/game/\(entry?.titleID ?? "")). Dess sparfiler ligger kvar, och det går att installera igen härifrån. Ikonen kan synas i XMB:n tills PS3:an startats om.")
+                    Text("The app is removed from the PS3's hard drive (/dev_hdd0/game/\(entry?.titleID ?? "")). Its saves stay, and you can install it again from here. The icon may stay in the XMB until the PS3 restarts.")
                 }
             }
             Spacer()
@@ -138,18 +140,18 @@ struct AppDetailView: View {
         if let op = apps.operations[status.id] {
             OperationView(operation: op)
         } else if status.canInstall {
-            Button("Uppdatera till \(status.latest ?? "senaste")") { apps.install(status) }
+            Button("Update to \(status.latestForDisplay ?? "Latest")") { apps.install(status) }
                 .buttonStyle(PillButtonStyle())
         } else if status.installed == nil, status.installable {
-            Button("Installera") { apps.install(status) }
+            Button("Install") { apps.install(status) }
                 .buttonStyle(PillButtonStyle())
         } else if status.blocked {
-            Label("Fungerar inte på din PS3", systemImage: "nosign")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.hot)
+            Label("Doesn't work on your PS3", systemImage: "nosign")
+                .font(.ui(.body, weight: .semibold))
+                .foregroundStyle(Theme.hotText)
         } else if let installed = status.installed {
-            Label("Installerad \(installed)", systemImage: "checkmark")
-                .font(.system(size: 13, weight: .semibold))
+            Label("Installed \(installed)", systemImage: "checkmark")
+                .font(.ui(.body, weight: .semibold))
                 .foregroundStyle(Theme.good)
         }
     }
@@ -173,24 +175,24 @@ struct AppDetailView: View {
                 BigValue(value: status.installed ?? "–")
                 Footnote(text: versionFootnote)
             }
-            Card(icon: "checkmark.shield.fill", title: "Din PS3", chip: profile.exploit?.label, chipColor: compatibilityColor) {
+            Card(icon: "checkmark.shield.fill", title: "Your PS3", chip: profile.exploit?.label, chipColor: compatibilityColor) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: compatibilitySymbol).foregroundStyle(compatibilityColor)
                     Text(compatibilityTitle)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.ui(.title2, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                 }
                 Text(compatibilityDetail)
-                    .font(.system(size: 13))
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 Footnote(text: profile.label)
             }
-            Card(icon: "chevron.left.forwardslash.chevron.right", title: "Källa", chip: entry?.repository == nil ? "Länk" : "GitHub") {
+            Card(icon: "chevron.left.forwardslash.chevron.right", title: "Source", chip: entry?.repository == nil ? "Link" : "GitHub") {
                 Text(entry?.repository ?? "Brewology")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.ui(.title3, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -201,29 +203,34 @@ struct AppDetailView: View {
     }
 
     private var stateLabel: String {
-        if status.ignored { return "Ignorerad" }
+        if status.ignored { return "Ignored" }
         switch status.state {
-        case .updateAvailable: return "Uppdatering"
-        case .upToDate: return "Aktuell"
-        case .notInstalled: return "Inte installerad"
-        case .manual: return "Manuell"
-        case .error: return "Fel"
+        case .updateAvailable: return "Update"
+        case .upToDate: return "Up to Date"
+        case .notInstalled: return "Not Installed"
+        case .manual: return "Manual"
+        case .error: return "Error"
         }
     }
 
     private var versionFootnote: String {
-        if let latest = status.latest { return status.ignored ? "Senaste: \(latest), ignorerad" : "Senaste: \(latest)" }
-        if entry?.tracksUpdates == false { return "Följer med webMAN MOD:s release" }
-        return status.state == .manual ? "Kolla versionen på sidan" : "Ingen versionsinfo"
+        if let latest = status.latest {
+            // "Latest: 02.41 (v2.4.1)": the console's form first, the release tag after it.
+            let shown = status.latestForDisplay ?? latest
+            let tag = shown == latest ? "" : " (\(latest))"
+            return "Latest: \(shown)\(tag)" + (status.ignored ? ", ignored" : "")
+        }
+        if entry?.tracksUpdates == false { return "Comes with webMAN MOD's release" }
+        return status.state == .manual ? "Check the version on its page" : "No version info"
     }
 
     private var sourceFootnote: String {
         guard let entry else { return "" }
-        if entry.category == .webmanAddons { return "Ingår i webMAN MOD:s paket" }
+        if entry.category == .webmanAddons { return "Part of webMAN MOD's package" }
         switch entry.source {
-        case .github: return "Hämtas från GitHub-releaser"
-        case .henSource: return "Version från HEN:s källkod"
-        case .manual: return "Bara länk, hämtas inte automatiskt"
+        case .github: return "Downloaded from GitHub releases"
+        case .henSource: return "Version from HEN's source code"
+        case .manual: return "Link only, not downloaded automatically"
         }
     }
 
@@ -246,10 +253,10 @@ struct AppDetailView: View {
 
     private var compatibilityTitle: String {
         switch status.compatibility.verdict {
-        case .compatible: return "Fungerar"
-        case .untested: return "Otestad"
-        case .incompatible: return "Fungerar inte"
-        case .unknown: return "Okänt"
+        case .compatible: return "Works"
+        case .untested: return "Untested"
+        case .incompatible: return "Doesn't Work"
+        case .unknown: return "Unknown"
         }
     }
 
@@ -265,43 +272,43 @@ struct AppDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.ui(.footnote, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                 Text("README")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.ui(.caption, weight: .bold))
                     .tracking(1.3)
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
                 if let repo = entry?.repository {
-                    Text(repo).font(.system(size: 12)).foregroundStyle(Theme.tertiaryText)
+                    Text(repo).font(.ui(.footnote)).foregroundStyle(Theme.tertiaryText)
                 }
                 Spacer()
                 if case .loaded(let readme) = readmeState, let url = readme.htmlURL {
-                    Button("Visa på GitHub") { openURL(url) }
+                    Button("View on GitHub") { openURL(url) }
                         .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.ui(.footnote, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                 }
             }
             if entry?.category == .webmanAddons {
-                Text("Tillägget ingår i webMAN MOD, så README:n beskriver hela projektet.")
-                    .font(.system(size: 12))
+                Text("The add-on is part of webMAN MOD, so the README describes the whole project.")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
             }
             switch readmeState {
             case nil where entry?.repository == nil:
-                Text("Programmet finns inte på GitHub, så det finns ingen README att visa.")
-                    .font(.system(size: 13))
+                Text("The app isn't on GitHub, so there is no README to show.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.secondaryText)
             case nil, .some(.loading):
                 // nil with a repo: the fetch starts when the page appears.
                 HStack(spacing: 10) {
                     Spinner()
-                    Text("Hämtar README från GitHub…").font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+                    Text("Loading the README from GitHub…").font(.ui(.body)).foregroundStyle(Theme.secondaryText)
                 }
             case .some(.failed(let message)):
                 HStack(spacing: 12) {
-                    Text(message).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
-                    Button("Försök igen") {
+                    Text(message).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
+                    Button("Try Again") {
                         if let entry { Task { await apps.loadReadme(for: entry) } }
                     }
                     .buttonStyle(PillButtonStyle(prominent: false))
@@ -350,7 +357,7 @@ struct NoteBanner: View {
         HStack(spacing: 12) {
             Image(systemName: "info.circle.fill").foregroundStyle(Theme.warm)
             Text(text)
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .foregroundStyle(Theme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
@@ -383,7 +390,7 @@ struct ReadmeView: View {
                 .padding(.top, level <= 2 ? 10 : 4)
         case .paragraph(let text):
             Text(Self.inline(text))
-                .font(.system(size: 14))
+                .font(.ui(.callout))
                 .foregroundStyle(Theme.primaryText.opacity(0.8))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -401,12 +408,12 @@ struct ReadmeView: View {
                     .padding(.leading, CGFloat(item.depth) * 18)
                 }
             }
-            .font(.system(size: 14))
+            .font(.ui(.callout))
         case .quote(let text):
             HStack(alignment: .top, spacing: 12) {
                 RoundedRectangle(cornerRadius: 2).fill(Theme.accent.opacity(0.8)).frame(width: 3)
                 Text(Self.inline(text))
-                    .font(.system(size: 14))
+                    .font(.ui(.callout))
                     .foregroundStyle(Theme.primaryText.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -417,7 +424,7 @@ struct ReadmeView: View {
             // Wraps instead of scrolling sideways: a nested scroll view fights the page's, and
             // ImageRenderer cannot draw one.
             Text(code)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.ui(.footnote, design: .monospaced))
                 .foregroundStyle(Theme.primaryText.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(12)
@@ -431,7 +438,7 @@ struct ReadmeView: View {
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                             Text(Self.inline(cell))
-                                .font(.system(size: 13, weight: index == 0 ? .semibold : .regular))
+                                .font(.ui(.body, weight: index == 0 ? .semibold : .regular))
                                 .foregroundStyle(index == 0 ? Theme.primaryText : Theme.primaryText.opacity(0.75))
                                 .fixedSize(horizontal: false, vertical: true)
                         }

@@ -2,12 +2,11 @@ import AppKit
 import PS3Kit
 import SwiftUI
 
-/// Fjärrkontroll: webMAN's virtual pad, with the keyboard too: arrows, Return for OK and Esc for
+/// Remote: webMAN's virtual pad, with the keyboard too: arrows, Return for OK and Esc for
 /// back, and a row of webMAN's other commands. Watch the TV; a picture of the XMB fetched from the
 /// console lagged behind the presses.
 struct RemoteView: View {
     @Environment(ConsoleStore.self) private var console
-    @Environment(\.dismiss) private var dismiss
     /// False when rendered for a snapshot: no pad.
     var live = true
     @FocusState private var focused: Bool
@@ -15,27 +14,25 @@ struct RemoteView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Fjärrkontroll")
-                    .font(.system(size: 30, weight: .light))
+                Text("Remote")
+                    .font(.ui(.display, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                 Spacer()
-                Text("Piltangenter · Retur = OK · Esc = tillbaka")
-                    .font(.system(size: 12))
+                Text("Arrow keys · Return = OK · Esc = Back")
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
             }
             pad.padding(.top, 28)
             Spacer(minLength: 12)
             HStack(spacing: 10) {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                    .keyboardShortcut("w")
-                    .help("Stäng (⌘W)")
-                Spacer()
                 extras
+                Spacer()
+                DoneButton(closesOnEscape: false)
+                    .help("Close (⌘W)")
             }
             if let note = console.actionNote, live {
                 Text(note)
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                     .padding(.top, 8)
@@ -81,7 +78,7 @@ struct RemoteView: View {
                     button(.start, size: 52, font: 9)
                 }
                 HStack(spacing: 10) {
-                    Button("Tillbaka") { tap(.cancel) }
+                    Button("Back") { tap(.cancel) }
                         .buttonStyle(PillButtonStyle(prominent: false))
                     Button("OK") { tap(.accept) }
                         .buttonStyle(PillButtonStyle())
@@ -99,23 +96,23 @@ struct RemoteView: View {
     /// webMAN's other console commands: none of them moves the cursor.
     private var extras: some View {
         HStack(spacing: 8) {
-            Button("Ladda om XMB") { console.reloadXMB() }
-                .help("Uppdaterar spellistan och laddar om XMB:n, så nya och borttagna ikoner syns")
-            Button("Pip") { console.beep() }
-                .help("PS3:an piper tre gånger")
-            Button("Skärmbilder i spel") { console.enableGameScreenshots() }
-                .help("Tillåter XMB:ns Spara skärmbild i alla spel, till nästa omstart")
-            Menu("Musik i spel") {
-                Button("På") { console.setGameMusic(true) }
-                Button("Av") { console.setGameMusic(false) }
+            Button("Reload XMB") { console.reloadXMB() }
+                .help("Refreshes the game list and reloads the XMB, so new and removed icons show up")
+            Button("Beep") { console.beep() }
+                .help("The PS3 beeps three times")
+            Button("In-Game Screenshots") { console.enableGameScreenshots() }
+                .help("Allows the XMB's Save Screenshot in every game, until the next restart")
+            Menu("In-Game Music") {
+                Button("On") { console.setGameMusic(true) }
+                Button("Off") { console.setGameMusic(false) }
             }
             .menuStyle(.button)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Låter musik från XMB:n spela under spel. webMAN kan inte visa hur det står.")
+            .help("Lets music from the XMB play during games. webMAN can't show whether it is on.")
         }
         .buttonStyle(PillButtonStyle(prominent: false))
-        .font(.system(size: 12, weight: .semibold))
+        .font(.ui(.footnote, weight: .semibold))
         .disabled(!live || console.isActing)
     }
 
@@ -142,7 +139,7 @@ struct RemoteView: View {
         let colors: [PadButton: Color] = [.triangle: Theme.good, .circle: Theme.hot, .cross: Theme.cool, .square: Theme.novaPink]
         return Button { tap(button) } label: {
             Text(button.label)
-                .font(.system(size: 20, weight: .bold))
+                .font(.ui(.title2, weight: .bold))
                 .foregroundStyle(colors[button] ?? Theme.primaryText)
         }
         .buttonStyle(CircleIconButtonStyle(size: 46))

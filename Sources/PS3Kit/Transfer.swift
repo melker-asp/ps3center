@@ -49,7 +49,7 @@ public final class KeepAwake: @unchecked Sendable {
     }
 
     /// The tip shown before and during a queue on battery.
-    public static let batteryTip = "Macen går på batteri. Stängs locket somnar den ändå, och kön stannar tills den vaknar. Låt locket vara öppet, eller sätt i laddaren och använd en extern skärm."
+    public static let batteryTip = "The Mac is on battery. If the lid is closed it sleeps anyway, and the queue stops until it wakes. Keep the lid open, or plug in the charger and use an external display."
 }
 
 /// Uploads files over FTP and runs the follow-up web commands.
@@ -81,7 +81,7 @@ public struct TransferService: Sendable {
         events(.refreshed)
         if options.popup {
             let titles = Array(Set(sent.filter(\.refreshesGameList).map { $0.title ?? GameName.clean($0.local.lastPathComponent) })).sorted()
-            let message = titles.count == 1 ? "\(titles[0]) finns nu under Spel" : "\(titles.count) nya spel finns under Spel"
+            let message = titles.count == 1 ? "\(titles[0]) is now under Game" : "\(titles.count) new games are now under Game"
             try? await webman.popup(message)
         }
     }
@@ -101,14 +101,14 @@ public struct TransferService: Sendable {
             // A game may already be on the console at another depth (flat in PS3ISO/ vs one
             // folder per game, as in the local mirror).
             for alternative in Self.alternativeLocations(for: route) where try await ftp.size(alternative) == route.size {
-                events(.skipped(route, reason: "finns redan på PS3:an (\(alternative))"))
+                events(.skipped(route, reason: "already on the PS3 (\(alternative))"))
                 continue routeLoop
             }
             switch try await remoteState(of: route, ftp: ftp) {
             case .complete:
-                events(.skipped(route, reason: "finns redan på PS3:an"))
+                events(.skipped(route, reason: "already on the PS3"))
             case .larger:
-                events(.skipped(route, reason: "en större fil med samma namn finns redan på PS3:an"))
+                events(.skipped(route, reason: "a larger file with the same name is already on the PS3"))
             case .resume(let path, let offset):
                 pending.append(PendingUpload(route: route, path: path, offset: offset))
             }
@@ -180,7 +180,7 @@ public struct TransferService: Sendable {
             }
         }
         guard let size = try await ftp.size(path), size == route.size else {
-            throw PS3Error.ftpProtocol("storleken på \(path) stämmer inte efter uppladdningen")
+            throw PS3Error.ftpProtocol("the size of \(path) does not match after the upload")
         }
         if path != route.remote { try await ftp.rename(path, to: route.remote) }
         events(.finished(route, seconds: Date().timeIntervalSince(start)))
@@ -192,17 +192,17 @@ public struct TransferService: Sendable {
     /// the Mac's. A file that differs is removed from the console, so the next try sends it again.
     public func verify(_ routes: [Route], events: TransferHandler) async throws {
         for route in routes where route.size >= 64 << 20 {
-            events(.note("Kontrollerar \(route.local.lastPathComponent) med MD5 (det tar en stund på PS3:an)…"))
+            events(.note("Checking \(route.local.lastPathComponent) with MD5 (it takes a while on the PS3)…"))
             let local = try Self.md5(of: route.local)
             let page = try await webman.get("/md5.ps3" + route.remote, timeout: 1800)
             guard let remote = ConsoleSnapshot.firstMatch("([0-9a-fA-F]{32})", in: page)?[1].lowercased() else {
-                throw PS3Error.ftpProtocol("webMAN gav ingen MD5 för \(route.remote).")
+                throw PS3Error.ftpProtocol("webMAN gave no MD5 for \(route.remote).")
             }
             guard remote == local else {
                 try? await withFTP { ftp in try await ftp.delete(route.remote) }
-                throw PS3Error.invalidFile("\(route.local.lastPathComponent) blev fel på vägen (MD5 stämmer inte) och togs bort från PS3:an. Skicka den igen.")
+                throw PS3Error.invalidFile("\(route.local.lastPathComponent) was damaged on the way (the MD5 does not match) and was deleted from the PS3. Send it again.")
             }
-            events(.note("\(route.local.lastPathComponent): MD5 stämmer"))
+            events(.note("\(route.local.lastPathComponent): MD5 matches"))
         }
     }
 
@@ -232,7 +232,7 @@ public struct TransferService: Sendable {
             if remoteSize != route.size {
                 try await upload(route, offset: remoteSize < route.size ? remoteSize : 0, ftp: ftp, events: events)
             } else {
-                events(.skipped(route, reason: "ligger redan i /dev_hdd0/packages"))
+                events(.skipped(route, reason: "already in /dev_hdd0/packages"))
             }
             return true
         }
@@ -266,9 +266,9 @@ public struct TransferService: Sendable {
             if appeared {
                 _ = try? await withFTP { try await $0.delete(route.remote) }
                 events(.installed(name))
-                events(.note("Välj temat under Inställningar → Teman på PS3:an."))
+                events(.note("Choose the theme under Settings → Theme Settings on the PS3."))
             } else {
-                events(.note("Inget nytt tema syntes på två minuter. Titta på TV:n: XMB:n kan fråga något. \(name) ligger kvar i /dev_hdd0/packages och kan installeras under Inställningar → Teman."))
+                events(.note("No new theme showed up in two minutes. Look at the TV: the XMB may be asking something. \(name) is still in /dev_hdd0/packages and can be installed under Settings → Theme Settings."))
             }
         }
     }
@@ -331,11 +331,11 @@ public struct TransferService: Sendable {
             if !started {
                 guard Date().timeIntervalSince(requestedAt) > 75 else { continue }
                 if requests < 2 {
-                    events(.note("PS3:an har inte börjat installera \(name); ber webMAN igen"))
+                    events(.note("The PS3 has not started installing \(name); asking webMAN again"))
                     await request()
                     continue
                 }
-                throw PS3Error.timeout("PS3:an började aldrig installera \(name). Paketet ligger kvar i /dev_hdd0/packages: installera det i XMB:n (Spel → Package Manager → Installera paket → Standard) eller försök igen.")
+                throw PS3Error.timeout("the PS3 never started installing \(name). The package is still in /dev_hdd0/packages: install it from the XMB (Game → Package Manager → Install Package Files → Standard) or try again.")
             }
             stableRounds = now == last ? stableRounds + 1 : 0
             last = now
@@ -347,7 +347,7 @@ public struct TransferService: Sendable {
             }
         }
         guard Date() < deadline else {
-            throw PS3Error.timeout("installationen av \(name) blev inte klar inom 20 minuter. Kolla på konsolen; paketet ligger kvar i /dev_hdd0/packages.")
+            throw PS3Error.timeout("installing \(name) did not finish within 20 minutes. Check the console; the package is still in /dev_hdd0/packages.")
         }
         OperationLog.record("install", name)
         events(.installed(name))
@@ -380,7 +380,7 @@ public struct TransferService: Sendable {
 
     // MARK: Game guard
 
-    /// "Varna och vänta": blocks until no game/app is running, unless forced. Throws when the
+    /// "Warn and wait": blocks until no game/app is running, unless forced. Throws when the
     /// console stops answering, so nothing that follows runs on the guess that no game is running.
     public func waitUntilIdle(force: Bool, events: TransferHandler, pollSeconds: UInt64 = 10) async throws {
         guard !force else { return }
@@ -408,7 +408,7 @@ public struct TransferService: Sendable {
             } catch {
                 failures += 1
                 if failures >= allowedFailures {
-                    throw PS3Error.timeout("PS3:an svarar inte, så det går inte att se om ett spel körs. Inget mer gjordes.")
+                    throw PS3Error.timeout("the PS3 is not answering, so there is no telling whether a game is running. Nothing more was done.")
                 }
             }
             try await Task.sleep(nanoseconds: pollSeconds * 1_000_000_000)

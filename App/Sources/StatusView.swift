@@ -36,9 +36,9 @@ struct StatusView: View {
                     LazyVGrid(columns: columns, spacing: 14) {
                         healthCard(s)
                         temperatureCard(icon: "cpu", title: "CPU", value: s.cpuTemp, warnAt: 70,
-                                        history: console.cpuHistory, footnote: "Cell Broadband Engine")
+                                        history: console.cpuHistory)
                         temperatureCard(icon: "square.stack.3d.up", title: "RSX", value: s.rsxTemp, warnAt: 75,
-                                        history: console.rsxHistory, footnote: "RSX Reality Synthesizer")
+                                        history: console.rsxHistory)
                         fanCard(s)
                         spaceCard(s)
                         networkCard(s)
@@ -55,20 +55,25 @@ struct StatusView: View {
     // MARK: Cards
 
     private func healthCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "sun.max", title: "Hälsa", chip: s.network) {
+        // No chip: the network type is on the Network card.
+        Card(icon: "sun.max", title: "Health") {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(s.health)")
-                            .font(.system(size: 40, weight: .light))
+                            .font(.ui(.hero, weight: .light))
                             .foregroundStyle(Theme.primaryText)
                         Text(s.healthLabel)
-                            .font(.system(size: 17, weight: .medium))
+                            .font(.ui(.title3, weight: .medium))
                             .foregroundStyle(Theme.secondaryText)
                     }
-                    Footnote(text: s.healthNotes.first ?? "Allt ser bra ut")
+                    // Up to two notes; the polling interval was developer detail.
+                    Text(s.healthNotes.isEmpty ? "Everything looks good" : s.healthNotes.prefix(2).joined(separator: "\n"))
+                        .font(.ui(.body))
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Footnote(text: "var \(Int(console.interval)):e sekund")
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 0)
@@ -82,21 +87,29 @@ struct StatusView: View {
     }
 
     private func temperatureCard(icon: String, title: String, value: Int?, warnAt: Int,
-                                 history: [Double], footnote: String) -> some View {
+                                 history: [Double]) -> some View {
         let color = value.map { Theme.temperatureColor($0, warnAt: warnAt) } ?? Theme.good
-        let label = value.map { $0 >= warnAt + 10 ? "Het" : $0 >= warnAt ? "Varm" : "Normal" }
+        let label = value.map { $0 >= warnAt + 10 ? "Hot" : $0 >= warnAt ? "Warm" : "Normal" }
         return Card(icon: icon, title: title, chip: label, chipColor: color) {
             BigValue(value: value.map(String.init) ?? "–", unit: "°C")
             Sparkline(values: history, range: Self.range(for: history, padding: 3), color: color)
                 .frame(height: 34)
             Spacer(minLength: 0)
-            Footnote(text: footnote)
+            Footnote(text: peakNote(history, warnAt: warnAt))
         }
         .frame(height: 210)
     }
 
+    /// "Peak 64 °C in 5 min · warns at 70 °C": what the sparkline shows, in numbers.
+    private func peakNote(_ history: [Double], warnAt: Int) -> String {
+        guard let peak = history.max(), history.count > 1 else { return "Warns at \(warnAt) °C" }
+        let minutes = max(1, Int((Double(history.count) * console.interval / 60).rounded()))
+        return "Peak \(Int(peak)) °C in \(minutes) min · warns at \(warnAt) °C"
+    }
+
     private func fanCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "fan", title: "Fläkt", chip: s.fanTargetMax.map { "max \($0) °C" }) {
+        // The chip says the mode; the target itself is in the footnote, next to − and +.
+        Card(icon: "fan", title: "Fan", chip: s.fanTargetMax == nil ? "Auto" : "Dynamic") {
             BigValue(value: s.fanPercent.map(String.init) ?? "–", unit: "%")
             Sparkline(values: console.fanHistory, range: Self.range(for: console.fanHistory, padding: 5), color: Theme.cool)
                 .frame(height: 34)
@@ -104,19 +117,20 @@ struct StatusView: View {
             if let target = s.fanTargetMax {
                 // webMAN's dynamic mode: only the target moves, within FanControl.targets.
                 HStack(spacing: 6) {
-                    Footnote(text: "Mål \(target) °C")
+                    Footnote(text: "Target \(target) °C")
                     Spacer(minLength: 0)
                     Button { console.setFanTarget(target - 1) } label: { Image(systemName: "minus") }
                         .disabled(target <= FanControl.targets.lowerBound)
-                        .help("Sänk målet (fläkten varvar upp tidigare)")
+                        .iconLabel("Lower the target (the fan speeds up sooner)")
                     Button { console.setFanTarget(target + 1) } label: { Image(systemName: "plus") }
                         .disabled(target >= FanControl.targets.upperBound)
-                        .help("Höj målet (tystare, varmare)")
+                        .iconLabel("Raise the target (quieter, warmer)")
                 }
-                .buttonStyle(CircleIconButtonStyle(size: 24))
+                // 28 pt: WCAG 2.2 asks for at least 24.
+                .buttonStyle(CircleIconButtonStyle(size: 28))
                 .disabled(console.isActing)
             } else {
-                Footnote(text: "Konsolen styr fläkten själv")
+                Footnote(text: "The console controls the fan")
             }
         }
         .frame(height: 210)
@@ -125,61 +139,62 @@ struct StatusView: View {
     /// The console's own buttons: the remote, quitting the game, the disc, and power.
     private func controls(_ s: ConsoleSnapshot) -> some View {
         HStack(spacing: 10) {
-            Button { showsRemote = true } label: { Label("Fjärrkontroll", systemImage: "gamecontroller") }
+            Button { showsRemote = true } label: { Label("Remote", systemImage: "gamecontroller") }
             if s.isGameRunning {
-                Button { console.exitGame() } label: { Label("Avsluta spelet", systemImage: "xmark.circle") }
+                Button { console.exitGame() } label: { Label("Quit Game", systemImage: "xmark.circle") }
                 Button { console.toggleRecording() } label: {
-                    Label(console.isRecording ? "Sluta spela in" : "Spela in", systemImage: console.isRecording ? "stop.circle" : "record.circle")
+                    Label(console.isRecording ? "Stop Recording" : "Record", systemImage: console.isRecording ? "stop.circle" : "record.circle")
                 }
-                .help("webMAN spelar in spelet som 720p MP4 i /dev_hdd0/VIDEO")
+                .help("webMAN records the game as 720p MP4 in /dev_hdd0/VIDEO")
             }
-            Button { console.eject() } label: { Label("Mata ut skivan", systemImage: "eject") }
+            Button { console.eject() } label: { Label("Eject Disc", systemImage: "eject") }
             if let note = console.actionNote {
                 Text(note)
-                    .font(.system(size: 12))
+                    .font(.ui(.footnote))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.leading, 6)
             }
             Spacer(minLength: 10)
-            Button { confirming = .restart } label: { Label("Starta om…", systemImage: "arrow.clockwise") }
-            Button { confirming = .shutdown } label: { Label("Stäng av…", systemImage: "power") }
+            Button { confirming = .restart } label: { Label("Restart…", systemImage: "arrow.clockwise") }
+            Button { confirming = .shutdown } label: { Label("Shut Down…", systemImage: "power") }
         }
         .buttonStyle(PillButtonStyle(prominent: false))
         .disabled(console.isActing)
     }
 
     /// The PS app's storage sheet: free space, a white bar of what is used, and the total.
+    /// The footnote says what the bar is, since the big number is the free space.
     private func spaceCard(_ s: ConsoleSnapshot) -> some View {
         let parts = s.freeBytes.map { Format.bytes($0).split(separator: " ").map(String.init) } ?? ["–"]
-        return Card(icon: "internaldrive", title: "Ledigt", chip: "/dev_hdd0") {
+        return Card(icon: "internaldrive", title: "Free", chip: "/dev_hdd0") {
             BigValue(value: parts.first ?? "–", unit: parts.count > 1 ? parts[1] : nil)
             if let free = s.freeBytes, let total = s.totalBytes {
                 PSProgressBar(fraction: 1 - Double(free) / Double(total))
             }
             Spacer(minLength: 0)
-            if let total = s.totalBytes {
-                Footnote(text: "Lagring \(Format.bytes(total))")
+            if let free = s.freeBytes, let total = s.totalBytes {
+                Footnote(text: "\(Format.bytes(max(total - free, 0))) used of \(Format.bytes(total))")
             } else {
-                Footnote(text: (s.freeBytes ?? 0) < 50_000_000_000 ? "Det börjar bli trångt" : "Gott om plats för fler spel")
+                Footnote(text: (s.freeBytes ?? 0) < 50_000_000_000 ? "Running low on space" : "Plenty of room for more games")
             }
         }
         .frame(height: 170)
     }
 
     private func networkCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "network", title: "Nätverk", chip: s.network) {
+        Card(icon: "network", title: "Network", chip: s.network) {
             Text(s.ip ?? console.host ?? "–")
-                .font(.system(size: 28, weight: .light))
+                .font(.ui(.title, weight: .light))
                 .foregroundStyle(Theme.primaryText)
             Spacer(minLength: 0)
             HStack {
-                Footnote(text: "webMAN svarar")
+                Footnote(text: "webMAN response time")
                 Spacer()
                 if let latency = console.latency {
                     Text(latency < 1 ? "\(Int(latency * 1000)) ms" : String(format: "%.1f s", latency))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.ui(.body, weight: .medium))
                         .foregroundStyle(latency < 1.5 ? Theme.good : Theme.warm)
                 }
             }
@@ -187,41 +202,43 @@ struct StatusView: View {
         .frame(height: 170)
     }
 
-    /// Like "Vänner som spelar" in the PS app: the game's own art behind it, its icon, and
+    /// Like "Friends Playing" in the PS app: the game's own art behind it, its icon, and
     /// a green dot while it runs.
     private func nowPlayingCard(_ s: ConsoleSnapshot) -> some View {
-        let name = s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "Okänt spel") : (s.mountedGameName ?? "Inget spel")
+        let name = s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "Unknown game") : (s.mountedGameName ?? "No game")
         return ZStack(alignment: .bottomLeading) {
             nowPlayingBackdrop
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "gamecontroller")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.ui(.footnote, weight: .semibold))
                         .foregroundStyle(Theme.accent)
-                    Text("SPELAR NU")
-                        .font(.system(size: 11, weight: .bold))
+                    Text("NOW PLAYING")
+                        .font(.ui(.caption, weight: .bold))
                         .tracking(1.3)
                         .foregroundStyle(Theme.primaryText.opacity(0.85))
                     Spacer()
-                    Chip(text: s.isGameRunning ? "Spelar" : "XMB", color: s.isGameRunning ? Theme.good : Theme.secondaryText)
+                    // While a game runs, the green dot and "Playing" below already say so.
+                    if !s.isGameRunning { Chip(text: "XMB", color: Theme.secondaryText) }
                 }
+                .frame(minHeight: Chip.height)
                 Spacer(minLength: 0)
                 HStack(alignment: .center, spacing: 12) {
                     gameThumbnail(name: name)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(name)
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.ui(.title3, weight: .semibold))
                             .foregroundStyle(s.isGameRunning || s.mountedGameName != nil ? Theme.primaryText : Theme.secondaryText)
                             .lineLimit(2)
                         HStack(spacing: 6) {
                             if s.isGameRunning {
                                 Circle().fill(Theme.good).frame(width: 8, height: 8)
-                                Text(s.playTime.map { "Spelar nu · \($0)" } ?? "Spelar nu")
+                                Text(s.playTime.map { "Playing · \($0)" } ?? "Playing")
                             } else {
-                                Text(s.mountedGameName == nil ? "Ingen skiva monterad" : "Monterad")
+                                Text(s.mountedGameName == nil ? "No disc mounted" : "Mounted")
                             }
                         }
-                        .font(.system(size: 12))
+                        .font(.ui(.footnote))
                         .foregroundStyle(Theme.secondaryText)
                     }
                 }
@@ -257,7 +274,7 @@ struct StatusView: View {
                 ZStack {
                     LinearGradient(colors: [Theme.novaPink.opacity(0.9), Theme.psBlue.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     Image(systemName: "opticaldisc.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.ui(.title3, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.9))
                 }
             }
@@ -287,9 +304,9 @@ struct StatusView: View {
 
     private func versionLine(_ label: String, _ value: String?) -> some View {
         HStack {
-            Text(label).font(.system(size: 13)).foregroundStyle(Theme.secondaryText)
+            Text(label).font(.ui(.body)).foregroundStyle(Theme.secondaryText)
             Spacer()
-            Text(value ?? "–").font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(Theme.primaryText)
+            Text(value ?? "–").font(.ui(.body, weight: .semibold, design: .monospaced)).foregroundStyle(Theme.primaryText)
         }
     }
 }
@@ -301,12 +318,12 @@ struct HistoryTable: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("HISTORIK (\(entries.count))")
+                Text("HISTORY (\(entries.count))")
                 Spacer()
-                Text("ÅTGÄRD").frame(width: 90, alignment: .leading)
-                Text("TID").frame(width: 130, alignment: .trailing)
+                Text("ACTION").frame(width: 150, alignment: .leading)
+                Text("TIME").frame(width: 130, alignment: .trailing)
             }
-            .font(.system(size: 11, weight: .bold))
+            .font(.ui(.caption, weight: .bold))
             .tracking(1.2)
             .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 20)
@@ -315,28 +332,30 @@ struct HistoryTable: View {
             Divider().overlay(Theme.cardStroke)
 
             if entries.isEmpty {
-                Text("Inget ändrat än. Uppladdningar och installationer från appen eller `ps3` visas här.")
-                    .font(.system(size: 13))
+                Text("Nothing changed yet. Uploads and installs from the app or `ps3` show up here.")
+                    .font(.ui(.body))
                     .foregroundStyle(Theme.tertiaryText)
                     .padding(20)
             }
             ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                let described = Self.describe(entry)
                 HStack {
                     Image(systemName: icon(for: entry.action))
                         .foregroundStyle(Theme.accent)
                         .frame(width: 20)
-                    Text((entry.detail as NSString).lastPathComponent)
-                        .font(.system(size: 14, weight: .medium))
+                    Text(described.subject)
+                        .font(.ui(.callout, weight: .medium))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                     Spacer()
-                    Text(entry.action).frame(width: 90, alignment: .leading)
+                    Text(described.action).frame(width: 150, alignment: .leading)
                         .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
                     Text(Self.displayDate(entry.date)).frame(width: 130, alignment: .trailing)
                         .foregroundStyle(Theme.secondaryText)
                         .monospacedDigit()
                 }
-                .font(.system(size: 13))
+                .font(.ui(.body))
                 .padding(.horizontal, 20)
                 .padding(.vertical, 9)
             }
@@ -354,16 +373,62 @@ struct HistoryTable: View {
         case "mount": return "opticaldisc"
         case "unmount": return "eject"
         case "exit": return "xmark.circle"
-        case "delete": return "trash"
+        case "delete", "uninstall", "delete-save": return "trash"
+        case "update": return "arrow.down.circle"
+        case "eject", "insert": return "eject"
+        case "restart": return "arrow.clockwise.circle"
+        case "shutdown": return "power"
+        case "record": return "record.circle"
+        case "fan": return "fan"
+        case "restore": return "arrow.uturn.backward.circle"
         default: return "circle"
+        }
+    }
+
+    /// What the row says: the thing that changed, and the action in words. The log keeps the
+    /// short action names that `ps3 history` and scripts read; this is only how they look here.
+    static func describe(_ entry: OperationLog.Entry) -> (subject: String, action: String) {
+        let file = (entry.detail as NSString).lastPathComponent
+        // "på" is how log lines written before the English interface say "on".
+        let onOff = ["på", "on", "start"].contains(entry.detail) ? "On" : "Off"
+        switch entry.action {
+        case "install": return (file, "Installed")
+        case "install-theme": return (file, "Theme installed")
+        case "send": return (file, "Sent")
+        case "update": return (entry.detail, "Updated")
+        case "uninstall": return (file, "Uninstalled")
+        case "delete": return (file, "Deleted")
+        case "delete-save": return (entry.detail, "Save deleted")
+        case "restore": return (entry.detail, "Save restored")
+        case "play": return (file, "Started")
+        case "mount": return (file, "Mounted")
+        case "unmount": return ("Disc", "Unmounted")
+        case "exit": return (file, "Quit")
+        case "refresh": return ("Game list", "Refreshed")
+        case "reload-xmb": return ("XMB", "Reloaded")
+        case "eject": return ("Disc", "Ejected")
+        case "insert": return ("Disc", "Inserted")
+        case "restart": return ("PS3", "Restarted")
+        case "shutdown": return ("PS3", "Shut down")
+        case "record": return ("Recording", onOff == "On" ? "Started" : "Stopped")
+        case "game-music": return ("In-game music", onOff)
+        case "screenshots": return ("In-game screenshots", "On")
+        case "update-block": return ("System update block", onOff)
+        case "fan": return ("Fan", "Target changed")
+        case "covers": return (entry.detail, "Covers sent")
+        case "libcrypt": return (file, "LibCrypt file sent")
+        case "rip": return (entry.detail, "Disc copied")
+        case "rip-abort": return ("Disc copy", "Stopped")
+        case "webman-setup": return ("webMAN settings", "Changed")
+        default: return (file, entry.action.replacingOccurrences(of: "-", with: " ").capitalized)
         }
     }
 
     static func displayDate(_ iso: String) -> String {
         guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = Calendar.current.isDateInToday(date) ? "'idag' HH:mm" : "d MMM HH:mm"
+        formatter.locale = Theme.locale
+        formatter.dateFormat = Calendar.current.isDateInToday(date) ? "'Today' HH:mm" : "MMM d, HH:mm"
         return formatter.string(from: date)
     }
 }
@@ -372,14 +437,14 @@ struct HistoryTable: View {
 enum PowerAction: Equatable {
     case shutdown, restart
 
-    var question: String { self == .shutdown ? "Stänga av PS3:an?" : "Starta om PS3:an?" }
-    var button: String { self == .shutdown ? "Stäng av" : "Starta om" }
+    var question: String { self == .shutdown ? "Shut down the PS3?" : "Restart the PS3?" }
+    var button: String { self == .shutdown ? "Shut Down" : "Restart" }
 
     func message(running: Bool) -> String {
-        let game = running ? "Ett spel körs: spara först, annars försvinner det som inte är sparat. " : ""
+        let game = running ? "A game is running: save first, or anything unsaved is lost. " : ""
         switch self {
-        case .shutdown: return game + "PS3:an kan inte startas från Macen, bara med knappen eller handkontrollen."
-        case .restart: return game + "På HEN måste HEN aktiveras igen efter omstarten innan PS3 Center når konsolen."
+        case .shutdown: return game + "The PS3 can't be turned on from the Mac, only with its button or the controller."
+        case .restart: return game + "On HEN, HEN has to be enabled again after the restart before PS3 Center can reach the console."
         }
     }
 }

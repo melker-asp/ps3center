@@ -20,26 +20,26 @@ public enum PS3Error: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unreachable(let host):
-            return "PS3:an svarar inte på \(host). Är den på och är HEN aktiverat? (Prova `ps3 discover` om IP-adressen har ändrats.)"
+            return "The PS3 is not answering at \(host). Is it on, and is HEN enabled? (Try `ps3 discover` if the IP address has changed.)"
         case .noHost:
-            return "Ingen PS3 hittades på nätverket. Aktivera HEN och kör `ps3 discover`, eller ange adressen med `ps3 config set host <ip>`."
+            return "No PS3 found on the network. Enable HEN and run `ps3 discover`, or set the address with `ps3 config set host <ip>`."
         case .http(let status, let command):
-            return "webMAN svarade \(status) på \(command)."
+            return "webMAN answered \(status) to \(command)."
         case .ftp(let code, let message):
-            return "FTP-fel \(code): \(message)"
+            return "FTP error \(code): \(message)"
         case .ftpProtocol(let message):
-            return "Oväntat FTP-svar: \(message)"
+            return "Unexpected FTP reply: \(message)"
         case .timeout(let what):
-            return "Tidsgränsen gick ut: \(what)"
+            return "Timed out: \(what)"
         case .notEnoughSpace(let needed, let free):
-            return "Inte tillräckligt med plats på PS3:an: behöver \(Format.bytes(needed)), ledigt \(Format.bytes(free)). Använd --force för att försöka ändå."
+            return "Not enough space on the PS3: needs \(Format.bytes(needed)), \(Format.bytes(free)) free. Use --force to try anyway."
         case .unsupportedFile(let message), .invalidFile(let message), .github(let message), .incompatible(let message),
              .refused(let message):
             return message
         case .gameRunning:
-            return "Ett spel eller program körs på PS3:an."
+            return "A game or app is running on the PS3."
         case .cancelled:
-            return "Avbrutet."
+            return "Cancelled."
         }
     }
 }

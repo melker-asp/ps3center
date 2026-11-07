@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import PS3Kit
 
-/// The Underhåll tab: save and system file backups, the maintenance check, the storage map and
+/// The Maintenance tab: save and system file backups, the maintenance check, the storage map and
 /// copying the disc. Like `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze` and `ps3 rip`.
 @MainActor
 @Observable
@@ -10,7 +10,7 @@ final class MaintenanceStore {
     var host: String?
 
     private(set) var localSaves = SaveBackupService.local()
-    /// The saves on the console, read when the Sparfiler sheet asks.
+    /// The saves on the console, read when the Saves sheet asks.
     private(set) var consoleSaves: [SaveGame]?
     private(set) var lastSaveBackup = SaveBackupService.lastBackup()
     private(set) var systemBackups = SystemFiles.backups().compactMap(MaintenanceStore.date(of:))
@@ -30,6 +30,8 @@ final class MaintenanceStore {
 
     private var isFixture = false
     private var ripTask: Task<Void, Never>?
+    /// While the disc is being copied (the view used to compare `busy` with its text).
+    private(set) var isRipping = false
 
     /// "2026-10-22 21.40" (a backup folder's name) → a date.
     nonisolated static func date(of folder: URL) -> Date? {
@@ -58,7 +60,7 @@ final class MaintenanceStore {
     // MARK: Backups
 
     func backupSaves() {
-        run("Kopierar sparfilerna") { host in
+        run("Backing up the saves") { host in
             let report = try await SaveBackupService(host: host).backup { step in
                 Task { @MainActor in self.busy = step }
             }
@@ -66,43 +68,43 @@ final class MaintenanceStore {
                 self.localSaves = SaveBackupService.local()
                 self.lastSaveBackup = SaveBackupService.lastBackup()
             }
-            return "Sparfiler: \(report.copied.count) kopierade, \(report.unchanged) oförändrade"
-                + (report.failed.isEmpty ? "" : ", \(report.failed.count) gick inte")
+            return "Saves: \(report.copied.count) copied, \(report.unchanged) unchanged"
+                + (report.failed.isEmpty ? "" : ", \(report.failed.count) failed")
         }
     }
 
     func backupSystem() {
-        run("Kopierar systemfilerna") { host in
+        run("Backing up the system files") { host in
             let result = try await SystemFiles.backup(host: host)
             await MainActor.run { self.systemBackups = SystemFiles.backups().compactMap(MaintenanceStore.date(of:)) }
-            return "Systemfiler: \(result.saved.count) filer kopierade"
+            return "System files: \(result.saved.count) files copied"
         }
     }
 
     func loadConsoleSaves() {
-        run("Läser sparfilerna på PS3:an") { host in
+        run("Reading the saves on the PS3") { host in
             let saves = try await SaveBackupService(host: host).list()
             await MainActor.run { self.consoleSaves = saves }
-            return "\(saves.count) sparfiler på PS3:an"
+            return "\(saves.count) saves on the PS3"
         }
     }
 
     /// Removes a save from the console; a copy goes to the backup first, so it can be put back.
     func deleteSave(_ save: SaveGame) {
-        run("Tar bort \(save.title)") { host in
+        run("Deleting \(save.title)") { host in
             try await SaveBackupService(host: host).delete(save)
             await MainActor.run {
                 self.consoleSaves?.removeAll { $0.id == save.id }
                 self.localSaves = SaveBackupService.local()
             }
-            return "\(save.title) är borttagen från PS3:an. En kopia finns under På Macen."
+            return "\(save.title) is deleted from the PS3. A copy is under On Mac."
         }
     }
 
     func restore(_ save: SaveGame) {
-        run("Lägger tillbaka \(save.title)") { host in
+        run("Restoring \(save.title)") { host in
             try await SaveBackupService(host: host).restore(save)
-            return "\(save.title) är tillbaka på PS3:an"
+            return "\(save.title) is back on the PS3"
         }
     }
 
@@ -110,13 +112,13 @@ final class MaintenanceStore {
     func autoBackupIfDue(gameRunning: Bool, transfersRunning: Bool) {
         guard autoBackup, !isFixture, busy == nil, !gameRunning, !transfersRunning, let host else { return }
         if let last = lastSaveBackup, Date().timeIntervalSince(last) < 7 * 24 * 3600 { return }
-        busy = "Kopierar sparfilerna (varje vecka)"
+        busy = "Backing up the saves (weekly)"
         Task {
             if let report = try? await SaveBackupService(host: host).backup() {
                 localSaves = SaveBackupService.local()
                 lastSaveBackup = SaveBackupService.lastBackup()
                 if !report.copied.isEmpty {
-                    Notifier.post(title: "Sparfilerna är kopierade", body: "\(report.copied.count) sparfiler har ändrats sedan förra veckan.")
+                    Notifier.post(title: "Saves backed up", body: "\(report.copied.count) saves changed since last week.")
                 }
             }
             busy = nil
@@ -126,12 +128,12 @@ final class MaintenanceStore {
     // MARK: Check and clean
 
     func check() {
-        run("Kontrollerar") { host in
+        run("Checking") { host in
             let report = try await MaintenanceService(host: host).check { step in
                 Task { @MainActor in self.busy = step }
             }
             await MainActor.run { self.report = report }
-            return report.findings.isEmpty ? "Allt ser bra ut" : "\(report.findings.count) saker att titta på"
+            return report.findings.isEmpty ? "Everything looks good" : "\(report.findings.count) things to look at"
         }
     }
 
@@ -140,23 +142,23 @@ final class MaintenanceStore {
     func fix() {
         let findings = fixable
         guard !findings.isEmpty else { return }
-        run("Tar bort") { host in
+        run("Deleting") { host in
             let results = try await MaintenanceService(host: host).fix(findings)
             let removed = Set(results.filter { $0.skipped == nil }.map { $0.finding.id })
             await MainActor.run { self.report?.findings.removeAll { removed.contains($0.id) } }
-            return "\(removed.count) av \(findings.count) borttagna"
+            return "\(removed.count) of \(findings.count) deleted"
         }
     }
 
     /// Puts webMAN MOD's ps3-updatelist.txt on the console, so the XMB cannot fetch a system update.
     func blockUpdates() {
-        run("Blockerar systemuppdateringar") { host in
+        run("Blocking system updates") { host in
             try await UpdateBlock.set(true, host: host)
             await MainActor.run {
                 self.report?.findings.removeAll { $0.kind == .updates }
-                self.report?.passed.append("Systemuppdateringar blockeras")
+                self.report?.passed.append("System updates are blocked")
             }
-            return "Systemuppdateringar blockeras från nästa start."
+            return "System updates are blocked from the next start."
         }
     }
 
@@ -170,24 +172,24 @@ final class MaintenanceStore {
     /// Copies new recordings and photos to ~/Pictures/PS3 Center. Nothing is removed from the console.
     func importMedia() {
         guard let items = media, !items.isEmpty else { return }
-        run("Hämtar filmer och bilder") { host in
+        run("Importing videos and photos") { host in
             let written = try await MediaImport(host: host).copy(items) { done, total in
-                Task { @MainActor in self.busy = "Hämtar \(min(done + 1, total)) av \(total)" }
+                Task { @MainActor in self.busy = "Importing \(min(done + 1, total)) of \(total)" }
             }
             await MainActor.run { self.media = [] }
-            return "\(written.count) filer i Bilder/PS3 Center"
+            return "\(written.count) files in Pictures/PS3 Center"
         }
     }
 
     // MARK: Storage and disc
 
     func analyze() {
-        run("Räknar") { host in
+        run("Counting") { host in
             let map = try await StorageAnalyzer(host: host).analyze { step in
-                Task { @MainActor in self.busy = "Räknar \(step.lowercased())" }
+                Task { @MainActor in self.busy = "Counting \(step)" }
             }
             await MainActor.run { self.storage = map }
-            return "Lagringen är räknad"
+            return "Storage counted"
         }
     }
 
@@ -196,7 +198,7 @@ final class MaintenanceStore {
         Task {
             do {
                 disc = try await DiscRipper(host: host).disc()
-                discNote = disc == nil ? "Ingen PS3-skiva i spelaren." : nil
+                discNote = disc == nil ? "No PS3 disc in the drive." : nil
             } catch {
                 disc = nil
                 discNote = error.localizedDescription
@@ -206,7 +208,8 @@ final class MaintenanceStore {
 
     func rip() {
         guard let disc, let host, busy == nil, !isFixture else { return }
-        busy = "Kopierar skivan"
+        busy = "Copying the disc"
+        isRipping = true
         ripped = 0
         note = nil
         ripTask = Task {
@@ -214,13 +217,14 @@ final class MaintenanceStore {
                 try await DiscRipper(host: host).rip(disc) { copied in
                     Task { @MainActor in self.ripped = copied }
                 }
-                note = "\(disc.title) ligger i \(disc.destination). Uppdatera spellistan så syns det."
+                note = "\(disc.title) is in \(disc.destination). Refresh the game list to see it."
             } catch is CancellationError {
-                note = "Slutade följa kopieringen; den fortsätter på PS3:an tills den stoppas."
+                note = "Stopped following the copy; it keeps going on the PS3 until it is stopped."
             } catch {
                 note = error.localizedDescription
             }
             busy = nil
+            isRipping = false
             ripTask = nil
         }
     }
@@ -230,7 +234,7 @@ final class MaintenanceStore {
         ripTask?.cancel()
         Task {
             try? await DiscRipper(host: host).abort()
-            note = "Kopieringen stoppades"
+            note = "The copy was stopped"
         }
     }
 

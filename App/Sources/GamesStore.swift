@@ -3,7 +3,7 @@ import Foundation
 import Observation
 import PS3Kit
 
-/// Backs the Spel tab: the games on the console, their XMB icons and backgrounds, and the
+/// Backs the Games tab: the games on the console, their XMB icons and backgrounds, and the
 /// actions on them (start, mount, quit, remove), one at a time.
 @MainActor
 @Observable
@@ -14,25 +14,28 @@ final class GamesStore {
 
     /// The pills above the grid. PS3 covers disc and PSN games; Film covers Blu-ray and DVD.
     enum Filter: String, CaseIterable, Identifiable {
-        case all, ps3, ps2, ps1, psp, film
+        // PSN has its own pill, so each pill counts what its section below shows.
+        case all, ps3, psn, ps2, ps1, psp, film
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .all: return "Alla"
+            case .all: return "All"
             case .ps3: return "PS3"
+            case .psn: return "PSN"
             case .ps2: return "PS2"
             case .ps1: return "PS1"
             case .psp: return "PSP"
-            case .film: return "Film"
+            case .film: return "Movies"
             }
         }
 
         func matches(_ game: Game) -> Bool {
             switch self {
             case .all: return true
-            case .ps3: return game.platform == .ps3 || game.platform == .psn
+            case .ps3: return game.platform == .ps3
+            case .psn: return game.platform == .psn
             case .ps2: return game.platform == .ps2
             case .ps1: return game.platform == .ps1
             case .psp: return game.platform == .psp
@@ -46,21 +49,21 @@ final class GamesStore {
         enum Kind { case starting, mounting, unmounting, exiting, deleting, updating, fixing, verifying }
         let id: String
         let kind: Kind
-        /// For updates: what is happening ("Hämtar 02.12") and how far it has come.
+        /// For updates: what is happening ("Downloading 02.12") and how far it has come.
         var step: String?
         var progress: Double?
 
         var label: String {
             if let step { return step }
             switch kind {
-            case .starting: return "Startar…"
-            case .mounting: return "Monterar…"
-            case .unmounting: return "Avmonterar…"
-            case .exiting: return "Avslutar spelet…"
-            case .deleting: return "Tar bort…"
-            case .updating: return "Uppdaterar…"
-            case .fixing: return "Lägger LibCrypt-datan på PS3:an…"
-            case .verifying: return "Kontrollerar mot IRD…"
+            case .starting: return "Starting…"
+            case .mounting: return "Mounting…"
+            case .unmounting: return "Unmounting…"
+            case .exiting: return "Quitting the game…"
+            case .deleting: return "Deleting…"
+            case .updating: return "Updating…"
+            case .fixing: return "Copying the LibCrypt data to the PS3…"
+            case .verifying: return "Verifying against the IRD…"
             }
         }
     }
@@ -70,7 +73,7 @@ final class GamesStore {
     private(set) var icons: [String: NSImage] = [:]
     /// Box art from CoverService, by game id.
     private(set) var covers: [String: NSImage] = [:]
-    /// Official updates newer than what each game has, by game id (after "Sök uppdateringar").
+    /// Official updates newer than what each game has, by game id (after "Check for Updates").
     private(set) var patches: [String: [GamePatch]] = [:]
     private(set) var isCheckingUpdates = false
     private(set) var updatesChecked: Date?
@@ -88,7 +91,7 @@ final class GamesStore {
     private(set) var verifications: [String: DiscVerifier.Report] = [:]
     var filter: Filter = .all
     var search = ""
-    /// The game whose page is open in the Spel tab.
+    /// The game whose page is open in the Games tab.
     var selectedID: String?
     private var host: String?
 
@@ -256,17 +259,17 @@ final class GamesStore {
         guard var current = busy, current.id == id else { return }
         switch event {
         case .started(let route, _):
-            current.step = route.remote.hasPrefix("http") ? "Hämtar från Sony…" : "Skickar till PS3:an…"
+            current.step = route.remote.hasPrefix("http") ? "Downloading from Sony…" : "Sending to the PS3…"
             current.progress = 0
         case .progress(let route, let sent, let total, _):
             let fraction = total > 0 ? Double(sent) / Double(total) : 0
-            current.step = (route.remote.hasPrefix("http") ? "Hämtar " : "Skickar ") + "\(Int(fraction * 100)) %"
+            current.step = (route.remote.hasPrefix("http") ? "Downloading " : "Sending ") + "\(Int(fraction * 100)) %"
             current.progress = fraction
         case .waitingForGame:
-            current.step = "Väntar tills spelet avslutas…"
+            current.step = "Waiting for the game to quit…"
             current.progress = nil
         case .installing:
-            current.step = "Installerar…"
+            current.step = "Installing…"
             current.progress = nil
         default:
             return
@@ -349,7 +352,7 @@ final class GamesStore {
                 }, progress: { done, total, _ in
                     Task { @MainActor in
                         guard self.busy?.id == id, total > 0 else { return }
-                        self.busy?.step = "Kontrollerar \(done) av \(total) filer…"
+                        self.busy?.step = "Checking \(done) of \(total) files…"
                         self.busy?.progress = Double(done) / Double(total)
                     }
                 })

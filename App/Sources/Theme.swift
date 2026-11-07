@@ -24,9 +24,13 @@ enum Theme {
     /// The dark mode base of the PS app.
     static let base = Color(red: 0.07, green: 0.08, blue: 0.10)
 
+    /// A lighter red for text on the dark base: 7.3:1 on a card, where `hot` is 4.8:1.
+    static let hotText = Color(red: 1.00, green: 0.55, blue: 0.58)
+
     static let primaryText = Color.white.opacity(0.95)
     static let secondaryText = Color.white.opacity(0.62)
-    static let tertiaryText = Color.white.opacity(0.40)
+    /// 0.50 gives 5.1:1 on a card, above WCAG AA's 4.5:1 for small text (0.40 was 3.75:1).
+    static let tertiaryText = Color.white.opacity(0.50)
     static let cardFill = Color.white.opacity(0.05)
     static let cardStroke = Color.white.opacity(0.07)
 
@@ -62,6 +66,38 @@ enum Theme {
     static func temperatureColor(_ value: Int, warnAt: Int) -> Color {
         value >= warnAt + 10 ? hot : value >= warnAt ? warm : good
     }
+
+    /// The type scale. Every text size in the app is one of these (icons may be any size).
+    enum TextSize: CGFloat {
+        case caption = 11, footnote = 12, body = 13, callout = 14, headline = 15
+        case title3 = 17, title2 = 20, title = 26, display = 30, largeTitle = 34, hero = 40
+    }
+
+    /// Dates and times are always English and never follow the system language, so a Mac set to
+    /// Swedish does not mix "7 nov." into an English interface.
+    static let locale = Locale(identifier: "en_US")
+
+    /// "18:12": 24-hour, like the History table.
+    static func time(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}
+
+extension Font {
+    /// A size from `Theme.TextSize`: `.font(.ui(.body, weight: .semibold))`.
+    static func ui(_ size: Theme.TextSize, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
+        .system(size: size.rawValue, weight: weight, design: design)
+    }
+}
+
+extension View {
+    /// The tooltip and the VoiceOver label for a button that only shows an icon.
+    func iconLabel(_ text: String) -> some View {
+        help(text).accessibilityLabel(text)
+    }
 }
 
 struct Card<Content: View>: View {
@@ -75,15 +111,17 @@ struct Card<Content: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.ui(.footnote, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                 Text(title.uppercased())
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.ui(.caption, weight: .bold))
                     .tracking(1.3)
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
                 Spacer()
                 if let chip { Chip(text: chip, color: chipColor) }
             }
+            // A chip's height even without one, so card titles line up across a row.
+            .frame(minHeight: Chip.height)
             content
         }
         .padding(20)
@@ -97,10 +135,12 @@ struct Card<Content: View>: View {
 struct Chip: View {
     let text: String
     var color: Color = Theme.primaryText.opacity(0.8)
+    /// Caption text plus 3 pt above and below; a card header without a chip keeps this height.
+    static let height: CGFloat = 20
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
+            .font(.ui(.caption, weight: .bold))
             .foregroundStyle(color)
             .lineLimit(1)
             .fixedSize()
@@ -213,13 +253,13 @@ struct BigValue: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(value)
-                .font(.system(size: 40, weight: .light))
+                .font(.ui(.hero, weight: .light))
                 .foregroundStyle(Theme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             if let unit {
                 Text(unit)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(.ui(.headline, weight: .regular))
                     .foregroundStyle(Theme.secondaryText)
             }
         }
@@ -231,7 +271,7 @@ struct Footnote: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 13))
+            .font(.ui(.body))
             .foregroundStyle(Theme.secondaryText)
             .lineLimit(1)
     }
@@ -309,7 +349,7 @@ struct HealthOrb: View {
             Circle()
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
             Image(systemName: "playstation.logo")
-                .font(.system(size: 30, weight: .semibold))
+                .font(.ui(.display, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
                 .shadow(color: .black.opacity(0.4), radius: 4)
         }
@@ -317,34 +357,45 @@ struct HealthOrb: View {
     }
 }
 
-/// Pill buttons as in the PS app: white with black text for the main action ("Köp nu"),
+/// Pill buttons as in the PS app: white with black text for the main action ("Buy Now"),
 /// an outlined pill for secondary ones, and a tinted pill inside coloured banners.
+/// At most one white pill per screen: everything else is outlined or tinted.
 struct PillButtonStyle: ButtonStyle {
     /// Banner colour; nil is the white main action.
     var tint: Color?
     var prominent = true
+    /// Delete, Uninstall: a red outline and red text, so it never looks like the other buttons.
+    var destructive = false
+    /// A disabled button is faded, so the white main action never looks clickable when it is not.
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.ui(.body, weight: .semibold))
             .foregroundStyle(foreground)
             .padding(.horizontal, 16)
             .padding(.vertical, 7)
             .background {
-                if !prominent {
+                if destructive {
+                    Capsule().fill(Theme.hot.opacity(configuration.isPressed ? 0.18 : 0.06))
+                    Capsule().strokeBorder(Theme.hot.opacity(configuration.isPressed ? 0.9 : 0.65), lineWidth: 1.5)
+                } else if !prominent {
                     Capsule().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.6 : 0.35), lineWidth: 1.5)
                 } else if let tint {
-                    Capsule().fill(tint.opacity(configuration.isPressed ? 0.32 : 0.2))
+                    // White text on a stronger tint: the tint's own colour as text was 4.4:1 at best.
+                    Capsule().fill(tint.opacity(configuration.isPressed ? 0.5 : 0.36))
                 } else {
                     Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.8 : 1))
                 }
             }
+            .opacity(isEnabled ? 1 : 0.35)
             .contentShape(Capsule())
     }
 
     private var foreground: Color {
+        if destructive { return Theme.hotText }
         if !prominent { return Theme.primaryText }
-        return tint ?? .black
+        return tint == nil ? .black : Theme.primaryText
     }
 }
 
@@ -370,13 +421,29 @@ struct CircleIconButtonStyle: ButtonStyle {
     }
 }
 
-/// A count in a green disc, like "Vänner 2" in the PS app.
+/// Closes a sheet that only shows or sets things: bottom right, where the review sheets have
+/// Cancel and their main button, and on Esc. Every sheet closes the same way.
+struct DoneButton: View {
+    @Environment(\.dismiss) private var dismiss
+    /// Outlined when the sheet has a white main button of its own.
+    var prominent = true
+    /// False where Esc means something else (the remote sends it to the PS3 as Back): ⌘W instead.
+    var closesOnEscape = true
+
+    var body: some View {
+        Button("Done") { dismiss() }
+            .buttonStyle(PillButtonStyle(prominent: prominent))
+            .keyboardShortcut(closesOnEscape ? .cancelAction : KeyboardShortcut("w"))
+    }
+}
+
+/// A count in a green disc, like "Friends 2" in the PS app.
 struct CountBadge: View {
     let count: Int
 
     var body: some View {
         Text("\(count)")
-            .font(.system(size: 11, weight: .bold))
+            .font(.ui(.caption, weight: .bold))
             .foregroundStyle(.black)
             .monospacedDigit()
             .frame(minWidth: 18, minHeight: 18)

@@ -2,8 +2,8 @@ import Observation
 import PS3Kit
 import SwiftUI
 
-/// The PS app's themes. "Följ fliken" (the default) gives each tab its own colour, as the PS
-/// app's "Matcha enhet" follows the device; the others colour every tab the same.
+/// The PS app's themes. "Match Tab" (the default) gives each tab its own colour, as the PS
+/// app's "Match Device" follows the device; the others colour every tab the same.
 enum AppTheme: String, CaseIterable, Identifiable {
     case perTab, starlightBlue, novaPink, cosmicRed, galacticPurple, midnightBlack
 
@@ -11,7 +11,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .perTab: return "Följ fliken"
+        case .perTab: return "Match Tab"
         case .starlightBlue: return "Starlight Blue"
         case .novaPink: return "Nova Pink"
         case .cosmicRed: return "Cosmic Red"
@@ -21,7 +21,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 
     var detail: String? {
-        self == .perTab ? "Varje flik får sin egen färg: Status Starlight Blue, Spel Nova Pink, Appar Galactic Purple, Underhåll Cosmic Red." : nil
+        self == .perTab ? "Each tab gets its own color: Status Starlight Blue, Games Nova Pink, Apps Galactic Purple, Maintenance Cosmic Red." : nil
     }
 }
 
@@ -47,19 +47,18 @@ final class AppearanceStore {
     }
 }
 
-/// The PS app's Utseende screen: a title in light weight, one row per theme with a colour
-/// square and a radio button, and the round white back button.
+/// The PS app's Appearance screen: a title in light weight, one row per theme with a colour
+/// square and a radio button, and Done.
 struct AppearanceView: View {
     @Environment(AppearanceStore.self) private var appearance
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Utseende")
-                .font(.system(size: 34, weight: .light))
+            Text("Appearance")
+                .font(.ui(.display, weight: .light))
                 .foregroundStyle(Theme.primaryText)
-            Text("Anpassa PS3 Center genom att välja ett utseende.")
-                .font(.system(size: 14))
+            Text("Choose how PS3 Center looks.")
+                .font(.ui(.callout))
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 8)
                 .padding(.bottom, 14)
@@ -72,10 +71,10 @@ struct AppearanceView: View {
                 .buttonStyle(.plain)
             }
             Spacer(minLength: 20)
-            Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(CircleIconButtonStyle(size: 44, filled: true))
-                .keyboardShortcut(.cancelAction)
-                .help("Tillbaka")
+            HStack {
+                Spacer()
+                DoneButton()
+            }
         }
         .padding(32)
         .frame(width: 460, height: 640, alignment: .topLeading)
@@ -87,11 +86,11 @@ struct AppearanceView: View {
             swatch(theme)
             VStack(alignment: .leading, spacing: 4) {
                 Text(theme.label)
-                    .font(.system(size: 18, weight: .light))
+                    .font(.ui(.title3, weight: .light))
                     .foregroundStyle(Theme.primaryText)
                 if let detail = theme.detail {
                     Text(detail)
-                        .font(.system(size: 13))
+                        .font(.ui(.body))
                         .foregroundStyle(Theme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -109,7 +108,7 @@ struct AppearanceView: View {
         .contentShape(Rectangle())
     }
 
-    /// A colour square; "Följ fliken" is split between the tab colours.
+    /// A colour square; "Match Tab" is split between the tab colours.
     private func swatch(_ theme: AppTheme) -> some View {
         Group {
             switch theme {
