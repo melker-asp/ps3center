@@ -26,6 +26,14 @@ public struct AppStatus: Codable, Sendable {
     public var compatibility: Compatibility = .compatible
     /// Could be installed from the catalog, but the console does not meet its requirements.
     public var blocked = false
+    /// Size of the release package in bytes, for the review before "Uppdatera alla".
+    public var assetSize: Int64?
+    /// An update to exactly this release was skipped (`IgnoredUpdates`). It still counts as
+    /// `updateAvailable`, but lists and "Uppdatera alla" leave it out.
+    public var ignored = false
+
+    /// An update the user has not skipped: what the badges count and "Uppdatera alla" offers.
+    public var isPendingUpdate: Bool { state == .updateAvailable && !ignored }
 }
 
 public struct AppsService: Sendable {
@@ -39,6 +47,7 @@ public struct AppsService: Sendable {
         let assetName: String?
         /// Downloaded release asset, only for plugin files that are compared byte for byte.
         let assetData: Data?
+        var assetSize: Int64? = nil
     }
 
     // MARK: Check
@@ -67,15 +76,17 @@ public struct AppsService: Sendable {
         }
         let console = needsSnapshot ? try await WebMAN(host: host).snapshot() : ConsoleSnapshot()
         let releases = await latest
+        let ignored = IgnoredUpdates.load()
 
         return entries.map { entry in
-            status(for: entry, installedFile: installedFiles[entry.id], console: console, release: releases[entry.id])
+            status(for: entry, installedFile: installedFiles[entry.id], console: console, release: releases[entry.id], ignored: ignored)
         }
     }
 
     func status(for entry: CatalogEntry, installedFile: Data?, console: ConsoleSnapshot,
-                release: Result<LatestInfo, Error>?) -> AppStatus {
+                release: Result<LatestInfo, Error>?, ignored: [String: String] = [:]) -> AppStatus {
         var status = versionStatus(for: entry, installedFile: installedFile, console: console, release: release)
+        status.ignored = status.state == .updateAvailable && IgnoredUpdates.skips(entry.id, latest: status.latest, in: ignored)
         let compatibility = Compatibility.check(entry.requirements, on: ConsoleProfile(snapshot: console))
         status.compatibility = compatibility
         guard compatibility.blocksInstall else { return status }
@@ -117,6 +128,7 @@ public struct AppsService: Sendable {
             status.latest = info.version
             status.assetURL = info.assetURL
             status.assetName = info.assetName
+            status.assetSize = info.assetSize
             status.installable = entry.isInstallable && info.assetURL != nil
             if !entry.tracksUpdates { status.latest = nil }
             if let assetData = info.assetData, let installedData = installedFile {
@@ -204,7 +216,7 @@ public struct AppsService: Sendable {
                         data = try? await GitHub.data(asset.browserDownloadURL)
                     }
                     results[entry.id] = .success(LatestInfo(version: release.tagName, assetURL: asset?.browserDownloadURL,
-                                                            assetName: asset?.name, assetData: data))
+                                                            assetName: asset?.name, assetData: data, assetSize: asset?.size))
                 case .some(.failure(let error)):
                     results[entry.id] = .failure(error)
                 case .none:

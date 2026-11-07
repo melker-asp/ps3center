@@ -22,7 +22,10 @@ Kvar utanför koden:
   Macen före varje commit.
 - Proven 1–14 under Prova på konsolen.
 
-Byggt sist (6 nov): sortering på namn, storlek och senast tillagt (Spel-fliken och
+Byggt sist (7 nov): Ignorera i Appar och `ps3 apps ignore`/`unignore`, och en granskning före
+och en rapport efter Uppdatera alla (test 15).
+
+Byggt 6 nov: sortering på namn, storlek och senast tillagt (Spel-fliken och
 `ps3 games --sort`), att `send` sparar titel, title ID och ikon för spelen den skickar, tiden med
 kabel i granskningen, ett tips när Macen går på batteri och menyn i `ps3`.
 
@@ -444,6 +447,12 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     - `ps3 beep`, `ps3 music on` under ett spel med musik i XMB:n, och
       `ps3 maintain block-updates` följt av en omstart: säger Inställningar → Systemuppdatering
       att ingen uppdatering finns?
+15. Appar:
+    - Tryck Ignorera på en uppdatering. Flyttas den till Ignorerade, försvinner den från
+      sifferbadgen och säger `ps3 apps` och `ps3 apps ignore` samma sak? Sluta ignorera den sedan.
+    - Uppdatera alla: stämmer storlekarna i granskningen med paketen på GitHub, och syns HEN under
+      Hoppas över? Bocka ur ett program och installera resten. Kommer rapporten när kön är klar, med
+      det urbockade under Hoppade över? Prova gärna medan ett spel körs, så att kön får vänta.
 
 ## Beslut (24 okt 2026)
 

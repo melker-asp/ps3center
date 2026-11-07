@@ -91,6 +91,13 @@ enum Snapshot {
             MaintenanceView(scrolls: false)
         }
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
+        // The review before "Uppdatera alla", and in the fixtures the report afterwards.
+        write(UpdateReviewView(plan: apps.updatePlan(), scrolls: false).environment(console).environment(apps), name: "apps-review", into: directory)
+        if usesFixtures {
+            apps.loadFixtureReport()
+            render(.apps, name: "apps-report", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
+            apps.dismissReport()
+        }
         render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .get, scrolls: false) }
         if let entry = Catalog.entry(named: "apollo") {
             apps.selectedID = entry.id

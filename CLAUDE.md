@@ -89,6 +89,15 @@ xcodebuild den inte.
   `compatibility`/`blocked` och nollar `canInstall`/`installable`; `AppsService.install` och CLI:ts
   `apps install` (även egna .pkg via title ID) stoppar före nedladdning. Okänd firmware blockerar
   program med krav.
+- **Ignorerade uppdateringar** (`IgnoredUpdates.swift`): katalog-id → release-tagg i `config.json`
+  (`ignoredUpdates`). `AppsService.status` sätter `AppStatus.ignored` när just den taggen är den
+  senaste, så en nyare release visas igen. `isPendingUpdate` är det som räknas: badges,
+  notiser, Uppdatera alla och `ps3 apps update` utan namn. Bara Macen ändras, så ingen
+  `OperationLog` eller `--dry-run`.
+- **Uppdatera alla** i appen: `AppsStore.updatePlan()` → `UpdateReviewView` →
+  `updateAll(_:from:)`, som köar det valda och sparar en `UpdateBatch`. När kön är tom gör
+  `finishBatch()` en `UpdateReport` (Klart / Misslyckades / Hoppade över) som `UpdateReportCard`
+  visar överst i Uppdateringar.
 - **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
   `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
   Samma data visar `ps3 apps info`.

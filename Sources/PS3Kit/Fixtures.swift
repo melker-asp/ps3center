@@ -109,7 +109,7 @@ public enum Fixtures {
         "ds45pad": ("installerad", "v2.0.0"),
         "apollo": ("02.40", "v2.4.1"),
         "pkgi": ("01.30", "v1.3.0"),
-        "artemis": ("00.64", "r6.4"),
+        "artemis": ("00.64", "r6.5"),  // an update the user has ignored (see ignoredUpdates)
         "ezremote": (nil, "1.25"),
         "irisman": ("04.92", "4.92"),
         "managunz": (nil, "v1.41"),
@@ -134,8 +134,20 @@ public enum Fixtures {
         "romlauncher": (nil, "Launchers"),
     ]
 
+    /// Release package sizes in bytes; the rest get `defaultPackageSize`.
+    private static let packageSizes: [String: Int64] = [
+        "webman": 21_495_808,
+        "apollo": 5_452_595,
+        "artemis": 3_879_731,
+    ]
+    private static let defaultPackageSize: Int64 = 6_291_456
+
+    /// Skipped in the fixtures, so the screens show the Ignorerade list.
+    public static let ignoredUpdates = ["artemis": "r6.5"]
+
     /// Catalog rows as `AppsService.check` would return them for `console`.
-    public static func appStatuses(on console: ConsoleSnapshot = snapshot) -> [AppStatus] {
+    public static func appStatuses(on console: ConsoleSnapshot = snapshot,
+                                   ignored: [String: String] = ignoredUpdates) -> [AppStatus] {
         let service = AppsService(host: host)
         return Catalog.entries.map { entry in
             let version = versions[entry.id]
@@ -157,9 +169,10 @@ public enum Fixtures {
             case .github, .henSource:
                 let latest = version?.latest ?? "1.0"
                 let asset: URL? = entry.isInstallable ? URL(string: "https://github.com/\(entry.repository ?? "")/releases/download/\(latest)/\(entry.id).pkg") : nil
-                release = .success(AppsService.LatestInfo(version: latest, assetURL: asset, assetName: asset?.lastPathComponent, assetData: assetData))
+                release = .success(AppsService.LatestInfo(version: latest, assetURL: asset, assetName: asset?.lastPathComponent, assetData: assetData,
+                                                          assetSize: asset == nil ? nil : packageSizes[entry.id] ?? defaultPackageSize))
             }
-            return service.status(for: entry, installedFile: installedFile, console: console, release: release)
+            return service.status(for: entry, installedFile: installedFile, console: console, release: release, ignored: ignored)
         }
     }
 
