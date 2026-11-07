@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import PS3Kit
 import SwiftUI
 
@@ -175,6 +176,16 @@ final class USBCopyModel {
 /// happens to them (split, made into an ISO), the drive's free space before and after, and a
 /// white button that says what happens.
 struct USBCopyView: View {
+    /// A drive was mounted or unmounted, delivered on the main queue. Computed, so there is no
+    /// shared stored publisher to make Sendable.
+    private static var volumeChanges: AnyPublisher<Notification, Never> {
+        let center = NSWorkspace.shared.notificationCenter
+        return center.publisher(for: NSWorkspace.didMountNotification)
+            .merge(with: center.publisher(for: NSWorkspace.didUnmountNotification))
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
     @Environment(\.dismiss) private var dismiss
     @State private var model: USBCopyModel
     @State private var ejectError: String?
@@ -230,17 +241,10 @@ struct USBCopyView: View {
         .padding(32)
         .frame(width: 580, height: 720, alignment: .topLeading)
         .background(Theme.base)
-        .task {
-            guard live else { return }
-            for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didMountNotification) {
-                model.refreshVolumes()
-            }
-        }
-        .task {
-            guard live else { return }
-            for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didUnmountNotification) {
-                model.refreshVolumes()
-            }
+        // A publisher, not `for await` over notifications(named:): an older SDK's Notification
+        // is not Sendable, so the async loop does not compile under strict concurrency there.
+        .onReceive(Self.volumeChanges) { _ in
+            if live { model.refreshVolumes() }
         }
     }
 
