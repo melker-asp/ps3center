@@ -5,7 +5,7 @@ APP := .build/xcode/Build/Products/Debug/PS3 Center.app
 RELEASE_APP := .build/xcode/Build/Products/Release/PS3 Center.app
 APPS_DIR ?= /Applications
 
-.PHONY: build test install uninstall project app run-app install-app uninstall-app icon snapshot snapshot-fixtures
+.PHONY: build test install uninstall project app run-app install-app uninstall-app icon snapshot snapshot-fixtures dist
 
 build:
 	swift build -c release
@@ -43,6 +43,11 @@ install-app: project
 
 uninstall-app:
 	rm -rf "$(APPS_DIR)/PS3 Center.app"
+
+# What a GitHub release ships (PS3-Center.dmg, ps3-cli.zip, SHA256SUMS.txt) in .build/dist, the same
+# as .github/workflows/release.yml builds for a tag: make dist VERSION=1.0.0
+dist:
+	scripts/dist.sh "$(VERSION)"
 
 # Renders the app icon again after a change in scripts/make_icon.swift.
 icon:

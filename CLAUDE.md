@@ -38,7 +38,15 @@ make install-app                # Release build → /Applications/PS3 Center.app
 make icon                       # render the app icon again from scripts/make_icon.swift
 make snapshot DIR=/tmp/shots    # render every tab to PNG and exit (requires a reachable PS3)
 make snapshot-fixtures DIR=/tmp/shots   # the same from PS3Kit's Fixtures, without a PS3
+make dist VERSION=1.0.0         # release files in .build/dist: PS3-Center.dmg, ps3-cli.zip, SHA256SUMS.txt
 ```
+
+**Releases** are made by pushing a tag `vX.Y.Z` (`.github/workflows/release.yml` → `scripts/dist.sh`):
+universal (arm64 + x86_64), signed ad hoc (no Developer ID, so not notarized; README → Download
+explains Open Anyway). The version lives in two places, `MARKETING_VERSION` in `App/project.yml` and
+`version:` in `Sources/ps3/PS3.swift`, and `dist.sh` refuses a tag unless both match it. The asset
+names carry no version, so `releases/latest/download/PS3-Center.dmg` (README, the CLI guide) always
+works; don't rename them. The repository is GPL-3.0 (`LICENSE`, the user's decision Nov 7, 2026).
 
 If you add a file to `App/Sources` the project must be regenerated (`make project`), otherwise
 xcodebuild won't find it.

@@ -11,13 +11,17 @@ Everything the app does, the `ps3` command can do in Terminal too. They share th
 
 ## Install the command
 
-`ps3` is built from PS3 Center's source code, which needs Xcode. In the project folder, run:
+Paste this in Terminal. It downloads the latest `ps3` from PS3 Center's releases on GitHub and puts it in `~/.local/bin`:
 
 ```bash
-make install    # builds ps3 and links it as ~/.local/bin/ps3
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/melker-asp/ps3center/releases/latest/download/ps3-cli.zip -o /tmp/ps3-cli.zip
+unzip -o /tmp/ps3-cli.zip -d ~/.local/bin
 ```
 
-Run it again to update. If Terminal can't find `ps3`, use the full path `~/.local/bin/ps3`, or add `~/.local/bin` to your PATH.
+Run the same lines again to update. If Terminal can't find `ps3`, use the full path `~/.local/bin/ps3`, or add `~/.local/bin` to your PATH. If you downloaded **ps3-cli.zip** in the browser instead, run `xattr -d com.apple.quarantine ~/.local/bin/ps3` once, or macOS won't let it start.
+
+To build it from the source code instead (needs Xcode), run `make install` in the project folder.
 
 ## The basics
 
