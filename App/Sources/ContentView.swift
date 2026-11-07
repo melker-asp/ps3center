@@ -53,7 +53,7 @@ struct ContentView: View {
                 case .online:
                     Group {
                         switch tab {
-                        case .status: StatusView()
+                        case .status: StatusView { router.openConnection() }
                         case .games: GamesView()
                         case .apps: AppsView()
                         case .maintenance: MaintenanceView()
@@ -61,7 +61,7 @@ struct ContentView: View {
                     }
                     .transition(.opacity)
                 default:
-                    ConnectionView()
+                    ConnectionView { router.openConnection() }
                 }
             }
             .padding(.horizontal, 24)
@@ -106,6 +106,7 @@ struct ContentView: View {
         // How? links, ⓘ buttons and the setup guide open Help through this.
         .environment(\.openHelp, OpenHelpAction { router.openHelp($0) })
         .sheet(isPresented: $showsTransfers) { TransfersView() }
+        .sheet(isPresented: Binding(get: { router.showsConnection }, set: { router.showsConnection = $0 })) { ConnectionSheet() }
         .sheet(item: $dropped) { SendReviewView(review: $0) }
         .task(id: console.host) {
             transfers.host = console.host
@@ -249,8 +250,8 @@ struct TabBar: View {
 /// blue, then connecting, scanning or offline with a way out.
 struct ConnectionView: View {
     @Environment(ConsoleStore.self) private var console
-    /// False when rendered for a snapshot: no text field.
-    var live = true
+    /// Opens the connection sheet: every PS3 on the network, or an address typed by hand.
+    var openConnection: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 18) {
@@ -269,12 +270,12 @@ struct ConnectionView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
             if isOffline {
-                Button("Try Again") { console.retry() }
-                    .buttonStyle(PillButtonStyle())
-                if case .offline = console.connection {
-                    AddressEntry(live: live)
-                        .frame(maxWidth: 420)
-                        .padding(.top, 10)
+                HStack(spacing: 10) {
+                    Button("Try Again") { console.retry() }
+                        .buttonStyle(PillButtonStyle())
+                    Button("Find PS3…") { openConnection() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .help("Search the Mac's networks, enter the address yourself, or see how to connect a cable")
                 }
                 HelpLink(title: "Why can't it find my PS3?", guide: .troubleshooting, tint: .white)
                     .padding(.top, 4)

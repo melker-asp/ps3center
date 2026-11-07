@@ -4,13 +4,14 @@ import PS3KitFixtures
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, status, folders, transfers, notifications, help
+    case general, console, appearance, status, folders, transfers, notifications, help
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return "General"
+        case .console: return "Console"
         case .appearance: return "Appearance"
         case .status: return "Status"
         case .folders: return "Folders"
@@ -23,6 +24,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .general: return "gearshape"
+        case .console: return "playstation.logo"
         case .appearance: return "paintpalette"
         case .status: return "square.grid.2x2"
         case .folders: return "folder"
@@ -35,6 +37,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .general: return "How PS3 Center starts, and whether it sits in the menu bar."
+        case .console: return "Which PS3 PS3 Center talks to, and how the Mac reaches it."
         case .appearance: return "Choose how PS3 Center looks: the colors, the text size and how temperatures are shown."
         case .status: return "Which cards the Status tab shows, and in what order."
         case .folders: return "Where PS3 Center finds your games and packages on the Mac. ps3 in Terminal uses the same folders."
@@ -126,6 +129,7 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             switch section {
             case .general: GeneralSettings(live: live)
+            case .console: ConsoleSettings()
             case .appearance: AppearanceSettings()
             case .status: StatusSettings()
             case .folders: FolderSettings(live: live)
@@ -192,6 +196,36 @@ private struct GeneralSettings: View {
         }
         // The menu bar has the same switch; it may have changed since.
         .onAppear { if live { startsAtLogin = LoginItem.isEnabled } }
+    }
+}
+
+private struct ConsoleSettings: View {
+    @Environment(ConsoleStore.self) private var console
+    @Environment(AppRouter.self) private var router
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsGroup(title: "PS3",
+                          footer: "The address is saved in config.json, which ps3 in Terminal reads too. If the PS3 gets a new one, PS3 Center looks for it on the network by itself.") {
+                SettingsRow(title: console.host ?? "Not found yet", detail: state) {
+                    Button("Find PS3…") { router.openConnection() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .help("Search the Mac's networks, enter the address yourself, or see how to connect a cable")
+                }
+            }
+        }
+    }
+
+    private var state: String {
+        switch console.connection {
+        case .online:
+            guard let s = console.snapshot else { return "Connected." }
+            let parts = [s.firmware.map { "Firmware \($0)" }, s.henVersion.map { "PS3HEN \($0)" }, s.webmanVersion.map { "webMAN MOD \($0)" }].compactMap { $0 }
+            return (["Connected"] + parts).joined(separator: " · ")
+        case .henOff: return "The PS3 is on, but HEN isn't enabled."
+        case .offline: return "Can't reach the PS3."
+        case .connecting, .scanning: return "Connecting…"
+        }
     }
 }
 

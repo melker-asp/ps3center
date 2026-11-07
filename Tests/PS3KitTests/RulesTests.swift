@@ -37,7 +37,7 @@ import Testing
     #expect(wifi.network == .wifi)
     #expect(lan.network == .lan)
     // speeds.json is keyed on these, and older files say exactly this.
-    #expect(Network.wifi.rawValue == "Wi-Fi")
+    #expect(NetworkKind.wifi.rawValue == "Wi-Fi")
     let old = #"{"upload": 3250000, "network": "Wi-Fi", "measuredAt": "2026-10-24T18:00:00Z"}"#
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601

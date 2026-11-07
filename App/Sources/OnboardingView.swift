@@ -195,6 +195,7 @@ private struct PreparePage: View {
 
 private struct FindPage: View {
     @Environment(ConsoleStore.self) private var console
+    @Environment(AppRouter.self) private var router
     @Environment(\.openHelp) private var openHelp
     let live: Bool
 
@@ -208,8 +209,15 @@ private struct FindPage: View {
             OnboardingCard(title: "Know Its Address?") {
                 AddressEntry(live: live)
             }
-            Button("Why can't it find my PS3?") { openHelp(.troubleshooting) }
-                .buttonStyle(OnboardingLinkStyle())
+            HStack(spacing: 18) {
+                Button("Why can't it find my PS3?") { openHelp(.troubleshooting) }
+                    .buttonStyle(OnboardingLinkStyle())
+                Spacer()
+                // The connection sheet: every network the Mac is on, and how to set up a cable.
+                Button("Find PS3…") { router.openConnection() }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .help("Search the Mac's networks, enter the address yourself, or see how to connect a cable")
+            }
         }
     }
 

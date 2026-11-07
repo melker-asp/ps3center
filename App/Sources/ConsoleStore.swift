@@ -61,25 +61,36 @@ final class ConsoleStore {
         start()
     }
 
-    /// An address typed in the setup guide: used and saved when webMAN answers there. Returns why
-    /// not otherwise (not an address, nothing answers, HEN off).
+    /// An address typed in the setup guide: used (`use(host:)`) when webMAN answers there. Returns
+    /// why not otherwise (not an address, nothing answers, HEN off).
     func connect(to address: String) async -> String? {
         guard let cleaned = ConsoleAddress.clean(address) else {
             return "That doesn't look like an address. It is four numbers with dots, like 192.168.1.20."
         }
         do {
-            let found = try await ConsoleLocator.resolve(explicit: cleaned)
-            // A preference: the console answers either way, and is used until quit.
-            try? ConfigStore.edit { $0.host = found }
-            pollTask?.cancel()
-            pollTask = nil
-            host = found
-            connection = .connecting
-            start()
+            use(host: try await ConsoleLocator.resolve(explicit: cleaned))
             return nil
         } catch {
             return error.localizedDescription
         }
+    }
+
+    /// Talks to `host` from now on and remembers it, like `ps3 config set host`: a console the
+    /// connection sheet found or the user typed. Only the Mac's config changes, so nothing is logged.
+    func use(host: String) {
+        guard !Snapshot.usesFixtures else { return }
+        try? ConfigStore.edit { $0.host = host }
+        guard host != self.host else { return }
+        self.host = host
+        missedPolls = 0
+        cpuHistory = []
+        rsxHistory = []
+        fanHistory = []
+        // Polled right away; `connection` stays as it is, so an open sheet is not swapped out
+        // for the splash screen while the new address answers.
+        pollTask?.cancel()
+        pollTask = nil
+        start()
     }
 
     private func run() async {

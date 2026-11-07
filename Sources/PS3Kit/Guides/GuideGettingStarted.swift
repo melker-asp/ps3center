@@ -26,7 +26,7 @@ PS3 Center controls your PS3 from the Mac: its status, your games, homebrew and 
 
 If the screen says *The PS3 is on, but HEN isn't enabled*, the console answers on the network but webMAN doesn't. Enable HEN on the PS3, and PS3 Center connects by itself.
 
-If it says *Can't reach the PS3*, check that the PS3 is on and HEN is enabled, then press **Try Again**. If you know the PS3's address, type it in the field below and press **Connect**. More help is in [Troubleshooting](ps3center://guide/troubleshooting).
+If it says *Can't reach the PS3*, check that the PS3 is on and HEN is enabled, then press **Try Again**. **Find PS3…** searches every network the Mac is on, takes an address you type, and shows how to connect a cable. More help is in [Troubleshooting](ps3center://guide/troubleshooting).
 
 ## Set up your folders
 

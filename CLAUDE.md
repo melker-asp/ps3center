@@ -81,6 +81,16 @@ xcodebuild won't find it.
   `load()` is for reading only. A file that can't be decoded is moved aside to
   `<name>.unreadable-<date>`, never overwritten. config.json (`ConfigStore.edit`, there is no `save`),
   installed.json, queue.json, watch.json, playtime.json, imported.json and speeds.json all work so.
+- **The connection** (`Connection.swift`): `MacNetwork.interfaces()` lists the Mac's connections
+  (getifaddrs for addresses and `ifi_baudrate`, SystemConfiguration for names, kinds and routers):
+  cables first, then Internet Sharing (`bridge100`+; `bridge0` is the Thunderbolt Bridge and left out),
+  then Wi-Fi. `Discovery` searches those /24s and `NetServer.macAddresses` uses the same list.
+  `Discovery.find` adds network and firmware per console (`FoundConsole`, from GETSYSINFO). `WiredSetup.plan`
+  picks the advice (no cable, no address on the Mac, a router, Internet Sharing, or a direct cable with
+  the values to type on the PS3). The PS3's network settings are only shown, never written (they are in
+  xRegistry.sys). CLI: `ps3 discover`, `ps3 connection`. The app: `ConnectionSheet` from the Network
+  card, Find PS3… on the connection screen, Settings → Console and the setup guide (all through
+  `AppRouter.openConnection`); `ConsoleStore.use(host:)` switches without the splash.
 - **webMAN's quirks** are handled in `WebMAN.swift` and `FTPClient.swift`:
   - every HTTP request sends `Connection: close` and runs one at a time, except commands that can take minutes
     (`/install.ps3`, `/stat.ps3`): they go through `WebMAN.long` on a connection of their own and
@@ -233,7 +243,7 @@ xcodebuild won't find it.
   `Format`, whose `Format.locale` `Theme.locale` also uses, and `Format.estimate` for time still to go)
   are under Appearance in DESIGN.md. Never compare a display string in
   code (a status text, a label): keep a flag or an enum, so text can change freely. The ones that
-  exist: `OperationKind` (the log's actions; the history table's switch is exhaustive), `Network`
+  exist: `OperationKind` (the log's actions; the history table's switch is exhaustive), `NetworkKind`
   (`.wifi`/`.lan`, also the key in speeds.json), `HealthLevel`, `Thermal` (warm/hot limits for
   the health score, `ps3 status`, the cards and the heat notice), `UpdateSkip`, `Route.isDownload`.
 

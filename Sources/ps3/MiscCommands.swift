@@ -76,12 +76,58 @@ struct Discover: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Look for PS3s running webMAN on the network and save the address.")
 
     func run() async throws {
-        UI.step("Searching \(Discovery.localSubnets().map { "\($0).0/24" }.joined(separator: ", "))…")
-        let found = await Discovery.scan()
+        let interfaces = MacNetwork.interfaces()
+        UI.step("Searching \(Discovery.localSubnets(interfaces).map { "\($0).0/24" }.joined(separator: ", "))…")
+        let found = await Discovery.find(interfaces: interfaces)
         guard let first = found.first else { throw PS3Error.noHost }
-        for host in found { UI.ok("webMAN answers at \(host)") }
-        try ConfigStore.edit { $0.host = first }
-        UI.ok("Saved \(first) as the PS3's address")
+        for console in found {
+            let details = [console.network?.label, console.firmware, console.via.map { "via \($0)" }].compactMap { $0 }
+            UI.ok("webMAN answers at \(console.host)" + (details.isEmpty ? "" : UI.paint("  " + details.joined(separator: " · "), .gray)))
+        }
+        try ConfigStore.edit { $0.host = first.host }
+        UI.ok("Saved \(first.host) as the PS3's address")
+        let prefix = first.host.split(separator: ".").prefix(3).joined(separator: ".")
+        if let cable = interfaces.first(where: { $0.subnetPrefix == prefix && $0.isSlowLink }), let speed = cable.linkSpeedLabel {
+            UI.warn("\(cable.label) only runs at \(speed). Gigabit needs all four pairs in the cable: try a Cat5e or Cat6 cable.")
+        }
+    }
+}
+
+struct Connection: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "The Mac's network connections, and what to enter on the PS3 for a cable.",
+        discussion: "Only shows values: PS3 Center never changes the PS3's network settings."
+    )
+
+    func run() throws {
+        let interfaces = MacNetwork.interfaces()
+        UI.header("This Mac")
+        if interfaces.isEmpty { UI.skip("No network connection.") }
+        let width = (interfaces.map(\.label.count).max() ?? 0) + 2
+        for interface in interfaces {
+            let address = interface.address ?? UI.paint("no address", .yellow)
+            let speed = interface.linkSpeedLabel.map { "  " + UI.paint($0, interface.isSlowLink ? .yellow : .gray) } ?? ""
+            UI.row(interface.label, address + speed, width: width)
+        }
+        if let slow = interfaces.first(where: \.isSlowLink), let speed = slow.linkSpeedLabel {
+            UI.warn("\(slow.label) only runs at \(speed). Gigabit needs all four pairs in the cable: try a Cat5e or Cat6 cable.")
+        }
+
+        let setup = WiredSetup.plan(interfaces, console: ConfigStore.load().host)
+        UI.header("Cable to the PS3")
+        print("  " + setup.advice)
+        if case .direct(_, let ps3) = setup {
+            UI.row("IP Address", ps3.address, width: 17)
+            UI.row("Subnet Mask", ps3.subnetMask, width: 17)
+            if let router = ps3.router { UI.row("Default Router", router, width: 17) }
+            if let dns = ps3.dns { UI.row("Primary DNS", dns, width: 17) }
+            print("  " + UI.paint(WiredSetup.ps3Remaining, .gray))
+        }
+        let measured = SpeedTest.byNetwork()
+        let speeds = [(NetworkKind.wifi, "Wi-Fi"), (.lan, "cable")].compactMap { network, name in
+            SpeedTest.measurement(over: network, in: measured).map { "\(name) \(Format.rate($0.upload))" }
+        }
+        if !speeds.isEmpty { print("\n  " + UI.paint("Measured with ps3 speedtest: " + speeds.joined(separator: ", "), .gray)) }
     }
 }
 

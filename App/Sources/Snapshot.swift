@@ -33,18 +33,18 @@ enum Snapshot {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         render(.status, name: "connecting", console: ConsoleStore(), apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
-            ConnectionView(live: false).frame(height: 640)
+            ConnectionView().frame(height: 640)
         }
         let offline = ConsoleStore()
         offline.loadOfflineFixture()
         render(.status, name: "connecting-offline", console: offline, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
-            ConnectionView(live: false).frame(height: 700)
+            ConnectionView().frame(height: 700)
         }
 
         let henOff = ConsoleStore()
         henOff.loadHenOffFixture()
         render(.status, name: "connecting-hen", console: henOff, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
-            ConnectionView(live: false).frame(height: 640)
+            ConnectionView().frame(height: 640)
         }
 
         // The setup guide, one picture per page, on the fixtures' console.
@@ -111,6 +111,8 @@ enum Snapshot {
         }
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
+        // Fixtures: two consoles found, a USB adapter straight to the PS3 at only 100 Mbit.
+        write(ConnectionSheet(live: false).environment(console), name: "connection", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
         write(SavesView(live: false).environment(maintenance), name: "saves", into: directory)
         write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer).environment(AppRouter()),

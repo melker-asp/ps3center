@@ -288,6 +288,9 @@ final class AppRouter {
     var showsOnboarding = Onboarding.isNeeded
     var showsHelp = false
     var helpItem: HelpItem = .guide(.gettingStarted)
+    /// The connection sheet (Find PS3…): on the window, so it stays open when the console it
+    /// switched to comes online and the splash screen gives way to the tabs.
+    var showsConnection = false
     /// The tour's step while it runs, else nil.
     var tourStep: TourStep?
 
@@ -299,16 +302,26 @@ final class AppRouter {
 
     func openHelp(_ item: HelpItem? = nil) {
         if let item { helpItem = item }
+        present { $0.showsHelp = true }
+    }
+
+    func openConnection() {
+        present { $0.showsConnection = true }
+    }
+
+    /// Shows a sheet on the window. From Settings or Help, those close first and the new sheet
+    /// waits: AppKit drops a sheet presented while another one is still closing.
+    private func present(_ show: @escaping (AppRouter) -> Void) {
         WindowOpener.shared.showMain()
-        guard showsSettings else {
-            showsHelp = true
+        guard showsSettings || showsHelp else {
+            show(self)
             return
         }
-        // From Settings: AppKit drops a sheet presented while another one is still closing.
         showsSettings = false
+        showsHelp = false
         Task {
             try? await Task.sleep(for: .milliseconds(400))
-            showsHelp = true
+            show(self)
         }
     }
 

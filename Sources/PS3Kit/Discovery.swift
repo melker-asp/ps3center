@@ -1,23 +1,12 @@
-import Darwin
 import Foundation
 
-/// Finds webMAN on the local /24 network by asking each address for /cpursx_ps3 (read-only).
+/// Finds webMAN on the Mac's /24 networks by asking each address for /cpursx_ps3 (read-only).
+/// The networks are the Mac's cables, Internet Sharing and Wi-Fi (`MacNetwork`), cables first.
 public enum Discovery {
-    public static func localSubnets() -> [String] {
+    public static func localSubnets(_ interfaces: [MacInterface] = MacNetwork.interfaces()) -> [String] {
         var result: [String] = []
-        var pointer: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&pointer) == 0, let first = pointer else { return [] }
-        defer { freeifaddrs(pointer) }
-        for ifa in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let name = String(cString: ifa.pointee.ifa_name)
-            guard name.hasPrefix("en"), let addr = ifa.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            guard getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 else { continue }
-            let ip = String(cString: host)
-            let octets = ip.split(separator: ".")
-            guard octets.count == 4, !ip.hasPrefix("169.254") else { continue }
-            let prefix = octets.prefix(3).joined(separator: ".")
-            if !result.contains(prefix) { result.append(prefix) }
+        for prefix in interfaces.compactMap(\.subnetPrefix) where !result.contains(prefix) {
+            result.append(prefix)
         }
         return result
     }
@@ -41,7 +30,16 @@ public enum Discovery {
                 if let result { found.append(result) }
                 launchNext()
             }
-            return found.sorted()
+            return order(found, subnets: subnets)
         }
+    }
+
+    /// In the order of the subnets (cables first), then by number: "10.0.1.9" before "10.0.1.35".
+    static func order(_ hosts: [String], subnets: [String]) -> [String] {
+        func key(_ host: String) -> (Int, Int) {
+            let subnet = subnets.firstIndex(of: MacNetwork.prefix(of: host)) ?? subnets.count
+            return (subnet, Int(host.split(separator: ".").last ?? "") ?? 0)
+        }
+        return hosts.sorted { key($0) < key($1) }
     }
 }
