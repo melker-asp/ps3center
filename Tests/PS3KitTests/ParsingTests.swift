@@ -540,6 +540,11 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(byID["yoplayer"]?.latest == nil)
     #expect(byID["ezremote"]?.installable == true)
     #expect(statuses.allSatisfy { !$0.blocked })
+    // Two updates "Uppdatera alla" can install, and one the user has ignored.
+    #expect(statuses.filter { $0.isPendingUpdate && $0.canInstall }.map(\.id) == ["webman", "apollo"])
+    #expect(byID["artemis"]?.state == .updateAvailable)
+    #expect(byID["artemis"]?.ignored == true)
+    #expect(byID["apollo"]?.assetSize == 5_452_595)
 
     let cfw = Dictionary(uniqueKeysWithValues: Fixtures.appStatuses(on: Fixtures.cfwSnapshot).map { ($0.id, $0) })
     #expect(cfw["ps3health"]?.compatibility.verdict == .untested)
@@ -552,6 +557,30 @@ func makeSFO(_ values: [String: String]) -> Data { ParamSFO.encode(values) }
     #expect(games.first { $0.titleID == "BCES00569" }?.updateVersion == "02.11")
     #expect(Fixtures.patches.count == 2)
     #expect(games.map(\.platform.order) == games.map(\.platform.order).sorted())
+}
+
+@Test func ignoringSkipsOneReleaseOnly() {
+    func byID(_ ignored: [String: String]) -> [String: AppStatus] {
+        Dictionary(uniqueKeysWithValues: Fixtures.appStatuses(ignored: ignored).map { ($0.id, $0) })
+    }
+    // The skipped release stays an update, but is no longer pending.
+    let skipped = byID(["apollo": "v2.4.1"])
+    #expect(skipped["apollo"]?.state == .updateAvailable)
+    #expect(skipped["apollo"]?.ignored == true)
+    #expect(skipped["apollo"]?.isPendingUpdate == false)
+    #expect(skipped["apollo"]?.canInstall == true)  // naming it still updates it
+    // A newer release than the skipped one shows again.
+    let newer = byID(["apollo": "v2.4.0"])
+    #expect(newer["apollo"]?.ignored == false)
+    #expect(newer["apollo"]?.isPendingUpdate == true)
+    // Only an update can be ignored: an app that is current is just current.
+    #expect(byID(["pkgi": "v1.3.0"])["pkgi"]?.ignored == false)
+    // HEN never installs itself, but its update can be skipped like any other.
+    #expect(byID(["hen": "3.6.0"])["hen"]?.isPendingUpdate == false)
+
+    #expect(IgnoredUpdates.skips("apollo", latest: "v2.4.1", in: ["apollo": "v2.4.1"]))
+    #expect(!IgnoredUpdates.skips("apollo", latest: nil, in: ["apollo": "v2.4.1"]))
+    #expect(!IgnoredUpdates.skips("pkgi", latest: "v1.3.0", in: ["apollo": "v2.4.1"]))
 }
 
 // MARK: The Mac's games and the queue

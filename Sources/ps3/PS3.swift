@@ -26,9 +26,10 @@ struct PS3: AsyncParsableCommand {
           ps3 verify Spel.dec.iso      Kontrollera en skivkopia mot originalet (IRD)
           ps3 iso make Spelmapp        Gör en ISO av en spelmapp; split/join/extract som PS3 ISO Tools
           ps3 ps2 classic Spel.iso     Gör ett PS2-spel till en PS2 Classic, som startar på HEN
+          ps3 mcp                      MCP-server så att Claude kan läsa och felsöka PS3:an
         """,
         version: "0.1.0",
         subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, ISO.self, PS2.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Record.self, Media.self, Beep.self, Music.self, Serve.self,
-                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
+                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, MCP.self, Popup.self, Refresh.self, History.self, Discover.self, Config.self]
     )
 }

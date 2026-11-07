@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public struct GitHubRelease: Decodable, Sendable {
@@ -6,9 +7,11 @@ public struct GitHubRelease: Decodable, Sendable {
         public let size: Int64
         public let browserDownloadURL: URL
         public let updatedAt: String
+        /// "sha256:<hex>", on assets uploaded since GitHub started computing it (2025).
+        public let digest: String?
 
         enum CodingKeys: String, CodingKey {
-            case name, size
+            case name, size, digest
             case browserDownloadURL = "browser_download_url"
             case updatedAt = "updated_at"
         }
@@ -111,6 +114,35 @@ public enum GitHub {
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
         try fm.moveItem(at: temp, to: destination)
+    }
+
+    /// Checks a downloaded release file against what GitHub says about it: the size, and the
+    /// SHA-256 in the asset's `digest` when there is one. A file that does not match is removed,
+    /// so a broken or swapped package never reaches the console. True when the SHA-256 was checked.
+    @discardableResult
+    public static func verify(_ file: URL, size: Int64, digest: String?) throws -> Bool {
+        let fm = FileManager.default
+        let actual = ((try? fm.attributesOfItem(atPath: file.path))?[.size] as? NSNumber)?.int64Value ?? -1
+        guard actual == size else {
+            try? fm.removeItem(at: file)
+            throw PS3Error.github("\(file.lastPathComponent) blev \(Format.bytes(max(actual, 0))) men ska vara \(Format.bytes(size)). Filen togs bort; försök igen.")
+        }
+        guard let digest, digest.lowercased().hasPrefix("sha256:") else { return false }
+        guard try sha256(of: file) == digest.dropFirst("sha256:".count).lowercased() else {
+            try? fm.removeItem(at: file)
+            throw PS3Error.github("Kontrollsumman för \(file.lastPathComponent) stämmer inte med GitHubs. Filen togs bort; försök igen.")
+        }
+        return true
+    }
+
+    static func sha256(of file: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     public static func data(_ url: URL) async throws -> Data {

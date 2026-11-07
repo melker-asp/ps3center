@@ -12,7 +12,8 @@ PS3Kit (Swift-bibliotek)   ← all logik: webMAN, FTP, ISO/SFO/PKG, uppdateringa
 
 CLI:t skriver också JSON (`--json`, och automatiskt när utdata skickas vidare), och
 `ps3 status --watch --json` strömmar NDJSON. Det gör att widgets, Raycast eller Claude kan
-läsa samma data utan appen.
+läsa samma data utan appen. `ps3 mcp` ger Claude samma data som MCP-verktyg (bara läsning i
+första versionen; verktyg som ändrar konsolen får i så fall samma torrkörning och logg som CLI:t).
 
 ## Principer från Mole
 
@@ -20,7 +21,7 @@ läsa samma data utan appen.
 |---|---|
 | `mo status` är skrivskyddat | `ps3 status` läser bara |
 | `--dry-run` före allt som ändrar något | `send`, `apps update` och `apps install` har `--dry-run` |
-| Frågar innan ändringar, `--yes` hoppar över frågan | `apps update` frågar per program, `-y` svarar ja |
+| Frågar innan ändringar, `--yes` hoppar över frågan | `apps update` frågar per program, `-y` svarar ja; appens Uppdatera alla visar en granskning först |
 | Skyddade sökvägar rörs aldrig | HEN och plugins installeras aldrig automatiskt, bara råd |
 | `~/Library/Logs/mole/operations.log` + `mo history` | `~/Library/Logs/ps3center/operations.log` + `ps3 history` |
 | `~/.config/mole/` | `~/.config/ps3center/config.json` (delas med appen) |
@@ -43,7 +44,7 @@ väntar tills inget spel körs. Uppladdningar börjar direkt. `--force` kör än
 |---|---|---|
 | **Status** | `ps3 status` | Kort: Hälsa, CPU, RSX, Fläkt, Ledigt, Nätverk, Spelar nu, versioner (FW/HEN/webMAN) |
 | **Spel** | `ps3 games`, `ps3 send`, `ps3 serve`, `ps3 usb`, `ps3 iso` | Bibliotek Mac ↔ PS3, dra och släpp för att skicka, montera/starta, ta bort |
-| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg. "Från Macen" (`apps mac`) visar .pkg-filerna i paketmapparna per mapp, som Macens spel i Spel-fliken; de installeras där de ligger, med samma säkerhetsspärr när title ID:t finns i katalogen. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
+| **Appar** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Som Moles Apps → Updates: "02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla. Ignorera hoppar över just den versionen (`apps ignore`); en nyare visas igen. Uppdatera alla visar först en granskning och efteråt en rapport. Fliken "Hämta" visar `apps available`, grupperad som System, Program och webMAN-tillägg, med Nytt (release de senaste 30 dagarna) överst. "Från Macen" (`apps mac`) visar .pkg-filerna i paketmapparna per mapp, som Macens spel i Spel-fliken; de installeras där de ligger, med samma säkerhetsspärr när title ID:t finns i katalogen. Ett klick på en rad öppnar detaljsidan (`apps info`): version, kompatibilitet med konsolen och README med bilder |
 | **Underhåll** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Sparfiler och systemfiler till Macen, Städning som Moles Optimize (en rapport med Klart och det som återstår, med skälet), Lagring som Moles Analyze (en stapel över /dev_hdd0) och Skivan |
 | **Menyraden** | `ps3 status --watch` | Kompakt status + snabbknappar (Skicka filer, Uppdatera spellistan, Avsluta spelet, Stäng av), Starta vid inloggning |
 
@@ -77,9 +78,12 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   alla flikar lika. Sparas som `theme` i `config.json`.
 - Hjältebild som speglar hälsan. Mole använder en planet; här kan det vara konsolen eller en
   skiva som lyser i hälsofärgen.
-- Granskningsvy före ändringar: grupper med kryssrutor och storlek, och en vit huvudknapp som
-  säger exakt vad som händer ("Installera 2 uppdateringar").
-- Detaljrapport efteråt: Klart / Hoppade över, med skälet högerställt i grått.
+- **Granskningsvy före ändringar:** grupper med kryssrutor och storlek, och en vit huvudknapp som
+  säger exakt vad som händer ("Installera 2 uppdateringar"). Finns när spel skickas
+  (`SendReviewView`) och för Uppdatera alla (`UpdateReviewView`), som också visar vad som hoppas
+  över och varför, ett spel som får kön att vänta och vad ett paket kräver efteråt.
+- **Detaljrapport efteråt:** Klart / Misslyckades / Hoppade över, med skälet högerställt i grått.
+  Efter Uppdatera alla ligger den överst i Uppdateringar tills den stängs (`UpdateReportCard`).
 
 ## Fakta om konsolen som koden bygger på
 
@@ -282,7 +286,7 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
   fick två poster med rätt start och samma MD5 som källan (kontrollerat med en egen parser,
   eftersom macOS `cd9660` bara läser den sista biten av en sådan fil). Dela, foga ihop och packa
   upp gav samma filer. `bsdtar` tar regionstabellen i sektor 0 för LZMA och kan inte läsa ISO:n.
-  Inte provat på konsolen (test 15 i PLAN.md).
+  Inte provat på konsolen (test 17 i PLAN.md).
 - **PS2 Classics på HEN** (byggt 7 nov, `PS2Classics.swift`; källorna nedan):
   - webMAN (`include/mount/mount_misc.h`, `ps2_classic.h`) startar `<namn>.BIN.ENC` i PS2ISO genom
     att länka den som `/dev_hdd0/game/PS2U10000/USRDIR/ISO.BIN.ENC` i PS2 Classics Launcher (som
@@ -306,7 +310,7 @@ Från Mole: layouten. Från PlayStation-appen: färger, knappar och känsla. All
     jämför med SHA-256 i koden och sparar i `~/.config/ps3center/ps2classic-keys.json` (0600).
   - Provat på Macen 7 nov: CMAC mot RFC 4493, kryptering och dekryptering med påhittade nycklar
     (huvud, LIMG, tabeller över blockgränsen, råa CD-sektorer), och Hämta plus en PS2 Classic av en
-    egen test-ISO med de riktiga nycklarna. Om spelet startar visar test 16.
+    egen test-ISO med de riktiga nycklarna. Om spelet startar visar test 18.
 
 ## Färdplan
 

@@ -22,9 +22,18 @@ Kvar utanför koden:
   Macen före varje commit.
 - Proven 1–16 under Prova på konsolen.
 
-Byggt sist (7 nov): fas 10, ISO-verktygen från PC:n (`ps3 iso`, Till USB-disk… i Spel-fliken) och
-PS2 Classics (`ps3 ps2`, Gör om till PS2 Classic… på ett PS2-spel under Macen).
-Före det (6 nov): sortering, att `send` sparar det den vet, tiden med kabel och menyn i `ps3`.
+Byggt sist (7 nov, kväll): `ps3 mcp`, en MCP-server som bara läser, och tre idéer från ps3.world:
+paket från GitHub kontrolleras mot storlek och SHA-256, Nytt i Hämta och fler felkoder med råd
+(test 16).
+
+Byggt 7 nov: Ignorera i Appar och `ps3 apps ignore`/`unignore`, och en granskning före
+och en rapport efter Uppdatera alla (test 15). Samma dag: fas 10, ISO-verktygen från PC:n
+(`ps3 iso`, Till USB-disk… i Spel-fliken) och PS2 Classics (`ps3 ps2`, Gör om till PS2 Classic…
+på ett PS2-spel under Macen), test 17 och 18.
+
+Byggt 6 nov: sortering på namn, storlek och senast tillagt (Spel-fliken och
+`ps3 games --sort`), att `send` sparar titel, title ID och ikon för spelen den skickar, tiden med
+kabel i granskningen, ett tips när Macen går på batteri och menyn i `ps3`.
 
 ## Målbild
 
@@ -360,7 +369,7 @@ Kvar att prova hemma: test 12.
 
 ### Fas 10 – PC-verktygen för ISO:er på Macen
 
-**Läge 7 nov 2026:** byggt, provat på Macen (se DESIGN.md), oprovat på konsolen: test 15.
+**Läge 7 nov 2026:** byggt, provat på Macen (se DESIGN.md), oprovat på konsolen: test 17.
 
 Verktygen på ps3.world/iso-tools är Windows-program. Det här är vad de blev:
 
@@ -384,7 +393,7 @@ Verktygen på ps3.world/iso-tools är Windows-program. Det här är vad de blev:
 - Appen: Till USB-disk… i urvalsraden under Macen öppnar `USBCopyView`: diskarna som piller,
   vad som händer med varje spel (delar, blir en ISO), ledigt före och efter, förlopp och Mata ut.
 
-**PS2 Classics med nycklarna bara på Macen (byggt 7 nov, oprovat på konsolen: test 16).** Fakta
+**PS2 Classics med nycklarna bara på Macen (byggt 7 nov, oprovat på konsolen: test 18).** Fakta
 och källor står i DESIGN.md. På HEN behövs bara PS2 Classics Launcher (finns i Appar) och en
 `.BIN.ENC` i PS2ISO; PS3HEN gör licensen själv. Så blev det:
 - `PS2Classic.encrypt` i PS3Kit: ISO → `<namn>.BIN.ENC` med LIMG i farten (ISO:n på Macen
@@ -396,7 +405,7 @@ och källor står i DESIGN.md. På HEN behövs bara PS2 Classics Launcher (finns
   har), eller en knapp som hämtar dem ur webMAN MOD:s repo på GitHub och sparar dem på Macen.
 - `ps3 ps2 classic <iso>` och Gör om till PS2 Classic där granskningsvyn och spelsidan i dag
   varnar för PS2-ISO:er på HEN. Kräver att PS2 Classics Launcher är installerad.
-- Prov: test 16 (en PS2-ISO på konsolen). Krypteringen går att kontrollera fram och tillbaka i
+- Prov: test 18 (en PS2-ISO på konsolen). Krypteringen går att kontrollera fram och tillbaka i
   `swift test` med testnycklar, men om spelet startar visar bara konsolen.
 - Beslutat 7 nov: nycklarna får ligga på Macen, och PS3 Center får hämta dem (Hämta nycklarna i
   appen, `ps3 ps2 keys --fetch`). Importera finns också.
@@ -488,13 +497,26 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     - `ps3 beep`, `ps3 music on` under ett spel med musik i XMB:n, och
       `ps3 maintain block-updates` följt av en omstart: säger Inställningar → Systemuppdatering
       att ingen uppdatering finns?
-15. Fas 10, med en USB-sticka som är formaterad som "MS-DOS (FAT)":
+15. Appar:
+    - Tryck Ignorera på en uppdatering. Flyttas den till Ignorerade, försvinner den från
+      sifferbadgen och säger `ps3 apps` och `ps3 apps ignore` samma sak? Sluta ignorera den sedan.
+    - Uppdatera alla: stämmer storlekarna i granskningen med paketen på GitHub, och syns HEN under
+      Hoppas över? Bocka ur ett program och installera resten. Kommer rapporten när kön är klar, med
+      det urbockade under Hoppade över? Prova gärna medan ett spel körs, så att kön får vänta.
+16. MCP och ps3.world-idéerna:
+    - `claude mcp add ps3 -- ~/.local/bin/ps3 mcp`, och fråga Claude om PS3:ans status, om det finns
+      uppdateringar och vad en felkod betyder. Stäng av HEN (starta om PS3:an): säger Claude att HEN
+      inte är aktiverat?
+    - Installera eller uppdatera ett program: står det "stämmer med GitHubs kontrollsumma" i förloppet
+      (`ps3 apps install …`)?
+    - Hämta: stämmer raden Nytt med programmen som fått en release den senaste månaden?
+17. Fas 10, med en USB-sticka som är formaterad som "MS-DOS (FAT)":
     - `ps3 iso split "Blur (Europe) (En,Fr,De,Es,It).iso" /Volumes/<stickan>/PS3ISO` (eller lägg
       mappen med Blur i Spelmappar och välj Till USB-disk… i Spel-fliken). Sätt stickan i PS3:an:
       syns Blur i webMAN:s spellista, och startar det?
     - Har du ett spel som mapp (GAMES, t.ex. från `ps3 rip`): `ps3 iso make <mappen>` och starta
       ISO:n från PS3ISO. Kör `ps3 verify` på ISO:n om spelet finns i IRD-databasen.
-16. PS2 Classics (fas 10):
+18. PS2 Classics (fas 10):
     - Installera PS2 Classics Launcher under Appar → Hämta om den saknas.
     - Ett eget PS2-spel under Macen: högerklicka → Gör om till PS2 Classic…, Hämta nycklarna, Gör om,
       Skicka till PS3:an. Syns spelet i webMAN:s lista under PS2, och startar det? Om inte: vad

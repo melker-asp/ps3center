@@ -89,6 +89,24 @@ xcodebuild den inte.
   `compatibility`/`blocked` och nollar `canInstall`/`installable`; `AppsService.install` och CLI:ts
   `apps install` (även egna .pkg via title ID) stoppar före nedladdning. Okänd firmware blockerar
   program med krav.
+- **Ignorerade uppdateringar** (`IgnoredUpdates.swift`): katalog-id → release-tagg i `config.json`
+  (`ignoredUpdates`). `AppsService.status` sätter `AppStatus.ignored` när just den taggen är den
+  senaste, så en nyare release visas igen. `isPendingUpdate` är det som räknas: badges,
+  notiser, Uppdatera alla och `ps3 apps update` utan namn. Bara Macen ändras, så ingen
+  `OperationLog` eller `--dry-run`.
+- **Uppdatera alla** i appen: `AppsStore.updatePlan()` → `UpdateReviewView` →
+  `updateAll(_:from:)`, som köar det valda och sparar en `UpdateBatch`. När kön är tom gör
+  `finishBatch()` en `UpdateReport` (Klart / Misslyckades / Hoppade över) som `UpdateReportCard`
+  visar överst i Uppdateringar.
+- **Paket från GitHub** kontrolleras med `GitHub.verify` (storlek och `digest` "sha256:…" från
+  release-filen) direkt efter nedladdningen i `AppsService.install`; stämmer de inte tas filen bort.
+  `AppStatus.releaseDate` (bara för program som följer releaserna) ger Nytt i Hämta
+  (`isNewRelease`, 30 dagar).
+- **MCP** (`MCPServer.swift`, `ps3 mcp`): JSON-RPC 2.0 över stdio, en rad per meddelande, och
+  inget annat får skrivas till stdout. `consoleTools` är verktygen; alla läser bara
+  (`readOnlyHint`). Ett verktyg som misslyckas svarar med `isError`, inte ett protokollfel. Svarar
+  inte webMAN men konsolen gör det säger felet att HEN är av. Verktyg som ändrar konsolen ska i så
+  fall följa samma regler som CLI:t (fråga, `--dry-run`, `OperationLog`).
 - **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
   `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
   Samma data visar `ps3 apps info`.
@@ -133,7 +151,8 @@ xcodebuild den inte.
     (bara `.BIN.ENC` på HEN).
   - `IRD.swift`: `IRD`, `DiscVerifier` och `IRDLibrary` (FlexBy420 på GitHub). `ISOImage` läser
     Joliet för det.
-  - `ErrorCodes.swift`: 0x8001xxxx ur RPCS3. `TitleDatabase.swift`: aldostools titleid.txt.
+  - `ErrorCodes.swift`: 0x8001xxxx ur RPCS3, plus XMB:ns vanligaste koder (`xmbTable`, betydelsen
+    kontrollerad mot ps3.world/error-codes; råden är våra egna). `TitleDatabase.swift`: aldostools titleid.txt.
   - I appen finns knapparna i Status-fliken (Spela in), Fjärrkontroll (Ladda om XMB, Pip,
     Skärmbilder, Musik), på spelsidan och i Underhåll.
 - **Fas 10** (ISO-verktygen från PC:n, `ISOTools.swift`): `PS3ISOBuilder` gör en ISO av en

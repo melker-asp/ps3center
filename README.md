@@ -50,10 +50,13 @@ Appen har fyra flikar i Mole-stil:
   Är PS3:an på Wi-Fi visar granskningen hur lång tid det skulle ta med kabel, och går Macen på
   batteri sägs det att kön stannar om locket stängs. Spel som skickas från Macen behåller sin
   titel, sitt title ID och sin ikon på PS3:an direkt, innan webMAN har läst dem.
-- **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
-  Ett installerat program kan avinstalleras från sin sida. Under Från Macen visas .pkg-filerna i
-  dina paketmappar (knappen Paketmappar), med om de redan är installerade; de installeras med ett
-  klick och ligger kvar på Macen.
+- **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla) och en
+  Hämta-lista. Ignorera hoppar över just den versionen; kommer en nyare visas den igen. Uppdatera
+  alla visar först en granskning (vad som installeras, storlek, vad som hoppas över och varför) och
+  efteråt en rapport: Klart, Misslyckades och Hoppade över. Ett installerat program kan
+  avinstalleras från sin sida. Under Från Macen visas .pkg-filerna i dina paketmappar (knappen
+  Paketmappar), med om de redan är installerade; de installeras med ett klick och ligger kvar på
+  Macen.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 - **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
@@ -129,10 +132,13 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket`; ett paket i paketmapparna (filnamn eller title ID räcker) ligger kvar |
 | `ps3 apps mac` | Paketen i Macens paketmappar och om de är installerade (`--missing`, `--offline`, `--json`) |
 | `ps3 apps uninstall <namn>` | Avinstallerar ett program (mappen i /dev_hdd0/game); inte HEN, webMAN eller plugins (`--dry-run`, `-y`) |
-| `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
+| `ps3 apps update [namn…]` | Granska och installera uppdateringar; ignorerade hoppas över om de inte anges med namn (`--dry-run`, `-y`) |
+| `ps3 apps ignore [namn…]` | Hoppar över den senaste versionen av ett program, utan namn visas vad som ignoreras. En nyare version visas igen |
+| `ps3 apps unignore <namn…>` | Visar ett programs uppdateringar igen |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |
 | `ps3 refresh [--xmb]` | Uppdaterar spellistan (som SELECT + L3); `--xmb` laddar om XMB:n också |
-| `ps3 error <kod>` | Förklarar en felkod som 80010006 |
+| `ps3 error <kod>` | Förklarar en felkod som 80010006, och de vanligaste för skiva, Blu-ray, video, nätverk och konto |
+| `ps3 mcp` | MCP-server så att t.ex. Claude kan läsa och felsöka PS3:an (se Claude och MCP) |
 | `ps3 history` | Vad verktyget har ändrat (`~/Library/Logs/ps3center/operations.log`) |
 | `ps3 discover` | Letar upp PS3:an på nätverket och sparar adressen |
 | `ps3 config [set host/root …]` | Inställningar i `~/.config/ps3center/config.json` |
@@ -145,6 +151,29 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 - **Säkerhetsspärr:** innan något installeras läser verktyget konsolens firmware (HEN eller CFW,
   CEX eller DEX, version). Program som inte fungerar på den blockeras, både via namn och som egen
   .pkg-fil med ett känt title ID. Går firmwaren inte att läsa blockeras program som har krav.
+
+- **Paket från GitHub kontrolleras** mot storleken och SHA-256-summan som GitHub anger, innan de
+  arkiveras eller skickas. Stämmer de inte tas filen bort.
+- **Nytt i Hämta:** program vars senaste release är högst 30 dagar gammal har en egen rad överst
+  och etiketten NYTT (`ps3 apps available` skriver "ny version").
+
+## Claude och MCP
+
+`ps3 mcp` är en MCP-server över stdio. Med den kan Claude läsa PS3:an och hjälpa till att felsöka:
+status och hälsa, homebrew och uppdateringar, spelen, underhållsrapporten, historiken och
+felkoder. Verktygen läser bara; ändringar görs med `ps3` eller i appen.
+
+```bash
+claude mcp add ps3 -- ~/.local/bin/ps3 mcp          # Claude Code
+```
+
+I Claude Desktop läggs den till i `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "ps3": { "command": "/Users/<du>/.local/bin/ps3", "args": ["mcp"] } } }
+```
+
+Fråga sedan till exempel "Varför är min PS3 så varm?" eller "Vad betyder 8001003D?".
 
 ## Felsökning
 

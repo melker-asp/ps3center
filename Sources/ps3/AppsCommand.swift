@@ -5,7 +5,7 @@ import PS3Kit
 struct Apps: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Homebrew på PS3:an: versioner, uppdateringar och installation av paket.",
-        subcommands: [List.self, Available.self, Mac.self, Info.self, Update.self, Install.self, Uninstall.self],
+        subcommands: [List.self, Available.self, Mac.self, Info.self, Update.self, Install.self, Uninstall.self, Ignore.self, Unignore.self],
         defaultSubcommand: List.self
     )
 
@@ -28,7 +28,7 @@ struct Apps: AsyncParsableCommand {
             if asJSON { UI.json(statuses); return }
             UI.endProgress()
             Apps.render(statuses)
-            if statuses.contains(where: \.canInstall) {
+            if statuses.contains(where: { $0.canInstall && !$0.ignored }) {
                 print("\n  Kör " + UI.paint("ps3 apps update", .bold) + " för att granska och installera.")
             }
         }
@@ -42,7 +42,7 @@ struct Apps: AsyncParsableCommand {
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Uppdatera bara dessa (t.ex. apollo pkgi). Utelämna för alla.")
+        @Argument(help: "Uppdatera bara dessa (t.ex. apollo pkgi), även ignorerade. Utelämna för alla utom de ignorerade.")
         var names: [String] = []
 
         @Flag(name: [.short, .long], help: "Svara ja på alla frågor.")
@@ -64,8 +64,13 @@ struct Apps: AsyncParsableCommand {
             let statuses = try await AppsService(host: host).check(entries: entries)
             UI.endProgress()
 
-            let installable = statuses.filter(\.canInstall)
-            let advisories = statuses.filter { $0.state == .updateAvailable && !$0.canInstall }
+            // An ignored update is left out unless it was named.
+            let skipsIgnored = names.isEmpty
+            for status in statuses where skipsIgnored && status.ignored {
+                UI.skip("\(status.name) \(status.latest ?? "") ignoreras  (ps3 apps unignore \(status.id))")
+            }
+            let installable = statuses.filter { $0.canInstall && !(skipsIgnored && $0.ignored) }
+            let advisories = statuses.filter { $0.state == .updateAvailable && !$0.canInstall && !(skipsIgnored && $0.ignored) }
             for status in advisories {
                 UI.warn("\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?"): \(status.note ?? "uppdatera manuellt")")
             }
@@ -88,7 +93,8 @@ struct Apps: AsyncParsableCommand {
             let printer = TransferPrinter(dryRun: dryRun)
             var installed = 0
             for status in installable {
-                let line = "\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?")"
+                let size = status.assetSize.map { " (\(Format.bytes($0)))" } ?? ""
+                let line = "\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?")\(size)"
                 if dryRun {
                     UI.step(line + UI.paint("  \(status.assetName ?? "")", .gray))
                     continue
@@ -138,6 +144,10 @@ struct Apps: AsyncParsableCommand {
                         marker = UI.paint("⊘", .red)
                         plain = "fungerar inte"
                         version = UI.paint(plain, .red)
+                    case (.some(let v), .updateAvailable) where s.ignored:
+                        marker = UI.paint("↑", .gray)
+                        plain = "\(v) → \(s.latest ?? "?")"
+                        version = UI.paint(plain, .gray)
                     case (.some(let v), .updateAvailable):
                         marker = UI.paint("↑", .yellow)
                         plain = "\(v) → \(s.latest ?? "?")"
@@ -153,7 +163,10 @@ struct Apps: AsyncParsableCommand {
                     }
                     let pad = String(repeating: " ", count: max(1, 18 - plain.count))
                     let id = UI.paint(s.id.padding(toLength: 13, withPad: " ", startingAt: 0), .gray)
-                    print("  \(marker) \(name)\(id)\(version)\(pad)" + UI.paint(s.blocked ? s.compatibility.summary : s.summary, .gray))
+                    let detail = s.blocked ? s.compatibility.summary
+                        : s.ignored ? "ignorerad: \(s.summary)"
+                        : s.isNewRelease() ? "ny version: \(s.summary)" : s.summary
+                    print("  \(marker) \(name)\(id)\(version)\(pad)" + UI.paint(detail, .gray))
                 }
                 print()
             }
@@ -452,7 +465,11 @@ struct Apps: AsyncParsableCommand {
         if let repo = entry.repository { UI.row("Källa", "https://github.com/\(repo)") } else { UI.row("Källa", entry.homepage) }
         UI.row("Installerad", status.installed ?? UI.paint("nej", .gray))
         if let latest = status.latest {
-            UI.row("Senaste", status.state == .updateAvailable ? UI.paint(latest, .bold, .yellow) : latest)
+            if status.ignored {
+                UI.row("Senaste", latest + UI.paint("  (ignorerad, visa igen med ps3 apps unignore \(entry.id))", .gray))
+            } else {
+                UI.row("Senaste", status.state == .updateAvailable ? UI.paint(latest, .bold, .yellow) : latest)
+            }
         }
         UI.row("Din PS3", console.label)
         let compatibility = status.compatibility
@@ -526,7 +543,8 @@ struct Apps: AsyncParsableCommand {
     }
 
     static func render(_ statuses: [AppStatus]) {
-        let updates = statuses.filter { $0.state == .updateAvailable }
+        let updates = statuses.filter(\.isPendingUpdate)
+        let ignored = statuses.filter { $0.state == .updateAvailable && $0.ignored }
         let current = statuses.filter { $0.state == .upToDate }
         let manual = statuses.filter { $0.state == .manual || $0.state == .error }
         let missing = statuses.filter { $0.state == .notInstalled }
@@ -549,6 +567,13 @@ struct Apps: AsyncParsableCommand {
             print()
             UI.header("Kolla manuellt", detail: "\(manual.count)")
             for s in manual { UI.skip(name(s) + (s.installed ?? "") + "  " + (s.note ?? "")) }
+        }
+        if !ignored.isEmpty {
+            print()
+            UI.header("Ignorerade", detail: "\(ignored.count)")
+            for s in ignored {
+                UI.skip(name(s) + "\(s.installed ?? "?") → \(s.latest ?? "?")  ps3 apps unignore \(s.id)")
+            }
         }
         if !missing.isEmpty {
             print()
@@ -588,6 +613,76 @@ extension Apps {
             }
             let printer = TransferPrinter(dryRun: dryRun)
             try await AppsService(host: host).uninstall(entry, options: options) { printer.handle($0) }
+        }
+    }
+}
+
+extension Apps {
+    struct Ignore: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Hoppa över den senaste versionen av ett program. Utan namn visas vad som ignoreras.",
+            discussion: """
+            ps3 apps ignore artemis          Visa inte Artemis senaste version som en uppdatering
+            ps3 apps ignore                  Lista det som ignoreras
+            Det gäller bara den versionen: kommer en nyare visas uppdateringen igen. Bara Macens
+            inställningar ändras (ignoredUpdates i config.json), aldrig konsolen. `ps3 apps update`
+            hoppar över det som ignoreras, utom när programmet anges med namn.
+            """
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Programnamn (se ps3 apps).")
+        var names: [String] = []
+
+        func run() async throws {
+            guard !names.isEmpty else {
+                let ignored = IgnoredUpdates.load()
+                guard !ignored.isEmpty else {
+                    UI.ok("Inga uppdateringar ignoreras.")
+                    return
+                }
+                UI.header("Ignorerade", detail: "\(ignored.count)")
+                for (id, version) in ignored.sorted(by: { $0.key < $1.key }) {
+                    let name = Catalog.entries.first { $0.id == id }?.name ?? id
+                    UI.skip(name.padding(toLength: 22, withPad: " ", startingAt: 0) + version)
+                }
+                print("\n  Visa igen med " + UI.paint("ps3 apps unignore <namn>", .bold) + ".")
+                return
+            }
+            let entries = try names.map(Apps.resolve)
+            let host = try await Console.host(global)
+            UI.progress("Kollar versioner på PS3:an och GitHub…")
+            let statuses = try await AppsService(host: host).check(entries: entries)
+            UI.endProgress()
+            for status in statuses {
+                guard status.state == .updateAvailable, let latest = status.latest else {
+                    UI.skip("\(status.name) har ingen uppdatering att ignorera.")
+                    continue
+                }
+                try IgnoredUpdates.ignore(status.id, version: latest)
+                UI.ok("\(status.name) \(latest) ignoreras. Kommer en nyare version visas den igen.")
+            }
+        }
+    }
+
+    struct Unignore: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Visa ett programs uppdateringar igen efter ps3 apps ignore."
+        )
+
+        @Argument(help: "Programnamn (se ps3 apps ignore).")
+        var names: [String]
+
+        func run() throws {
+            for name in names {
+                let entry = try Apps.resolve(name)
+                if try IgnoredUpdates.unignore(entry.id) {
+                    UI.ok("\(entry.name) visas igen när det finns en uppdatering.")
+                } else {
+                    UI.skip("\(entry.name) ignorerades inte.")
+                }
+            }
         }
     }
 }

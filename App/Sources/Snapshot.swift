@@ -99,6 +99,13 @@ enum Snapshot {
             MaintenanceView(scrolls: false)
         }
         render(.apps, name: "apps-updates", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
+        // The review before "Uppdatera alla", and in the fixtures the report afterwards.
+        write(UpdateReviewView(plan: apps.updatePlan(), scrolls: false).environment(console).environment(apps), name: "apps-review", into: directory)
+        if usesFixtures {
+            apps.loadFixtureReport()
+            render(.apps, name: "apps-report", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .updates, scrolls: false) }
+            apps.dismissReport()
+        }
         render(.apps, name: "apps-get", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { AppsView(section: .get, scrolls: false) }
         // The Mac's packages, one section per package folder.
         if !usesFixtures { await apps.loadPackages(host: console.host) }
