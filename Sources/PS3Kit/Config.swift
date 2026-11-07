@@ -22,6 +22,8 @@ public struct PS3Config: Codable, Equatable, Sendable {
     /// the speed test. Defaults 1024 and 2.
     public var ftpChunkKB: Int?
     public var ftpWindow: Int?
+    /// Updates the user chose to skip: catalog id → the release tag they skipped. See `IgnoredUpdates`.
+    public var ignoredUpdates: [String: String]?
 
     public init(host: String? = nil, root: String? = nil, theme: String? = nil, folders: [String: [String]]? = nil) {
         self.host = host

@@ -50,8 +50,11 @@ Appen har fyra flikar i Mole-stil:
   Är PS3:an på Wi-Fi visar granskningen hur lång tid det skulle ta med kabel, och går Macen på
   batteri sägs det att kön stannar om locket stängs. Spel som skickas från Macen behåller sin
   titel, sitt title ID och sin ikon på PS3:an direkt, innan webMAN har läst dem.
-- **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Uppdatera alla) och en Hämta-lista.
-  Ett installerat program kan avinstalleras från sin sida.
+- **Appar:** uppdateringar ("02.40 → 02.41", Uppdatera / Ignorera / Uppdatera alla) och en
+  Hämta-lista. Ignorera hoppar över just den versionen; kommer en nyare visas den igen. Uppdatera
+  alla visar först en granskning (vad som installeras, storlek, vad som hoppas över och varför) och
+  efteråt en rapport: Klart, Misslyckades och Hoppade över. Ett installerat program kan
+  avinstalleras från sin sida.
   Ikonerna är programmens egna XMB-ikoner från konsolen. Klicka på ett program för en
   detaljsida med version, om det fungerar på din PS3 och README med bilder från GitHub.
 - **Underhåll:** sparfilerna kopieras till Macen (själv en gång i veckan, eller med Kopiera nu) och
@@ -121,7 +124,9 @@ spelens egna bilder. Kugghjulet uppe till höger öppnar Utseende med PS-appens 
 | `ps3 apps install <namn…>` | Hämtar senaste versionen från GitHub och installerar, t.ex. `ps3 apps install ezremote` (`--reinstall`, `--dry-run`) |
 | `ps3 apps install <pkg…>` | Installerar en egen .pkg-fil direkt och arkiverar den i `_Installerat/Paket` |
 | `ps3 apps uninstall <namn>` | Avinstallerar ett program (mappen i /dev_hdd0/game); inte HEN, webMAN eller plugins (`--dry-run`, `-y`) |
-| `ps3 apps update [namn…]` | Granska och installera uppdateringar (`--dry-run`, `-y`) |
+| `ps3 apps update [namn…]` | Granska och installera uppdateringar; ignorerade hoppas över om de inte anges med namn (`--dry-run`, `-y`) |
+| `ps3 apps ignore [namn…]` | Hoppar över den senaste versionen av ett program, utan namn visas vad som ignoreras. En nyare version visas igen |
+| `ps3 apps unignore <namn…>` | Visar ett programs uppdateringar igen |
 | `ps3 popup <text>` | Visar ett meddelande på TV:n |
 | `ps3 refresh [--xmb]` | Uppdaterar spellistan (som SELECT + L3); `--xmb` laddar om XMB:n också |
 | `ps3 error <kod>` | Förklarar en felkod som 80010006 |

@@ -13,6 +13,7 @@ struct AppsView: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(AppsStore.self) private var apps
     @State private var section: Section
+    @State private var plan: AppsStore.UpdatePlan?
     var scrolls = true
 
     init(section: Section = .updates, scrolls: Bool = true) {
@@ -40,6 +41,7 @@ struct AppsView: View {
             guard let host = console.host, apps.phase == .idle || apps.statuses.isEmpty else { return }
             await apps.load(host: host)
         }
+        .sheet(item: $plan) { UpdateReviewView(plan: $0) }
     }
 
     private var toolbar: some View {
@@ -125,14 +127,20 @@ struct AppsView: View {
     }
 
     @ViewBuilder private var updatesList: some View {
+        if let report = apps.report {
+            UpdateReportCard(report: report) { withAnimation(.easeInOut(duration: 0.2)) { apps.dismissReport() } }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+        }
         if apps.updates.isEmpty {
             SectionHeader(title: "Uppdateringar", count: 0)
             Text("Allt är aktuellt.")
                 .font(.system(size: 14)).foregroundStyle(Theme.secondaryText)
                 .padding(.horizontal, 14).padding(.bottom, 12)
         } else {
+            // The review comes first; while its queue runs the rows show the progress.
             SectionHeader(title: "Uppdateringar", count: apps.updates.count,
-                          action: apps.installableUpdates.isEmpty ? nil : ("Uppdatera alla", { apps.updateAll() }))
+                          action: apps.installableUpdates.isEmpty || apps.isUpdatingAll ? nil : ("Uppdatera alla…", { plan = apps.updatePlan() }))
             ForEach(apps.updates, id: \.id) { AppRow(status: $0, mode: .update) }
         }
         SectionHeader(title: "Aktuella", count: apps.current.count)
@@ -140,6 +148,10 @@ struct AppsView: View {
         if !apps.manual.isEmpty {
             SectionHeader(title: "Kolla manuellt", count: apps.manual.count)
             ForEach(apps.manual, id: \.id) { AppRow(status: $0, mode: .manual) }
+        }
+        if !apps.ignoredUpdates.isEmpty {
+            SectionHeader(title: "Ignorerade", count: apps.ignoredUpdates.count)
+            ForEach(apps.ignoredUpdates, id: \.id) { AppRow(status: $0, mode: .ignored) }
         }
     }
 
@@ -178,7 +190,7 @@ struct SectionHeader: View {
 }
 
 struct AppRow: View {
-    enum Mode { case update, current, manual }
+    enum Mode { case update, current, manual, ignored }
 
     @Environment(AppsStore.self) private var apps
     @Environment(\.openURL) private var openURL
@@ -233,12 +245,16 @@ struct AppRow: View {
 
     @ViewBuilder private var subtitle: some View {
         switch mode {
-        case .update:
+        case .update, .ignored:
             HStack(spacing: 6) {
                 Text(status.installed ?? "?").foregroundStyle(Theme.secondaryText)
                 Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(Theme.tertiaryText)
-                Text(status.latest ?? "?").foregroundStyle(Theme.accent).fontWeight(.semibold)
-                if !status.canInstall, let note = status.note {
+                Text(status.latest ?? "?")
+                    .foregroundStyle(mode == .ignored ? Theme.secondaryText : Theme.accent)
+                    .fontWeight(.semibold)
+                if mode == .ignored {
+                    Text("·  visas igen när en nyare version kommer").foregroundStyle(Theme.tertiaryText).lineLimit(1)
+                } else if !status.canInstall, let note = status.note {
                     Text("·  \(note)").foregroundStyle(Theme.tertiaryText).lineLimit(1)
                 }
             }
@@ -258,12 +274,20 @@ struct AppRow: View {
         } else {
             switch mode {
             case .update:
-                if status.canInstall {
-                    Button("Uppdatera") { apps.install(status) }.buttonStyle(PillButtonStyle())
-                } else {
-                    Button("Läs mer") { apps.selectedID = status.id }
+                HStack(spacing: 8) {
+                    Button("Ignorera") { withAnimation(.easeInOut(duration: 0.2)) { apps.ignore(status) } }
                         .buttonStyle(PillButtonStyle(prominent: false))
+                        .help("Visa inte \(status.latest ?? "den här versionen") som en uppdatering. Kommer en nyare version visas den igen.")
+                    if status.canInstall {
+                        Button("Uppdatera") { apps.install(status) }.buttonStyle(PillButtonStyle())
+                    } else {
+                        Button("Läs mer") { apps.selectedID = status.id }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                    }
                 }
+            case .ignored:
+                Button("Sluta ignorera") { withAnimation(.easeInOut(duration: 0.2)) { apps.unignore(status) } }
+                    .buttonStyle(PillButtonStyle(prominent: false))
             case .manual:
                 Button("Öppna sidan") { if let url = URL(string: status.homepage) { openURL(url) } }
                     .buttonStyle(PillButtonStyle(prominent: false))

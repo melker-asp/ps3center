@@ -106,6 +106,13 @@ struct AppDetailView: View {
                     .foregroundStyle(Color.white.opacity(0.75))
                 HStack(spacing: 10) {
                     action
+                    if status.state == .updateAvailable, apps.operations[status.id] == nil {
+                        Button(status.ignored ? "Sluta ignorera" : "Ignorera") {
+                            if status.ignored { apps.unignore(status) } else { apps.ignore(status) }
+                        }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .help(status.ignored ? "Visa uppdateringen igen" : "Hoppa över \(status.latest ?? "den här versionen"). Kommer en nyare version visas den igen.")
+                    }
                     if let url = sourceURL {
                         Button(entry?.repository == nil ? "Öppna sidan" : "Öppna på GitHub") { openURL(url) }
                             .buttonStyle(PillButtonStyle(prominent: false))
@@ -194,6 +201,7 @@ struct AppDetailView: View {
     }
 
     private var stateLabel: String {
+        if status.ignored { return "Ignorerad" }
         switch status.state {
         case .updateAvailable: return "Uppdatering"
         case .upToDate: return "Aktuell"
@@ -204,7 +212,7 @@ struct AppDetailView: View {
     }
 
     private var versionFootnote: String {
-        if let latest = status.latest { return "Senaste: \(latest)" }
+        if let latest = status.latest { return status.ignored ? "Senaste: \(latest), ignorerad" : "Senaste: \(latest)" }
         if entry?.tracksUpdates == false { return "Följer med webMAN MOD:s release" }
         return status.state == .manual ? "Kolla versionen på sidan" : "Ingen versionsinfo"
     }
