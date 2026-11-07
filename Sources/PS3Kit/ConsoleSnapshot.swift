@@ -18,7 +18,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public var freeBytes: Int64?
     /// Size of /dev_hdd0 from PS3MAPI GETHDDINFO; nil on webMAN versions without it.
     public var totalBytes: Int64?
-    public var network: Network?
+    public var network: NetworkKind?
     public var ip: String?
     public var playTime: String?
     public var mountedGamePath: String?
@@ -64,7 +64,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
         s.payload = firstMatch(#"\b(Cobra|Mamba|qCFW)\s+([\d.]+)"#, in: sysInfo).map { "\($0[1]) \($0[2])" }
         if let ip = firstMatch(#"IP:\s*([\d.]+)\s+(\w+)"#, in: sysInfo) {
             s.ip = ip[1]
-            s.network = Network(webMAN: ip[2])
+            s.network = NetworkKind(webMAN: ip[2])
         }
         if let free = firstMatch(#"storage:\s*([\d.]+)\s*(KB|MB|GB|TB)\s*free"#, in: sysInfo),
            let value = Double(free[1]) {
@@ -118,7 +118,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
 /// How the console is connected, from webMAN's "WLAN" or "LAN". The raw value is what the
 /// screens show and also the key in speeds.json and speed.json, so it never changes. Code
 /// compares the case, never the text.
-public enum Network: String, Codable, Sendable {
+public enum NetworkKind: String, Codable, Sendable {
     case wifi = "Wi-Fi"
     case lan = "LAN"
 

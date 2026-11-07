@@ -7,10 +7,10 @@ public struct SpeedResult: Codable, Equatable, Sendable {
     public let upload: Double
     public let download: Double?
     /// How the console was connected when it was measured.
-    public let network: Network?
+    public let network: NetworkKind?
     public let measuredAt: Date
 
-    package init(upload: Double, download: Double?, network: Network?, measuredAt: Date) {
+    package init(upload: Double, download: Double?, network: NetworkKind?, measuredAt: Date) {
         self.upload = upload
         self.download = download
         self.network = network
@@ -42,7 +42,7 @@ public enum SpeedTest {
     public static func byNetwork() -> [String: SpeedResult] { networks.load() }
 
     /// The latest measurement over `network`.
-    public static func measurement(over network: Network, in measured: [String: SpeedResult] = byNetwork()) -> SpeedResult? {
+    public static func measurement(over network: NetworkKind, in measured: [String: SpeedResult] = byNetwork()) -> SpeedResult? {
         measured[network.rawValue]
     }
 

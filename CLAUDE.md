@@ -215,7 +215,7 @@ xcodebuild won't find it.
   `Format`, whose `Format.locale` `Theme.locale` also uses, and `Format.estimate` for time still to go)
   are under Appearance in DESIGN.md. Never compare a display string in
   code (a status text, a label): keep a flag or an enum, so text can change freely. The ones that
-  exist: `OperationKind` (the log's actions; the history table's switch is exhaustive), `Network`
+  exist: `OperationKind` (the log's actions; the history table's switch is exhaustive), `NetworkKind`
   (`.wifi`/`.lan`, also the key in speeds.json), `HealthLevel`, `Thermal` (warm/hot limits for
   the health score, `ps3 status`, the cards and the heat notice), `UpdateSkip`, `Route.isDownload`.
 

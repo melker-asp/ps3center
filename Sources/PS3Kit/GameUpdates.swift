@@ -255,8 +255,9 @@ final class SonyTrust: NSObject, URLSessionDelegate, Sendable {
     static let session = URLSession(configuration: .ephemeral, delegate: SonyTrust(), delegateQueue: nil)
 
     /// SCEI DNAS Root 05 (DER, valid 2004–2037, SHA-256 51d5a783…827c), as
-    /// a0.ww.np.dl.playstation.net served it. A public certificate: no key.
-    static let sonyRoot: SecCertificate = {
+    /// a0.ww.np.dl.playstation.net served it. A public certificate: no key. Kept as data, which is
+    /// Sendable on every SDK (SecCertificate isn't on Xcode 16's).
+    static let sonyRootDER: Data = {
         let base64 = [
         "MIID0jCCArqgAwIBAgIBADANBgkqhkiG9w0BAQUFADBUMQswCQYDVQQGEwJKUDEpMCcGA1UEChMgU29ueSBDb21wdXRlciBF",
         "bnRlcnRhaW5tZW50IEluYy4xGjAYBgNVBAMTEVNDRUkgRE5BUyBSb290IDA1MB4XDTA0MDcxMjA5MDExOVoXDTM3MTIwNjA5",
@@ -273,8 +274,10 @@ final class SonyTrust: NSObject, URLSessionDelegate, Sendable {
         "T7xRc7JWXdAQijIrbYi8mtbM07KEGnPU6IT8C47+0mSurpwLOoWL1tPgo6ePpLNic4quUMgh9RXVjeTyXOMmyYdeUm2gt7qE",
         "rvQONli+6Epmhm0A2khpIMHSpQjTE8gVrZp42a6+zg1iYy2vFBOmiQ17GRUl0A==",
         ].joined()
-        return SecCertificateCreateWithData(nil, Data(base64Encoded: base64)! as CFData)!
+        return Data(base64Encoded: base64)!
     }()
+
+    static var sonyRoot: SecCertificate { SecCertificateCreateWithData(nil, sonyRootDER as CFData)! }
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
