@@ -57,10 +57,10 @@ public struct PS2ClassicKeys: Equatable, Sendable {
     /// What is wrong, in words, or nil when the keys are complete.
     public var problem: String? {
         if !wrong.isEmpty {
-            return "Fel värde för \(wrong.map(\.source).joined(separator: ", ")) (stämmer inte med PS3 Centers fingeravtryck)."
+            return "Wrong value for \(wrong.map(\.source).joined(separator: ", ")) (does not match PS3 Center's fingerprint)."
         }
         if !missing.isEmpty {
-            return "Saknar \(missing.map(\.source).joined(separator: ", "))."
+            return "Missing \(missing.map(\.source).joined(separator: ", "))."
         }
         return nil
     }
@@ -123,7 +123,7 @@ public struct PS2ClassicKeys: Equatable, Sendable {
                 keys.merge([.klicensee: try Data(contentsOf: url)])
             } else {
                 let data = try Data(contentsOf: url)
-                guard data.count < 1 << 20 else { throw PS3Error.invalidFile("\(url.lastPathComponent) är för stor för att vara ps2classic.c.") }
+                guard data.count < 1 << 20 else { throw PS3Error.invalidFile("\(url.lastPathComponent) is too large to be ps2classic.c.") }
                 keys.merge(values(inSource: String(decoding: data, as: UTF8.self)))
             }
         }
@@ -159,7 +159,7 @@ public struct PS2ClassicKeys: Equatable, Sendable {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw PS3Error.invalidFile("\(member) finns inte i \(archive.lastPathComponent).")
+            throw PS3Error.invalidFile("\(member) is not in \(archive.lastPathComponent).")
         }
         return data
     }
@@ -178,7 +178,7 @@ public struct PS2ClassicKeys: Equatable, Sendable {
         }
         let keys = try read(files)
         if let problem = keys.problem {
-            throw PS3Error.invalidFile("webMAN MOD:s arkiv gav inte de rätta nycklarna. \(problem)")
+            throw PS3Error.invalidFile("webMAN MOD's archive did not give the right keys. \(problem)")
         }
         try keys.save()
         return keys
@@ -240,7 +240,7 @@ public enum PS2ClassicMaker {
             let offset = head[head.startIndex + 15] == 2 ? 24 : 16  // MODE2 form 1 or MODE1
             return Source(url: url, sectorSize: 2352, dataOffset: offset, size: fileSize / 2352 * 2048)
         }
-        guard fileSize > 0 else { throw PS3Error.invalidFile("\(url.lastPathComponent) är tom.") }
+        guard fileSize > 0 else { throw PS3Error.invalidFile("\(url.lastPathComponent) is empty.") }
         return Source(url: url, sectorSize: 2048, dataOffset: 0, size: fileSize)
     }
 
@@ -249,7 +249,7 @@ public enum PS2ClassicMaker {
         guard image.pathExtension.lowercased() == "cue" else { return image }
         let text = String(decoding: try Data(contentsOf: image), as: UTF8.self)
         guard let match = text.firstMatch(of: #/FILE\s+"([^"]+)"/#) else {
-            throw PS3Error.invalidFile("\(image.lastPathComponent) pekar inte på någon .bin.")
+            throw PS3Error.invalidFile("\(image.lastPathComponent) does not point to a .bin.")
         }
         return image.deletingLastPathComponent().appendingPathComponent(String(match.1))
     }
@@ -259,10 +259,10 @@ public enum PS2ClassicMaker {
     public static func check(_ image: URL) throws -> String? {
         let iso = try ISOImage(url: dataFile(for: image))
         guard let cnf = try iso.readFile("SYSTEM.CNF").map({ String(decoding: $0, as: UTF8.self) }) else {
-            throw PS3Error.unsupportedFile("\(image.lastPathComponent) är inget PS2-spel (SYSTEM.CNF saknas).")
+            throw PS3Error.unsupportedFile("\(image.lastPathComponent) is not a PS2 game (SYSTEM.CNF is missing).")
         }
         guard cnf.uppercased().contains("BOOT2") else {
-            throw PS3Error.unsupportedFile("\(image.lastPathComponent) är ett PS1-spel. De startar redan på HEN, utan att göras om.")
+            throw PS3Error.unsupportedFile("\(image.lastPathComponent) is a PS1 game. Those already start on HEN without being converted.")
         }
         return LocalGameReader.serial(from: cnf)
     }
@@ -290,7 +290,7 @@ public enum PS2ClassicMaker {
     /// bytes of the image read and their total.
     public static func make(from image: URL, to output: URL, keys: PS2ClassicKeys,
                             progress: (Int64, Int64) -> Void = { _, _ in }) throws {
-        if let problem = keys.problem { throw PS3Error.refused("Nycklarna för PS2 Classics: \(problem)") }
+        if let problem = keys.problem { throw PS3Error.refused("The keys for PS2 Classics: \(problem)") }
         let random = SymmetricKey(size: .bits128).withUnsafeBytes { Array($0) }
         try encrypt(from: image, to: output, values: keys.values, npdHash1: random, progress: progress)
     }
@@ -298,7 +298,7 @@ public enum PS2ClassicMaker {
     static func encrypt(from image: URL, to output: URL, values: [PS2ClassicKeys.Name: Data], npdHash1: [UInt8],
                         progress: (Int64, Int64) -> Void) throws {
         guard let klicensee = values[.klicensee], let data = values[.data], let meta = values[.meta] else {
-            throw PS3Error.refused("Nycklarna för PS2 Classics saknas.")
+            throw PS3Error.refused("The keys for PS2 Classics are missing.")
         }
         let source = try source(image)
         let reader = try PreparedReader(source: source)
@@ -405,7 +405,7 @@ public enum PS2ClassicMaker {
                 let want = count - result.count
                 if position < source.size {
                     let piece = try readImage(Int(min(Int64(want), source.size - position)))
-                    guard !piece.isEmpty else { throw PS3Error.invalidFile("\(source.url.lastPathComponent) tog slut för tidigt.") }
+                    guard !piece.isEmpty else { throw PS3Error.invalidFile("\(source.url.lastPathComponent) ended too early.") }
                     result.append(piece)
                     position += Int64(piece.count)
                 } else if position < padded {
@@ -454,7 +454,7 @@ public enum PS2ClassicMaker {
             }
         }
         guard status == kCCSuccess, moved == data.count else {
-            throw PS3Error.invalidFile("AES misslyckades (\(status)).")
+            throw PS3Error.invalidFile("AES failed (\(status)).")
         }
         return output
     }

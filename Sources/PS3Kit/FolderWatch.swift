@@ -2,7 +2,7 @@ import Foundation
 
 /// Watched game folders: a new game in one is queued once it has stopped growing (a download or
 /// a copy can take a while). Which folders are watched is `watchedFolders` in config.json, set
-/// in the app's Spelmappar or with `ps3 config folder watch`. What has been seen is kept in
+/// in the app's Game Folders or with `ps3 config folder watch`. What has been seen is kept in
 /// ~/Library/Application Support/ps3center/watch.json, so games added while nothing watched
 /// are found too; the first look at a folder takes what is there as already handled.
 public struct FolderWatch: Sendable {

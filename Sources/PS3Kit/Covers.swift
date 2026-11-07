@@ -103,7 +103,7 @@ public struct CoverService: Sendable {
     /// Uses the user's own picture as the game's cover (dropped on its page in the app).
     public func setCustomCover(_ image: Data, for game: Game) throws {
         guard let key = Self.key(for: game) else {
-            throw PS3Error.refused("\(game.title) har inget title ID, så omslaget kan inte sparas.")
+            throw PS3Error.refused("\(game.title) has no title ID, so the cover cannot be saved.")
         }
         try image.write(to: Self.customDirectory.appendingPathComponent(key + ".cover"), options: .atomic)
     }
@@ -135,7 +135,7 @@ public struct CoverService: Sendable {
             var sent = 0
             for route in routes {
                 if try await ftp.size(route.remote) == route.size {
-                    events(.skipped(route, reason: "finns redan på PS3:an"))
+                    events(.skipped(route, reason: "already on the PS3"))
                     continue
                 }
                 if dryRun {
@@ -147,7 +147,7 @@ public struct CoverService: Sendable {
                 events(.finished(route, seconds: 0))
                 sent += 1
             }
-            if sent > 0 { OperationLog.record("covers", "\(sent) omslag till \(folder)") }
+            if sent > 0 { OperationLog.record("covers", "\(sent) \(sent == 1 ? "cover" : "covers") to \(folder)") }
             return sent
         }
     }

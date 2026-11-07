@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decides where on the console a local file belongs (README: "Vart ska filen?").
+/// Decides where on the console a local file belongs (README: "Where does the file go?").
 public enum ContentKind: String, Codable, Sendable {
     case ps3ISO, ps2ISO, pspISO, psxISO, bluRayISO, dvdISO, ps3Folder, package, license, theme, other
 
@@ -23,17 +23,17 @@ public enum ContentKind: String, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .ps3ISO: return "PS3-spel"
-        case .ps2ISO: return "PS2-spel"
-        case .pspISO: return "PSP-spel"
-        case .psxISO: return "PS1-spel"
-        case .bluRayISO: return "Blu-ray-film"
-        case .dvdISO: return "DVD-film"
-        case .ps3Folder: return "PS3-spel (mapp)"
-        case .package: return "Paket"
-        case .license: return "Licens"
-        case .theme: return "Tema"
-        case .other: return "Fil"
+        case .ps3ISO: return "PS3 game"
+        case .ps2ISO: return "PS2 game"
+        case .pspISO: return "PSP game"
+        case .psxISO: return "PS1 game"
+        case .bluRayISO: return "Blu-ray movie"
+        case .dvdISO: return "DVD movie"
+        case .ps3Folder: return "PS3 game (folder)"
+        case .package: return "Package"
+        case .license: return "License"
+        case .theme: return "Theme"
+        case .other: return "File"
         }
     }
 
@@ -88,13 +88,13 @@ public enum FileRouter {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else {
-            throw PS3Error.invalidFile("Hittar inte \(url.path).")
+            throw PS3Error.invalidFile("Can't find \(url.path).")
         }
 
         if let root = mirrorRoot {
             let usb = root.appendingPathComponent("USB").path + "/"
             if url.path.hasPrefix(usb) || url.path == root.appendingPathComponent("USB").path {
-                throw PS3Error.unsupportedFile("\(url.lastPathComponent) ligger i USB/, som är till för USB-stickan. Kopiera den till stickan i stället.")
+                throw PS3Error.unsupportedFile("\(url.lastPathComponent) is in USB/, which is meant for the USB stick. Copy it to the stick instead.")
             }
         }
 
@@ -118,10 +118,10 @@ public enum FileRouter {
 
         let ext = url.pathExtension.lowercased()
         if ext == "pup" {
-            throw PS3Error.unsupportedFile("Firmware (\(url.lastPathComponent)) installeras från USB-stickan: /PS3/UPDATE/PS3UPDAT.PUP.")
+            throw PS3Error.unsupportedFile("Firmware (\(url.lastPathComponent)) is installed from the USB stick: /PS3/UPDATE/PS3UPDAT.PUP.")
         }
 
-        // Files inside the mirror keep their path ("mappnamn = sökväg på PS3:an").
+        // Files inside the mirror keep their path ("folder name = path on the PS3").
         if override == nil, let root = mirrorRoot, let remote = mirrorPath(of: url, root: root) {
             let (kind, title) = (try? classify(url)) ?? (.other, nil)
             var routes = [Route(local: url, remote: remote, kind: kind, size: fileSize(url), title: title)]
@@ -133,7 +133,7 @@ public enum FileRouter {
         // With an explicit --to folder any file is allowed.
         let (kind, title) = override == nil ? try classify(url) : ((try? classify(url)) ?? (.other, nil))
         guard let folder = override ?? kind.remoteFolder else {
-            throw PS3Error.unsupportedFile("Vet inte var \(url.lastPathComponent) ska ligga. Ange mapp med --to, t.ex. --to /dev_hdd0/PS3ISO")
+            throw PS3Error.unsupportedFile("Don't know where \(url.lastPathComponent) goes. Give a folder with --to, e.g. --to /dev_hdd0/PS3ISO")
         }
         var routes = [Route(local: url, remote: folder + "/" + url.lastPathComponent, kind: kind, size: fileSize(url), title: title)]
         if ext == "cue" { routes += cueCompanions(url, mirrorRoot: nil, override: folder, title: title) }
@@ -152,7 +152,7 @@ public enum FileRouter {
         case "cue", "bin", "img", "ecm": return (.psxISO, GameName.clean(url.lastPathComponent))
         case "iso": return try classifyISO(url)
         default:
-            throw PS3Error.unsupportedFile("Vet inte var \(url.lastPathComponent) ska ligga. Ange mapp med --to.")
+            throw PS3Error.unsupportedFile("Don't know where \(url.lastPathComponent) goes. Give a folder with --to.")
         }
     }
 
@@ -170,7 +170,7 @@ public enum FileRouter {
         }
         if try iso.find("BDMV") != nil { return (.bluRayISO, fallbackTitle) }
         if try iso.find("VIDEO_TS") != nil { return (.dvdISO, fallbackTitle) }
-        throw PS3Error.unsupportedFile("Känner inte igen \(url.lastPathComponent) som PS3-, PS2-, PS1- eller PSP-spel. Ange mapp med --to.")
+        throw PS3Error.unsupportedFile("Can't tell whether \(url.lastPathComponent) is a PS3, PS2, PS1 or PSP game. Give a folder with --to.")
     }
 
     /// "/Users/.../PS3/dev_hdd0/PS3ISO/X/x.iso" -> "/dev_hdd0/PS3ISO/X/x.iso"

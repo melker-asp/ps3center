@@ -1,9 +1,9 @@
 import Foundation
 
-/// The Mac's package folders: where the user keeps .pkg files, linked in the app (Appar → Från
-/// Macen → Paketmappar) or with `ps3 config folder add PKG ~/Paket`, saved as `packageFolders` in
-/// config.json. Packages are installed from there and stay where they are, unlike a single .pkg
-/// given to `ps3 apps install`, which is archived in _Installerat/Paket.
+/// The Mac's package folders: where the user keeps .pkg files, linked in the app (Apps → From
+/// Mac → Package Folders) or with `ps3 config folder add PKG ~/Packages`, saved as `packageFolders`
+/// in config.json. Packages are installed from there and stay where they are, unlike a single .pkg
+/// given to `ps3 apps install`, which is archived in _Installed/Packages.
 public enum PackageFolders {
     /// The type `ps3 config folder add` takes for a package folder, beside PS3ISO, GAMES …
     public static let kindName = "PKG"
@@ -124,10 +124,10 @@ public enum PackageLibrary {
         return files.map(\.standardizedFileURL)
     }
 
-    /// "Installerad 01.30", "Installerad" (no APP_VER) or "Inte installerad", from an entry in
+    /// "Installed 01.30", "Installed" (no APP_VER) or "Not installed", from an entry in
     /// `AppsService.installedVersions`.
     public static func installedLabel(_ version: String?) -> String {
-        guard let version else { return "Inte installerad" }
-        return version.isEmpty ? "Installerad" : "Installerad \(version)"
+        guard let version else { return "Not installed" }
+        return version.isEmpty ? "Installed" : "Installed \(version)"
     }
 }

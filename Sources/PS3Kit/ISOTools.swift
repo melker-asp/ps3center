@@ -39,7 +39,7 @@ public enum PS3ISO {
         var result = name.replacingOccurrences(of: ":", with: " -")
         result.removeAll { "\\/*?\"<>|".contains($0) || $0.isNewline }
         while let last = result.last, last == "." || last == " " { result.removeLast() }
-        return result.isEmpty ? "Spel" : result
+        return result.isEmpty ? "Game" : result
     }
 
     /// Splits `iso` into .iso.0, .iso.1 … in `folder` (beside it by default), as splitps3iso
@@ -47,15 +47,15 @@ public enum PS3ISO {
     @discardableResult
     public static func split(_ iso: URL, into folder: URL? = nil, progress: (Int64, Int64) -> Void = { _, _ in }) throws -> [URL] {
         guard iso.pathExtension.lowercased() == "iso" else {
-            throw PS3Error.invalidFile("\(iso.lastPathComponent) är ingen .iso.")
+            throw PS3Error.invalidFile("\(iso.lastPathComponent) is not an .iso.")
         }
         let size = FileRouter.fileSize(iso)
         guard size > partSize else {
-            throw PS3Error.refused("\(iso.lastPathComponent) är \(Format.bytes(size)) och får plats på FAT32 utan att delas.")
+            throw PS3Error.refused("\(iso.lastPathComponent) is \(Format.bytes(size)) and fits on FAT32 without being split.")
         }
         let base = (folder ?? iso.deletingLastPathComponent()).appendingPathComponent(iso.lastPathComponent)
         if FileManager.default.fileExists(atPath: base.path + ".0") {
-            throw PS3Error.refused("\(base.lastPathComponent).0 finns redan.")
+            throw PS3Error.refused("\(base.lastPathComponent).0 already exists.")
         }
         let writer = PartWriter(base: base, split: true)
         try copy([iso], into: writer, total: size, progress: progress)
@@ -66,13 +66,13 @@ public enum PS3ISO {
     @discardableResult
     public static func join(_ first: URL, into folder: URL? = nil, progress: (Int64, Int64) -> Void = { _, _ in }) throws -> URL {
         guard first.lastPathComponent.lowercased().hasSuffix(".iso.0") else {
-            throw PS3Error.invalidFile("\(first.lastPathComponent) är inte den första delen (.iso.0).")
+            throw PS3Error.invalidFile("\(first.lastPathComponent) is not the first part (.iso.0).")
         }
         let parts = parts(startingAt: first)
-        guard !parts.isEmpty else { throw PS3Error.invalidFile("Hittar inte \(first.lastPathComponent).") }
+        guard !parts.isEmpty else { throw PS3Error.invalidFile("Can't find \(first.lastPathComponent).") }
         let target = (folder ?? first.deletingLastPathComponent()).appendingPathComponent(String(first.lastPathComponent.dropLast(2)))
         if FileManager.default.fileExists(atPath: target.path) {
-            throw PS3Error.refused("\(target.lastPathComponent) finns redan.")
+            throw PS3Error.refused("\(target.lastPathComponent) already exists.")
         }
         let writer = PartWriter(base: target, split: false)
         try copy(parts, into: writer, total: parts.map(FileRouter.fileSize).reduce(0, +), progress: progress)
@@ -85,7 +85,7 @@ public enum PS3ISO {
     public static func extract(_ iso: URL, into folder: URL? = nil,
                                progress: (Int64, Int64) -> Void = { _, _ in }) throws -> (folder: URL, leftOut: [String]) {
         if iso.lastPathComponent.lowercased().hasSuffix(".iso.0") {
-            throw PS3Error.refused("Foga ihop delarna först (ps3 iso join); sedan går ISO:n att packa upp.")
+            throw PS3Error.refused("Join the parts first (ps3 iso join); then the ISO can be extracted.")
         }
         let image = try ISOImage(url: iso, joliet: true)
         let tree = try image.tree()
@@ -95,7 +95,7 @@ public enum PS3ISO {
         let target = folder ?? iso.deletingPathExtension()
         let fm = FileManager.default
         if fm.fileExists(atPath: target.path) {
-            throw PS3Error.refused("\(target.path) finns redan.")
+            throw PS3Error.refused("\(target.path) already exists.")
         }
         let total = Int64(files.reduce(0) { $0 + $1.size })
         var done: Int64 = 0
@@ -103,7 +103,7 @@ public enum PS3ISO {
         func inside(_ path: String) throws -> URL {
             let components = path.split(separator: "/").map(String.init)
             guard !components.isEmpty, components.allSatisfy({ $0 != "." && $0 != ".." && !$0.contains("\0") }) else {
-                throw PS3Error.invalidFile("Ett filnamn i ISO:n pekar utanför mappen: \(path)")
+                throw PS3Error.invalidFile("A file name in the ISO points outside the folder: \(path)")
             }
             return components.reduce(target) { $0.appendingPathComponent($1) }
         }
@@ -116,7 +116,7 @@ public enum PS3ISO {
                 let url = try inside(file.path)
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 guard fm.createFile(atPath: url.path, contents: nil) else {
-                    throw PS3Error.invalidFile("Kan inte skapa \(url.path).")
+                    throw PS3Error.invalidFile("Can't create \(url.path).")
                 }
                 let output = try FileHandle(forWritingTo: url)
                 defer { try? output.close() }
@@ -198,7 +198,7 @@ final class PartWriter {
         let partial = Self.partial(url)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard FileManager.default.createFile(atPath: partial.path, contents: nil) else {
-            throw PS3Error.invalidFile("Kan inte skapa \(partial.path).")
+            throw PS3Error.invalidFile("Can't create \(partial.path).")
         }
         handle = try FileHandle(forWritingTo: partial)
         files.append(url)
@@ -291,7 +291,7 @@ public struct PS3ISOBuilder: Sendable {
         let folder = folder.standardizedFileURL
         guard let data = try? Data(contentsOf: folder.appendingPathComponent("PS3_GAME/PARAM.SFO")),
               let sfo = ParamSFO(data: data), let id = sfo.titleID, id.count >= 5 else {
-            throw PS3Error.invalidFile("\(folder.lastPathComponent) är ingen PS3-spelmapp: PS3_GAME/PARAM.SFO saknas.")
+            throw PS3Error.invalidFile("\(folder.lastPathComponent) is not a PS3 game folder: PS3_GAME/PARAM.SFO is missing.")
         }
         self.folder = folder
         self.titleID = id
@@ -350,7 +350,7 @@ public struct PS3ISOBuilder: Sendable {
         }
         place(0)
         guard next < UInt64(UInt32.max) else {
-            throw PS3Error.invalidFile("\(folder.lastPathComponent) är för stor för en ISO.")
+            throw PS3Error.invalidFile("\(folder.lastPathComponent) is too large for an ISO.")
         }
         self.directories = directories
         self.pathTables = tables
@@ -368,7 +368,7 @@ public struct PS3ISOBuilder: Sendable {
             try writer.write(Data(header()))
             try writeFiles(of: 0, to: writer, progress: progress)
             guard writer.written == size else {
-                throw PS3Error.invalidFile("ISO:n blev \(writer.written) byte i stället för \(size).")
+                throw PS3Error.invalidFile("The ISO came to \(writer.written) bytes instead of \(size).")
             }
             try writer.close()
             return writer.files
@@ -402,7 +402,7 @@ public struct PS3ISOBuilder: Sendable {
     }
 
     static func changed(_ file: File) -> PS3Error {
-        .invalidFile("\(file.name) ändrades medan ISO:n skrevs.")
+        .invalidFile("\(file.name) changed while the ISO was being written.")
     }
 
     // MARK: Scanning
@@ -455,7 +455,7 @@ public struct PS3ISOBuilder: Sendable {
     /// A directory record holds at most 255 bytes, name included (twice as long in Joliet).
     static func checkName(_ name: String, at url: URL) throws {
         guard name.utf16.count <= 100, name.utf8.count <= 200 else {
-            throw PS3Error.invalidFile("\(url.lastPathComponent) har ett för långt namn för en ISO (högst 100 tecken).")
+            throw PS3Error.invalidFile("\(url.lastPathComponent) has too long a name for an ISO (100 characters at most).")
         }
     }
 

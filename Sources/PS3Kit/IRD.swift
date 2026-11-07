@@ -24,11 +24,11 @@ public struct IRD: Sendable {
         if !data.starts(with: Array("3IRD".utf8)) {
             data = try Gzip.decompress(data)
         }
-        guard data.starts(with: Array("3IRD".utf8)) else { throw PS3Error.invalidFile("Filen är ingen IRD.") }
+        guard data.starts(with: Array("3IRD".utf8)) else { throw PS3Error.invalidFile("The file is not an IRD.") }
         var reader = LittleEndianReader(data)
         _ = try reader.bytes(4)
         let version = try reader.u8()
-        guard (6...9).contains(version) else { throw PS3Error.invalidFile("IRD-version \(version) känns inte igen.") }
+        guard (6...9).contains(version) else { throw PS3Error.invalidFile("IRD version \(version) is not recognized.") }
         let titleID = try reader.ascii(9)
         let titleLength = Int(try reader.u8())
         let title = String(decoding: try reader.bytes(titleLength), as: UTF8.self)
@@ -57,7 +57,7 @@ public struct IRD: Sendable {
         let checked = reader.offset
         let crc = try reader.u32()
         guard CRC32.checksum(data.prefix(checked)) == crc else {
-            throw PS3Error.invalidFile("IRD-filen är trasig (kontrollsumman stämmer inte).")
+            throw PS3Error.invalidFile("The IRD file is broken (the checksum does not match).")
         }
         return IRD(version: version, titleID: titleID, title: title, systemVersion: systemVersion,
                    gameVersion: gameVersion, appVersion: appVersion, header: Data(header), fileHashes: hashes)
@@ -96,12 +96,12 @@ public enum DiscVerifier {
         public var looksEncrypted: Bool { checked >= 4 && mismatched.count * 2 > checked }
 
         public var summary: String {
-            if isIntact { return "\(title): alla \(checked) filer stämmer med originalskivan." }
+            if isIntact { return "\(title): all \(checked) files match the original disc." }
             var parts: [String] = []
-            if !mismatched.isEmpty { parts.append("\(mismatched.count) filer skiljer sig") }
-            if !missing.isEmpty { parts.append("\(missing.count) saknas") }
-            var text = "\(title): \(matched) av \(checked) filer stämmer" + (parts.isEmpty ? "." : "; " + parts.joined(separator: ", ") + ".")
-            if looksEncrypted { text += " Avbilden verkar vara krypterad; bara dekrypterade ISO:er och mappar kan kontrolleras." }
+            if !mismatched.isEmpty { parts.append("\(mismatched.count) \(mismatched.count == 1 ? "file differs" : "files differ")") }
+            if !missing.isEmpty { parts.append("\(missing.count) missing") }
+            var text = "\(title): \(matched) of \(checked) files match" + (parts.isEmpty ? "." : "; " + parts.joined(separator: ", ") + ".")
+            if looksEncrypted { text += " The image seems to be encrypted; only decrypted ISOs and folders can be checked." }
             return text
         }
     }
@@ -241,7 +241,7 @@ public enum IRDLibrary {
         if let age, age < maxAge, let data = try? Data(contentsOf: file), let index = try? parseIndex(data) { return index }
         do {
             let (data, response) = try await URLSession.shared.data(from: indexURL)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PS3Error.github("IRD-databasen svarar inte.") }
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PS3Error.github("The IRD database is not answering.") }
             let index = try parseIndex(data)
             try? data.write(to: file, options: .atomic)
             return index
@@ -264,9 +264,9 @@ public enum IRDLibrary {
         let file = cache.appendingPathComponent(AppsService.md5(Data(entry.link.utf8)) + ".ird")
         if let data = try? Data(contentsOf: file), let ird = try? IRD.parse(data) { return ird }
         let encoded = entry.link.split(separator: "/").map { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0) }.joined(separator: "/")
-        guard let url = URL(string: downloadBase + encoded) else { throw PS3Error.github("Ogiltig IRD-länk: \(entry.link)") }
+        guard let url = URL(string: downloadBase + encoded) else { throw PS3Error.github("Invalid IRD link: \(entry.link)") }
         let (data, response) = try await URLSession.shared.data(from: url)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PS3Error.github("IRD-filen för \(entry.title) gick inte att hämta.") }
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PS3Error.github("The IRD file for \(entry.title) could not be downloaded.") }
         let ird = try IRD.parse(data)
         try? data.write(to: file, options: .atomic)
         return ird
@@ -282,7 +282,7 @@ struct LittleEndianReader {
     init(_ data: Data) { self.data = [UInt8](data) }
 
     mutating func bytes(_ count: Int) throws -> [UInt8] {
-        guard count >= 0, offset + count <= data.count else { throw PS3Error.invalidFile("IRD-filen tar slut för tidigt.") }
+        guard count >= 0, offset + count <= data.count else { throw PS3Error.invalidFile("The IRD file ends too early.") }
         defer { offset += count }
         return Array(data[offset..<(offset + count)])
     }
@@ -320,11 +320,11 @@ enum CRC32 {
 enum Gzip {
     static func decompress(_ data: Data) throws -> Data {
         let b = [UInt8](data)
-        guard b.count > 18, b[0] == 0x1F, b[1] == 0x8B, b[2] == 8 else { throw PS3Error.invalidFile("Inte gzip-komprimerat.") }
+        guard b.count > 18, b[0] == 0x1F, b[1] == 0x8B, b[2] == 8 else { throw PS3Error.invalidFile("Not gzip-compressed.") }
         let flags = b[3]
         var offset = 10
         if flags & 0x04 != 0 {
-            guard offset + 2 <= b.count else { throw PS3Error.invalidFile("Trasig gzip-data.") }
+            guard offset + 2 <= b.count else { throw PS3Error.invalidFile("Broken gzip data.") }
             offset += 2 + (Int(b[offset]) | Int(b[offset + 1]) << 8)
         }
         for flag: UInt8 in [0x08, 0x10] where flags & flag != 0 {
@@ -332,7 +332,7 @@ enum Gzip {
             offset += 1
         }
         if flags & 0x02 != 0 { offset += 2 }
-        guard offset < b.count else { throw PS3Error.invalidFile("Trasig gzip-data.") }
+        guard offset < b.count else { throw PS3Error.invalidFile("Broken gzip data.") }
         return try inflate(Data(b[offset...]))
     }
 
@@ -341,7 +341,7 @@ enum Gzip {
         let stream = UnsafeMutablePointer<compression_stream>.allocate(capacity: 1)
         defer { stream.deallocate() }
         guard compression_stream_init(stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else {
-            throw PS3Error.invalidFile("Kunde inte packa upp.")
+            throw PS3Error.invalidFile("Could not decompress.")
         }
         defer { compression_stream_destroy(stream) }
         let capacity = 1 << 20
@@ -360,7 +360,7 @@ enum Gzip {
                 output.append(buffer, count: capacity - stream.pointee.dst_size)
             } while status == COMPRESSION_STATUS_OK
         }
-        guard status == COMPRESSION_STATUS_END else { throw PS3Error.invalidFile("Trasig gzip-data.") }
+        guard status == COMPRESSION_STATUS_END else { throw PS3Error.invalidFile("Broken gzip data.") }
         return output
     }
 }
@@ -395,7 +395,7 @@ extension DiscVerifier {
             data = try await TransferService(host: host).withFTP { try await $0.download(path + "/PS3_GAME/PARAM.SFO", limit: 1 << 20) }
         }
         guard let data, let sfo = ParamSFO(data: data), sfo.titleID != nil else {
-            throw PS3Error.invalidFile("Hittar ingen PS3_GAME/PARAM.SFO, så det går inte att veta vilken skiva det är.")
+            throw PS3Error.invalidFile("No PS3_GAME/PARAM.SFO found, so there is no telling which disc it is.")
         }
         return sfo
     }
@@ -417,20 +417,20 @@ extension DiscVerifier {
         if let ird { return try await check(target, host: host, ird: ird, progress: progress) }
         let sfo = try await paramSFO(of: target, host: host)
         let titleID = sfo.titleID ?? ""
-        events("Letar efter IRD för \(titleID)")
+        events("Looking for an IRD for \(titleID)")
         let candidates = try await IRDLibrary.candidates(titleID: titleID, gameVersion: sfo.string("VERSION"), appVersion: sfo.string("APP_VER"))
         guard !candidates.isEmpty else {
-            throw PS3Error.refused("IRD-databasen har inget för \(titleID). Har du en .ird-fil kan du ange den själv.")
+            throw PS3Error.refused("The IRD database has nothing for \(titleID). If you have an .ird file, you can give it yourself.")
         }
         var best: Report?
         for entry in candidates.prefix(3) {
-            events("Hämtar \(entry.title) (\(entry.gameVersion ?? "?"))")
+            events("Downloading \(entry.title) (\(entry.gameVersion ?? "?"))")
             let ird = try await IRDLibrary.download(entry)
             let report = try await check(target, host: host, ird: ird, progress: progress)
             if report.isIntact { return report }
             if report.matched > (best?.matched ?? -1) { best = report }
         }
-        guard let result = best else { throw PS3Error.refused("Ingen IRD kunde användas för \(titleID).") }
+        guard let result = best else { throw PS3Error.refused("No IRD could be used for \(titleID).") }
         return result
     }
 }

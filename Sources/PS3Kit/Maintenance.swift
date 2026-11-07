@@ -2,9 +2,25 @@ import Foundation
 
 /// PS3 Center's own folder for backups: ~/Library/Application Support/ps3center/<name>.
 enum BackupFolder {
-    static func url(_ name: String) -> URL {
+    static var base: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ps3center/\(name)", isDirectory: true)
+            .appendingPathComponent("Library/Application Support/ps3center", isDirectory: true)
+    }
+
+    static func url(_ name: String) -> URL {
+        base.appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// Renames a folder or file from the name it had before PS3 Center was in English: only
+    /// when the old one exists and the new one does not. When both exist the new one is used
+    /// and the old one is left alone. Returns true when something was moved.
+    @discardableResult
+    static func migrate(_ old: String, to new: String, in parent: URL) -> Bool {
+        let fm = FileManager.default
+        let source = parent.appendingPathComponent(old)
+        let target = parent.appendingPathComponent(new)
+        guard fm.fileExists(atPath: source.path), !fm.fileExists(atPath: target.path) else { return false }
+        return (try? fm.moveItem(at: source, to: target)) != nil
     }
 }
 
@@ -34,16 +50,39 @@ public struct SaveGame: Codable, Equatable, Sendable, Identifiable {
 }
 
 /// Copies the saves to the Mac and back. Backing up only reads the console: a save folder is
-/// copied to Sparfiler/<user>/<folder> when a file in it changed (name, size or date in the
-/// listing), and the copy it replaces is kept in Sparfiler/<user>/.tidigare. Only TITLE and
+/// copied to Saves/<user>/<folder> when a file in it changed (name, size or date in the
+/// listing), and the copy it replaces is kept in Saves/<user>/.previous. Only TITLE and
 /// SUB_TITLE are read from PARAM.SFO; its account fields are never shown.
 public struct SaveBackupService: Sendable {
     public let host: String
 
     public init(host: String) { self.host = host }
 
-    public static var root: URL { BackupFolder.url("Sparfiler") }
+    public static var root: URL {
+        _ = migration
+        return BackupFolder.url(rootName)
+    }
+
+    static let rootName = "Saves"
     static let manifestName = ".ps3center.json"
+    static let lastBackupName = "last-backup.json"
+    static let previousName = ".previous"
+    static let beforeRestoreName = ".before-restore"
+
+    /// Once per process: the Swedish names the backup had before (Sparfiler, senaste.json,
+    /// .tidigare, .innan-aterstallning) become the English ones.
+    private static let migration: Void = migrateNames(in: BackupFolder.base)
+
+    static func migrateNames(in base: URL) {
+        BackupFolder.migrate("Sparfiler", to: rootName, in: base)
+        let root = base.appendingPathComponent(rootName, isDirectory: true)
+        BackupFolder.migrate("senaste.json", to: lastBackupName, in: root)
+        let users = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        for user in users where isUser(user.lastPathComponent) {
+            BackupFolder.migrate(".tidigare", to: previousName, in: user)
+            BackupFolder.migrate(".innan-aterstallning", to: beforeRestoreName, in: user)
+        }
+    }
 
     struct Manifest: Codable {
         var save: SaveGame
@@ -112,7 +151,7 @@ public struct SaveBackupService: Sendable {
     public func backup(events: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         try FileManager.default.createDirectory(at: Self.root, withIntermediateDirectories: true)
         let report = try await TransferService(host: host).withFTP { ftp in try await backup(ftp, events: events) }
-        try? JSONEncoder().encode(Date()).write(to: Self.root.appendingPathComponent("senaste.json"))
+        try? JSONEncoder().encode(Date()).write(to: Self.root.appendingPathComponent(Self.lastBackupName))
         return report
     }
 
@@ -125,7 +164,7 @@ public struct SaveBackupService: Sendable {
                 report.unchanged += 1
                 continue
             }
-            events("Kopierar \(save.title)")
+            events("Copying \(save.title)")
             do {
                 try await copy(save, files: files, from: ftp, into: folder)
                 try Self.write(Manifest(save: save, files: signature, backedUpAt: Date()), in: folder)
@@ -138,20 +177,20 @@ public struct SaveBackupService: Sendable {
     }
 
     /// Downloads into a new folder first, so a broken connection never leaves half a backup;
-    /// the copy it replaces moves to .tidigare.
+    /// the copy it replaces moves to .previous.
     private func copy(_ save: SaveGame, files: [FTPClient.Entry], from ftp: FTPClient, into folder: URL) async throws {
         let fm = FileManager.default
-        let fresh = folder.deletingLastPathComponent().appendingPathComponent(".ny-\(save.folder)", isDirectory: true)
+        let fresh = folder.deletingLastPathComponent().appendingPathComponent(".new-\(save.folder)", isDirectory: true)
         try? fm.removeItem(at: fresh)
         try fm.createDirectory(at: fresh, withIntermediateDirectories: true)
         for file in files {
             guard let data = try await ftp.download(Self.remoteFolder(save) + "/" + file.name, limit: 512 << 20) else {
-                throw PS3Error.invalidFile("\(file.name) gick inte att läsa")
+                throw PS3Error.invalidFile("\(file.name) could not be read")
             }
             try data.write(to: fresh.appendingPathComponent(file.name))
         }
         if fm.fileExists(atPath: folder.path) {
-            let previous = folder.deletingLastPathComponent().appendingPathComponent(".tidigare", isDirectory: true)
+            let previous = folder.deletingLastPathComponent().appendingPathComponent(Self.previousName, isDirectory: true)
             try fm.createDirectory(at: previous, withIntermediateDirectories: true)
             let old = previous.appendingPathComponent(save.folder, isDirectory: true)
             try? fm.removeItem(at: old)
@@ -186,7 +225,7 @@ public struct SaveBackupService: Sendable {
     }
 
     public static func lastBackup() -> Date? {
-        guard let data = try? Data(contentsOf: root.appendingPathComponent("senaste.json")) else { return nil }
+        guard let data = try? Data(contentsOf: root.appendingPathComponent(lastBackupName)) else { return nil }
         return try? JSONDecoder().decode(Date.self, from: data)
     }
 
@@ -197,25 +236,25 @@ public struct SaveBackupService: Sendable {
         try await TransferService(host: host).withFTP { ftp in
             let remote = Self.remoteFolder(save)
             let files = try await ftp.list(remote).filter { !$0.isDirectory }
-            guard !files.isEmpty else { throw PS3Error.refused("\(save.title) finns inte på PS3:an.") }
-            events("Sparar en kopia på Macen")
+            guard !files.isEmpty else { throw PS3Error.refused("\(save.title) is not on the PS3.") }
+            events("Saving a copy on the Mac")
             let folder = Self.localFolder(save)
             try await copy(save, files: files, from: ftp, into: folder)
             try Self.write(Manifest(save: save, files: Self.signature(files), backedUpAt: Date()), in: folder)
             OperationLog.record("delete-save", "\(save.title) (\(save.user)/\(save.folder))")
-            events("Tar bort sparfilen")
+            events("Deleting the save")
             try await ftp.removeTree(remote)
         }
     }
 
     /// Puts a save from the backup back on the console, for the same user. Not while a game
-    /// runs. What is on the console now is copied to .innan-aterstallning first. Logged.
+    /// runs. What is on the console now is copied to .before-restore first. Logged.
     public func restore(_ save: SaveGame, events: @Sendable (String) -> Void = { _ in }) async throws {
         let folder = Self.localFolder(save)
         let fm = FileManager.default
         let files = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? [])
             .filter { $0.lastPathComponent != Self.manifestName }
-        guard !files.isEmpty else { throw PS3Error.refused("\(save.title) finns inte i säkerhetskopian.") }
+        guard !files.isEmpty else { throw PS3Error.refused("\(save.title) is not in the backup.") }
         guard try await WebMAN(host: host).runningProcess() == nil else { throw PS3Error.gameRunning }
         try await TransferService(host: host).withFTP { ftp in try await restore(save, files: files, ftp: ftp, events: events) }
     }
@@ -225,9 +264,9 @@ public struct SaveBackupService: Sendable {
         let remote = Self.remoteFolder(save)
         let current = try await ftp.list(remote).filter { !$0.isDirectory }
         if !current.isEmpty {
-            events("Sparar det som ligger på PS3:an nu")
+            events("Saving what is on the PS3 now")
             let safety = Self.root.appendingPathComponent(save.user, isDirectory: true)
-                .appendingPathComponent(".innan-aterstallning", isDirectory: true)
+                .appendingPathComponent(Self.beforeRestoreName, isDirectory: true)
                 .appendingPathComponent(save.folder, isDirectory: true)
             try? fm.removeItem(at: safety)
             try fm.createDirectory(at: safety, withIntermediateDirectories: true)
@@ -240,7 +279,7 @@ public struct SaveBackupService: Sendable {
         OperationLog.record("restore", "\(save.title) (\(save.user)/\(save.folder))")
         try await ftp.makeDirectories(remote)
         for file in files {
-            events("Skickar \(file.lastPathComponent)")
+            events("Sending \(file.lastPathComponent)")
             try await ftp.upload(file: file, to: remote + "/" + file.lastPathComponent) { _ in }
         }
     }
@@ -250,7 +289,7 @@ public struct SaveBackupService: Sendable {
 
 /// Copies of the console's settings and plugin lists, read only: the system settings
 /// (xRegistry.sys), webMAN's settings and the boot_plugins lists. Each backup is a dated folder
-/// in Systemfiler with the console's paths inside. The files are never read or shown.
+/// in System Files with the console's paths inside. The files are never read or shown.
 public enum SystemFiles {
     public static let paths = [
         "/dev_flash2/etc/xRegistry.sys",
@@ -261,11 +300,24 @@ public enum SystemFiles {
         "/dev_hdd0/boot_plugins_nocobra_dex.txt",
     ]
 
-    public static var root: URL { BackupFolder.url("Systemfiler") }
+    public static var root: URL {
+        _ = migration
+        return BackupFolder.url(rootName)
+    }
+
+    static let rootName = "System Files"
+
+    /// Once per process: the folder's Swedish name from before (Systemfiler) becomes the English one.
+    private static let migration: Void = migrateNames(in: BackupFolder.base)
+
+    static func migrateNames(in base: URL) {
+        BackupFolder.migrate("Systemfiler", to: rootName, in: base)
+    }
 
     /// The paths that existed and were copied, and the folder they went to.
     public static func backup(host: String) async throws -> (folder: URL, saved: [String]) {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm"
         let folder = root.appendingPathComponent(formatter.string(from: Date()), isDirectory: true)
         let saved = try await TransferService(host: host).withFTP { ftp -> [String] in
@@ -336,28 +388,28 @@ public struct MaintenanceService: Sendable {
     /// Reads the console and reports. Changes nothing.
     public func check(queue: TransferQueue = TransferQueue.load(), events: @Sendable (String) -> Void = { _ in }) async throws -> MaintenanceReport {
         // The game list first: it opens its own FTP session.
-        events("Dubbletter")
+        events("Duplicates")
         let games = (try? await GameLibraryService(host: host).scan()) ?? []
         var report = try await TransferService(host: host).withFTP { ftp in
             try await check(ftp, queue: queue, games: games, events: events)
         }
 
-        events("webMAN:s cache")
+        events("webMAN's cache")
         if let cache = try? await StorageAnalyzer(host: host).size(of: "/dev_hdd0/tmp/wmtmp"), cache.bytes > 1 << 30 {
             report.findings.append(MaintenanceFinding(
-                kind: .cache, title: "webMAN:s cache",
-                detail: "/dev_hdd0/tmp/wmtmp är \(Format.bytes(cache.bytes)). Den byggs upp igen av sig själv om du tömmer den i webMAN.",
+                kind: .cache, title: "webMAN's cache",
+                detail: "/dev_hdd0/tmp/wmtmp is \(Format.bytes(cache.bytes)). webMAN builds it up again by itself if you empty it there.",
                 path: "/dev_hdd0/tmp/wmtmp", size: cache.bytes))
         } else {
-            report.passed.append("webMAN:s cache är liten")
+            report.passed.append("webMAN's cache is small")
         }
 
         if let free = try? await WebMAN(host: host).snapshot().freeBytes, free < 10_000_000_000 {
             report.findings.append(MaintenanceFinding(
-                kind: .space, title: "Lite ledigt utrymme",
-                detail: "\(Format.bytes(free)) ledigt på /dev_hdd0. Spel som körs och uppdateringar behöver plats."))
+                kind: .space, title: "Low on free space",
+                detail: "\(Format.bytes(free)) free on /dev_hdd0. Running games and installing updates need room."))
         } else {
-            report.passed.append("Gott om ledigt utrymme")
+            report.passed.append("Plenty of free space")
         }
         return report
     }
@@ -365,24 +417,24 @@ public struct MaintenanceService: Sendable {
     private func check(_ ftp: FTPClient, queue: TransferQueue, games: [Game], events: @Sendable (String) -> Void) async throws -> MaintenanceReport {
         var report = MaintenanceReport()
 
-        events("Paket och avbrutna överföringar")
+        events("Packages and unfinished transfers")
         let queued = Set(queue.pending.flatMap { $0.files.map(\.remote) })
         let packages = try await ftp.list("/dev_hdd0/packages")
         for file in packages where !file.isDirectory && [".pkg", ".p3t"].contains(where: { file.name.lowercased().hasSuffix($0) }) {
             report.findings.append(MaintenanceFinding(
                 kind: .leftoverPackage, title: file.name,
-                detail: "Ett paket eller tema som ligger kvar i /dev_hdd0/packages. Det som är installerat behöver det inte.",
+                detail: "A package or theme left in /dev_hdd0/packages. What it installed does not need it.",
                 path: "/dev_hdd0/packages/" + file.name, size: file.size, canFix: true))
         }
 
-        events("Systemuppdateringar")
+        events("System updates")
         if try await ftp.size(UpdateBlock.remotePath) == nil {
             // Advice only: `fix` removes files and never adds one; `UpdateBlock.set` does that on request.
             report.findings.append(MaintenanceFinding(
-                kind: .updates, title: "Systemuppdateringar blockeras inte",
-                detail: "Uppdaterar PS3:an systemprogramvaran av misstag kan HEN sluta fungera. Blockera uppdateringar här eller med ps3 maintain block-updates; det gäller från nästa start."))
+                kind: .updates, title: "System updates are not blocked",
+                detail: "If the PS3 updates its system software by mistake, HEN can stop working. Blocking takes effect from the next start."))
         } else {
-            report.passed.append("Systemuppdateringar blockeras")
+            report.passed.append("System updates are blocked")
         }
         var parts: [(path: String, size: Int64)] = packages.filter { $0.name.hasSuffix(".part") }
             .map { ("/dev_hdd0/packages/" + $0.name, $0.size) }
@@ -403,20 +455,20 @@ public struct MaintenanceService: Sendable {
             let waiting = queued.contains(original)
             report.findings.append(MaintenanceFinding(
                 kind: .partialUpload, title: (original as NSString).lastPathComponent,
-                detail: waiting ? "En överföring som fortsätter när kön går." : "En överföring som inte blev klar. Den syns inte i XMB:n.",
+                detail: waiting ? "A transfer that resumes when the queue runs." : "A transfer that never finished. It does not show in the XMB.",
                 path: part.path, size: part.size, canFix: !waiting))
         }
-        if packages.isEmpty, parts.isEmpty { report.passed.append("Inga kvarglömda paket eller avbrutna överföringar") }
+        if packages.isEmpty, parts.isEmpty { report.passed.append("No leftover packages or unfinished transfers") }
 
         let byID = Dictionary(grouping: games.filter { !$0.isInstalled && $0.platform == .ps3 && $0.titleID != nil }, by: { $0.titleID! })
         let duplicates = byID.filter { $0.value.count > 1 }.sorted { $0.key < $1.key }
         for (id, copies) in duplicates {
             report.findings.append(MaintenanceFinding(
                 kind: .duplicate, title: copies[0].title,
-                detail: "\(id) finns \(copies.count) gånger: " + copies.map(\.path).joined(separator: ", ") + ". Ta bort den du inte behöver i Spel-fliken.",
+                detail: "\(id) is there \(copies.count) times: " + copies.map(\.path).joined(separator: ", ") + ". Delete the one you don't need in the Games tab.",
                 size: copies.dropFirst().compactMap(\.size).reduce(0, +)))
         }
-        if duplicates.isEmpty { report.passed.append("Inga spel som finns två gånger") }
+        if duplicates.isEmpty { report.passed.append("No games that are there twice") }
 
         events("boot_plugins")
         var missing = 0
@@ -427,18 +479,18 @@ public struct MaintenanceService: Sendable {
                 missing += 1
                 report.findings.append(MaintenanceFinding(
                     kind: .missingPlugin, title: (plugin as NSString).lastPathComponent,
-                    detail: "\((list as NSString).lastPathComponent) pekar på \(plugin), som inte finns. PS3 Center ändrar aldrig listan; ta bort raden själv.",
+                    detail: "\((list as NSString).lastPathComponent) points to \(plugin), which does not exist. PS3 Center never changes the list; remove the line yourself.",
                     path: plugin))
             }
         }
-        if missing == 0 { report.passed.append("Alla plugins i boot_plugins finns") }
+        if missing == 0 { report.passed.append("Every plugin in boot_plugins exists") }
 
         events("HEN")
         let toggles = try await ftp.list("/dev_hdd0/hen/toggles").filter { !$0.isDirectory }.map(\.name)
         if !toggles.isEmpty {
             report.findings.append(MaintenanceFinding(
-                kind: .henToggles, title: "HEN-inställningar",
-                detail: "Filer i /dev_hdd0/hen/toggles: " + toggles.joined(separator: ", ") + ". Bara information.",
+                kind: .henToggles, title: "HEN settings",
+                detail: "Files in /dev_hdd0/hen/toggles: " + toggles.joined(separator: ", ") + ". For information only.",
                 path: "/dev_hdd0/hen/toggles"))
         }
         return report
@@ -457,10 +509,10 @@ public struct MaintenanceService: Sendable {
             var results: [(finding: MaintenanceFinding, skipped: String?)] = []
             for finding in findings {
                 guard finding.canFix, let path = finding.path else {
-                    results.append((finding, "bara ett råd"))
+                    results.append((finding, "advice only"))
                     continue
                 }
-                events("Tar bort \(finding.title)")
+                events("Deleting \(finding.title)")
                 do {
                     try await ftp.delete(path)
                     OperationLog.record("delete", path)
@@ -519,20 +571,20 @@ public struct StorageAnalyzer: Sendable {
     public init(host: String) { self.host = host }
 
     static let areas: [(path: String, name: String)] = [
-        ("/dev_hdd0/game", "Installerade spel och program"),
-        ("/dev_hdd0/PS3ISO", "PS3-ISO:er"),
-        ("/dev_hdd0/GAMES", "Spelmappar"),
-        ("/dev_hdd0/PS2ISO", "PS2-ISO:er"),
-        ("/dev_hdd0/PSXISO", "PS1-avbilder"),
-        ("/dev_hdd0/PSPISO", "PSP-ISO:er"),
+        ("/dev_hdd0/game", "Installed games and apps"),
+        ("/dev_hdd0/PS3ISO", "PS3 ISOs"),
+        ("/dev_hdd0/GAMES", "Game folders"),
+        ("/dev_hdd0/PS2ISO", "PS2 ISOs"),
+        ("/dev_hdd0/PSXISO", "PS1 images"),
+        ("/dev_hdd0/PSPISO", "PSP ISOs"),
         ("/dev_hdd0/BDISO", "Blu-ray"),
         ("/dev_hdd0/DVDISO", "DVD"),
-        ("/dev_hdd0/home", "Användare och sparfiler"),
-        ("/dev_hdd0/packages", "Paket"),
-        ("/dev_hdd0/tmp", "Tillfälligt och webMAN:s cache"),
+        ("/dev_hdd0/home", "Users and saves"),
+        ("/dev_hdd0/packages", "Packages"),
+        ("/dev_hdd0/tmp", "Temporary files and webMAN's cache"),
         ("/dev_hdd0/video", "Video"),
-        ("/dev_hdd0/music", "Musik"),
-        ("/dev_hdd0/photo", "Bilder"),
+        ("/dev_hdd0/music", "Music"),
+        ("/dev_hdd0/photo", "Photos"),
     ]
 
     public func analyze(events: @Sendable (String) -> Void = { _ in }) async throws -> StorageMap {
@@ -562,7 +614,7 @@ public struct StorageAnalyzer: Sendable {
     /// A folder's size and counts, counted on the console. Reads only.
     public func size(of path: String) async throws -> (bytes: Int64, folders: Int, files: Int) {
         let page = try await WebMAN(host: host).long("/stat.ps3" + path, timeout: 300)
-        guard let parsed = Self.parseStat(page) else { throw PS3Error.invalidFile("webMAN:s /stat.ps3 gav inget svar för \(path)") }
+        guard let parsed = Self.parseStat(page) else { throw PS3Error.invalidFile("webMAN's /stat.ps3 gave no answer for \(path)") }
         return parsed
     }
 
@@ -610,7 +662,7 @@ public struct DiscRipper: Sendable {
     /// The disc in the drive, or nil when there is none (or it is not a PS3 game).
     public func disc() async throws -> DiscInfo? {
         if let mounted = try await WebMAN(host: host).snapshot().mountedGamePath, !mounted.hasPrefix("/dev_bdvd") {
-            throw PS3Error.refused("\((mounted as NSString).lastPathComponent) är monterat, så skivan syns inte. Avmontera det först.")
+            throw PS3Error.refused("\((mounted as NSString).lastPathComponent) is mounted, so the disc does not show. Unmount it first.")
         }
         let sfoData = try await TransferService(host: host).withFTP { try await $0.download("/dev_bdvd/PS3_GAME/PARAM.SFO", limit: 1 << 20) }
         guard let data = sfoData, let sfo = ParamSFO(data: data), let titleID = sfo.titleID else { return nil }
@@ -626,7 +678,7 @@ public struct DiscRipper: Sendable {
             throw PS3Error.notEnoughSpace(needed: disc.bytes, free: free)
         }
         if let existing = try? await analyzer.size(of: disc.destination), existing.files > 0 {
-            throw PS3Error.refused("\(disc.destination) finns redan.")
+            throw PS3Error.refused("\(disc.destination) already exists.")
         }
         guard let url = URL(string: "http://\(host)/copy.ps3/dev_bdvd&to=" + WebMAN.encodeCommand(disc.destination)) else {
             throw PS3Error.invalidFile(disc.destination)
@@ -660,7 +712,7 @@ public struct DiscRipper: Sendable {
                 still = Date()
             } else if Date().timeIntervalSince(still) > 120 {
                 if disc.bytes == 0 || copied >= disc.bytes * 99 / 100 { return }
-                throw PS3Error.timeout("kopieringen har stått still i två minuter (\(Format.bytes(copied)) av \(Format.bytes(disc.bytes)))")
+                throw PS3Error.timeout("the copy has not moved for two minutes (\(Format.bytes(copied)) of \(Format.bytes(disc.bytes)))")
             }
         }
     }

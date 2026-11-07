@@ -1,7 +1,7 @@
 import Foundation
 
 /// How fast files move between the Mac and the console, measured with `ps3 speedtest` (or the
-/// app's Överföringar) and kept in ~/.config/ps3center/speed.json for time estimates.
+/// app's Transfers) and kept in ~/.config/ps3center/speed.json for time estimates.
 public struct SpeedResult: Codable, Equatable, Sendable {
     /// Bytes per second.
     public let upload: Double
@@ -49,20 +49,20 @@ public enum SpeedTest {
     /// a measurement over LAN.
     public static let typicalCable: ClosedRange<Double> = 10e6...40e6
 
-    /// "ca 7 min" from a measurement over LAN, else "ca 4–16 min" from typical cable speeds.
+    /// "about 7 min" from a measurement over LAN, else "about 4–16 min" from typical cable speeds.
     public static func cableEstimate(bytes: Int64, measured: [String: SpeedResult] = byNetwork()) -> String {
         if let lan = measured["LAN"], lan.upload > 0 {
             let seconds = Double(bytes) / lan.upload
-            return seconds < 60 ? Format.playTime(seconds) : "ca \(Format.playTime(seconds))"
+            return seconds < 60 ? Format.playTime(seconds) : "about \(Format.playTime(seconds))"
         }
         let fast = Double(bytes) / typicalCable.upperBound
         let slow = Double(bytes) / typicalCable.lowerBound
         let fastMinutes = max(1, Int((fast / 60).rounded()))
         let slowMinutes = max(1, Int((slow / 60).rounded()))
         if slowMinutes < 60 {
-            return fastMinutes == slowMinutes ? "ca \(fastMinutes) min" : "ca \(fastMinutes)–\(slowMinutes) min"
+            return fastMinutes == slowMinutes ? "about \(fastMinutes) min" : "about \(fastMinutes)–\(slowMinutes) min"
         }
-        return "ca \(Format.playTime(fast))–\(Format.playTime(slow))"
+        return "about \(Format.playTime(fast))–\(Format.playTime(slow))"
     }
 
     /// Seconds to send `bytes` at the last measured upload speed, or nil before a measurement.
@@ -80,7 +80,7 @@ public enum SpeedTest {
         LongCommands.shared.begin()
         defer { LongCommands.shared.end() }
         let limit = Int64(megabytes) << 20
-        let route = Route(local: URL(fileURLWithPath: "/dev/zero"), remote: remote, kind: .other, size: limit, title: "Hastighetstest")
+        let route = Route(local: URL(fileURLWithPath: "/dev/zero"), remote: remote, kind: .other, size: limit, title: "Speed test")
         let transfer = TransferService(host: host)
         let (up, down) = try await transfer.withFTP { ftp -> (Double, Double) in
             events(.started(route, resumingFrom: 0))
@@ -96,7 +96,7 @@ public enum SpeedTest {
             }
             let upSeconds = max(Date().timeIntervalSince(start), 0.001)
             events(.finished(route, seconds: upSeconds))
-            events(.note("Läser tillbaka…"))
+            events(.note("Reading back…"))
             let readStart = Date()
             let data = try? await ftp.download(remote, limit: Int(sent) + 1)
             let downSeconds = max(Date().timeIntervalSince(readStart), 0.001)
@@ -207,7 +207,7 @@ public enum USBDrive {
                         plan.copies.append(Copy(game: game, source: url, destination: parts > 1 ? URL(fileURLWithPath: base.path + ".0") : base,
                                                 parts: parts, size: iso.size, kind: .isoFromFolder, iso: iso))
                     } catch {
-                        plan.skipped.append((game, "spelmappen har en fil över 4 GB och går inte att göra om till en ISO: \(error.localizedDescription)"))
+                        plan.skipped.append((game, "the game folder has a file over 4 GB and cannot be made into an ISO: \(error.localizedDescription)"))
                     }
                     continue
                 }
@@ -223,7 +223,7 @@ public enum USBDrive {
                 var parts = 1
                 if size > partSize {
                     guard splittable.contains(game.platform), url.pathExtension.lowercased() == "iso" else {
-                        plan.skipped.append((game, "\(url.lastPathComponent) är över 4 GB och kan bara delas för PS3-ISO:er och filmer"))
+                        plan.skipped.append((game, "\(url.lastPathComponent) is over 4 GB, and only PS3 ISOs and movies can be split"))
                         break
                     }
                     parts = PS3ISO.partCount(for: size)
@@ -244,7 +244,7 @@ public enum USBDrive {
             try fm.createDirectory(at: copy.destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if copy.kind == .folder {
                 if fm.fileExists(atPath: copy.destination.path) {
-                    events(.skipped(route, reason: "finns redan på disken"))
+                    events(.skipped(route, reason: "already on the drive"))
                     continue
                 }
                 events(.started(route, resumingFrom: 0))
@@ -255,7 +255,7 @@ public enum USBDrive {
             let base = URL(fileURLWithPath: copy.parts > 1 ? String(copy.destination.path.dropLast(2)) : copy.destination.path)
             let targets = copy.parts > 1 ? (0..<copy.parts).map { URL(fileURLWithPath: "\(base.path).\($0)") } : [base]
             if zip(targets, PS3ISO.partSizes(for: copy.size, parts: copy.parts)).allSatisfy({ FileRouter.fileSize($0) == $1 }) {
-                events(.skipped(route, reason: "finns redan på disken"))
+                events(.skipped(route, reason: "already on the drive"))
                 continue
             }
             events(.started(route, resumingFrom: 0))

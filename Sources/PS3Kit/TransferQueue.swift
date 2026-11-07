@@ -10,9 +10,9 @@ public struct TransferQueue: Codable, Equatable, Sendable {
 
         public var label: String {
             switch self {
-            case .nothing: return "Ingenting"
-            case .popup: return "Popup på TV:n"
-            case .shutdown: return "Stäng av PS3:an"
+            case .nothing: return "Nothing"
+            case .popup: return "Popup on TV"
+            case .shutdown: return "Shut Down PS3"
             }
         }
     }
@@ -183,7 +183,7 @@ public struct QueueRunner: Sendable {
                 memory.note(route.remote, sent)
             case .started(let route, let offset) where offset == 0 && memory.bytes(route.remote) > 0:
                 // webMAN removes a partial file when the data connection breaks with an error.
-                events(.note("PS3:an tog bort den halvfärdiga filen när anslutningen bröts, så \(route.local.lastPathComponent) börjar om från början."))
+                events(.note("The PS3 deleted the half-sent file when the connection broke, so \(route.local.lastPathComponent) starts over from the beginning."))
             default:
                 break
             }
@@ -207,17 +207,17 @@ public struct QueueRunner: Sendable {
             try await webman.refreshGames()
             events(.refreshed)
         }
-        let summary = titles.count == 1 ? "\(titles[0]) är skickat från Macen" : "\(titles.count) spel är skickade från Macen"
+        let summary = titles.count == 1 ? "\(titles[0]) was sent from the Mac" : "\(titles.count) games were sent from the Mac"
         switch whenDone {
         case .nothing:
             break
         case .popup:
             try? await webman.popup(summary)
         case .shutdown:
-            try? await webman.popup(summary + ". PS3:an stängs av.")
+            try? await webman.popup(summary + ". The PS3 is shutting down.")
             try await Task.sleep(nanoseconds: 5_000_000_000)
             try await webman.shutdown()
-            events(.note("PS3:an stängs av"))
+            events(.note("The PS3 is shutting down"))
         }
     }
 }

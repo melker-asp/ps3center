@@ -56,20 +56,20 @@ private func packageHeader(_ contentID: String) -> Data {
 
 @Test func packageFoldersComeFromConfig() {
     var config = PS3Config()
-    config.packageFolders = ["~/Paket", "/Volumes/Spel/Paket/", "/Volumes/Spel/Paket"]
+    config.packageFolders = ["~/Packages", "/Volumes/Games/Packages/", "/Volumes/Games/Packages"]
     let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
-    #expect(PackageFolders.linked(config: config).map(\.path) == [home + "/Paket", "/Volumes/Spel/Paket"])
-    #expect(PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Spel/Paket/Sub/x.pkg"), config: config))
-    #expect(!PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Spel/Paketen/x.pkg"), config: config))
-    #expect(!PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Spel/x.pkg"), config: config))
+    #expect(PackageFolders.linked(config: config).map(\.path) == [home + "/Packages", "/Volumes/Games/Packages"])
+    #expect(PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Games/Packages/Sub/x.pkg"), config: config))
+    #expect(!PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Games/Packages2/x.pkg"), config: config))
+    #expect(!PackageFolders.contains(URL(fileURLWithPath: "/Volumes/Games/x.pkg"), config: config))
     #expect(PackageFolders.isKind("pkg") && !PackageFolders.isKind("PS3ISO"))
     #expect(PackageFolders.linked(config: PS3Config()).isEmpty)
 }
 
 @Test func labelsWhetherAPackageIsInstalled() {
-    #expect(PackageLibrary.installedLabel("01.30") == "Installerad 01.30")
-    #expect(PackageLibrary.installedLabel("") == "Installerad")
-    #expect(PackageLibrary.installedLabel(nil) == "Inte installerad")
+    #expect(PackageLibrary.installedLabel("01.30") == "Installed 01.30")
+    #expect(PackageLibrary.installedLabel("") == "Installed")
+    #expect(PackageLibrary.installedLabel(nil) == "Not installed")
 }
 
 @Test func fixturePackagesMatchTheCatalog() {

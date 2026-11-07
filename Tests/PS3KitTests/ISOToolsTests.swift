@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import PS3Kit
 
-// Fas 10: the PC tools for PS3 ISOs (PS3 ISO Tools, makeps3iso, extractps3iso, splitps3iso).
+// Phase 10: the PC tools for PS3 ISOs (PS3 ISO Tools, makeps3iso, extractps3iso, splitps3iso).
 
 private func md5(_ url: URL) throws -> String {
     Insecure.MD5.hash(data: try Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
@@ -12,7 +12,7 @@ private func md5(_ url: URL) throws -> String {
 /// A game folder as GAMES holds them: PARAM.SFO, files a few levels down, a folder with enough
 /// files to need several directory sectors, an empty file and an empty folder, a file split for
 /// FAT32 (.66600, .66601), the system update on the disc and a .DS_Store from Finder.
-private func makeGameFolder(in root: URL, name: String = "Testspel [BLES12345]") throws -> URL {
+private func makeGameFolder(in root: URL, name: String = "TestGame [BLES12345]") throws -> URL {
     let fm = FileManager.default
     let game = root.appendingPathComponent(name)
     func write(_ path: String, _ data: Data) throws {
@@ -21,7 +21,7 @@ private func makeGameFolder(in root: URL, name: String = "Testspel [BLES12345]")
         try data.write(to: url)
     }
     func bytes(_ count: Int, seed: UInt8) -> Data { Data((0..<count).map { UInt8(truncatingIfNeeded: $0 &* 31) ^ seed }) }
-    try write("PS3_GAME/PARAM.SFO", makeSFO(["TITLE": "Testspel: Åäö", "TITLE_ID": "BLES12345", "CATEGORY": "DG", "APP_VER": "01.00"]))
+    try write("PS3_GAME/PARAM.SFO", makeSFO(["TITLE": "TestGame: Åäö", "TITLE_ID": "BLES12345", "CATEGORY": "DG", "APP_VER": "01.00"]))
     try write("PS3_DISC.SFB", bytes(1024, seed: 1))
     try write("PS3_GAME/ICON0.PNG", bytes(30_000, seed: 2))
     try write("PS3_GAME/USRDIR/EBOOT.BIN", bytes(300_003, seed: 3))
@@ -50,11 +50,11 @@ private func temporaryFolder(_ name: String) throws -> URL {
     let game = try makeGameFolder(in: root)
     let builder = try PS3ISOBuilder(folder: game, created: Date(timeIntervalSince1970: 1_790_000_000))
     #expect(builder.titleID == "BLES12345")
-    #expect(builder.title == "Testspel: Åäö")
+    #expect(builder.title == "TestGame: Åäö")
     #expect(builder.leftOut == ["PS3_UPDATE/PS3UPDAT.PUP"])
     #expect(builder.fileCount == 77)  // 70 + still.txt + SFO, SFB, ICON0, EBOOT, empty, movie
 
-    let iso = root.appendingPathComponent("Testspel.iso")
+    let iso = root.appendingPathComponent("TestGame.iso")
     let files = try builder.write(to: iso, split: false)
     #expect(files == [iso])
     #expect(!FileManager.default.fileExists(atPath: iso.path + ".part"))
@@ -134,26 +134,26 @@ private func temporaryFolder(_ name: String) throws -> URL {
     defer { try? FileManager.default.removeItem(at: root) }
     let data = Data((0..<25).map { UInt8($0) })
     // Small parts so the test stays small; the parts are the same as with 4 GB ones.
-    let writer = PartWriter(base: root.appendingPathComponent("Spel.iso"), split: true, partSize: 10)
+    let writer = PartWriter(base: root.appendingPathComponent("Game.iso"), split: true, partSize: 10)
     try writer.write(data.prefix(7))
     try writer.write(data.dropFirst(7))
-    #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Spel.iso.0.part").path))
+    #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Game.iso.0.part").path))
     try writer.close()
-    let parts = PS3ISO.parts(startingAt: root.appendingPathComponent("Spel.iso.0"))
-    #expect(parts.map(\.lastPathComponent) == ["Spel.iso.0", "Spel.iso.1", "Spel.iso.2"])
+    let parts = PS3ISO.parts(startingAt: root.appendingPathComponent("Game.iso.0"))
+    #expect(parts.map(\.lastPathComponent) == ["Game.iso.0", "Game.iso.1", "Game.iso.2"])
     #expect(parts.map(FileRouter.fileSize) == [10, 10, 5])
     #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).allSatisfy { !$0.hasSuffix(".part") })
 
     // Exactly two parts' worth gives no empty third part.
-    let even = PartWriter(base: root.appendingPathComponent("Jämn.iso"), split: true, partSize: 10)
+    let even = PartWriter(base: root.appendingPathComponent("Even.iso"), split: true, partSize: 10)
     try even.write(data.prefix(20))
     try even.close()
-    #expect(even.files.map(\.lastPathComponent) == ["Jämn.iso.0", "Jämn.iso.1"])
+    #expect(even.files.map(\.lastPathComponent) == ["Even.iso.0", "Even.iso.1"])
 
-    let joined = try PS3ISO.join(root.appendingPathComponent("Spel.iso.0"))
-    #expect(joined.lastPathComponent == "Spel.iso")
+    let joined = try PS3ISO.join(root.appendingPathComponent("Game.iso.0"))
+    #expect(joined.lastPathComponent == "Game.iso")
     #expect(try Data(contentsOf: joined) == data)
-    #expect(throws: PS3Error.self) { try PS3ISO.join(root.appendingPathComponent("Spel.iso.0")) }  // Spel.iso is there now
+    #expect(throws: PS3Error.self) { try PS3ISO.join(root.appendingPathComponent("Game.iso.0")) }  // Game.iso is there now
     #expect(throws: PS3Error.self) { try PS3ISO.split(joined) }  // 25 bytes need no splitting
 
     // A failed or cancelled write leaves nothing that webMAN could list.
@@ -167,11 +167,11 @@ private func temporaryFolder(_ name: String) throws -> URL {
     let root = try temporaryFolder("extract")
     defer { try? FileManager.default.removeItem(at: root) }
     let game = try makeGameFolder(in: root)
-    let iso = root.appendingPathComponent("Testspel.iso")
+    let iso = root.appendingPathComponent("TestGame.iso")
     try PS3ISOBuilder(folder: game).write(to: iso, split: false)
 
     let result = try PS3ISO.extract(iso)
-    #expect(result.folder.lastPathComponent == "Testspel")
+    #expect(result.folder.lastPathComponent == "TestGame")
     #expect(result.leftOut.isEmpty)
     let out = result.folder
     #expect(try md5(out.appendingPathComponent("PS3_GAME/USRDIR/EBOOT.BIN")) == md5(game.appendingPathComponent("PS3_GAME/USRDIR/EBOOT.BIN")))
@@ -195,7 +195,7 @@ private func temporaryFolder(_ name: String) throws -> URL {
     #expect(PS3ISO.fatName("Ratchet & Clank: A Crack in Time") == "Ratchet & Clank - A Crack in Time")
     #expect(PS3ISO.fatName("What? *Really* <yes>|\"no\"") == "What Really yesno")
     #expect(PS3ISO.fatName("Dots...") == "Dots")
-    #expect(PS3ISO.fatName("???") == "Spel")
+    #expect(PS3ISO.fatName("???") == "Game")
 }
 
 @Test func plansAUSBDriveWithSplitISOsAndGameFoldersMadeIntoISOs() throws {
@@ -212,10 +212,10 @@ private func temporaryFolder(_ name: String) throws -> URL {
     }
     let big: UInt64 = 6_000_000_000
 
-    let folder = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Stort spel: Del 2")
+    let folder = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Big Game: Part 2")
     try sparse(folder.appendingPathComponent("PS3_GAME/USRDIR/huge.psarc"), big)
-    let small = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Litet spel")
-    let iso = root.appendingPathComponent("PS3/Spel.iso")
+    let small = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Small Game")
+    let iso = root.appendingPathComponent("PS3/Game.iso")
     try sparse(iso, big)
     let film = root.appendingPathComponent("BD/Film.iso")
     try sparse(film, big)
@@ -223,17 +223,17 @@ private func temporaryFolder(_ name: String) throws -> URL {
     try sparse(ps2, big)
 
     let games = [
-        Game(path: folder.path, title: "Stort spel", titleID: "BLES12345", platform: .ps3, isFolder: true, source: .mac,
-             remotePath: "/dev_hdd0/GAMES/Stort spel: Del 2"),
-        Game(path: small.path, title: "Litet spel", titleID: "BLES12345", platform: .ps3, isFolder: true, source: .mac,
-             remotePath: "/dev_hdd0/GAMES/Litet spel"),
-        Game(path: iso.path, title: "Spel", platform: .ps3, size: Int64(big), source: .mac, remotePath: "/dev_hdd0/PS3ISO/Spel.iso"),
+        Game(path: folder.path, title: "Big Game", titleID: "BLES12345", platform: .ps3, isFolder: true, source: .mac,
+             remotePath: "/dev_hdd0/GAMES/Big Game: Part 2"),
+        Game(path: small.path, title: "Small Game", titleID: "BLES12345", platform: .ps3, isFolder: true, source: .mac,
+             remotePath: "/dev_hdd0/GAMES/Small Game"),
+        Game(path: iso.path, title: "Game", platform: .ps3, size: Int64(big), source: .mac, remotePath: "/dev_hdd0/PS3ISO/Game.iso"),
         Game(path: film.path, title: "Film", platform: .bluRay, size: Int64(big), source: .mac, remotePath: "/dev_hdd0/BDISO/Film.iso"),
         Game(path: ps2.path, title: "Stort PS2", platform: .ps2, size: Int64(big), source: .mac, remotePath: "/dev_hdd0/PS2ISO/Stort PS2.iso"),
     ]
     let plan = USBDrive.plan(games, on: drive)
     let relative = plan.copies.map { String($0.destination.path.dropFirst(drive.path.count + 1)) }
-    #expect(relative == ["PS3ISO/Stort spel - Del 2.iso.0", "GAMES/Litet spel", "PS3ISO/Spel.iso.0", "BDISO/Film.iso.0"])
+    #expect(relative == ["PS3ISO/Big Game - Part 2.iso.0", "GAMES/Small Game", "PS3ISO/Game.iso.0", "BDISO/Film.iso.0"])
     #expect(plan.copies.map(\.kind) == [.isoFromFolder, .folder, .file, .file])
     #expect(plan.copies.map(\.parts) == [2, 1, 2, 2])
     #expect(plan.copies[0].size > Int64(big))

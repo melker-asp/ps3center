@@ -59,10 +59,10 @@ private func reply(_ server: MCPServer, _ line: String) async throws -> [String:
 // MARK: Ideas from ps3.world
 
 @Test func explainsCommonXMBCodes() {
-    #expect(ConsoleErrorCode.info(0x80010514)?.name == "SKIVA")
+    #expect(ConsoleErrorCode.info(0x80010514)?.name == "DISC")
     #expect(ConsoleErrorCode.info(0x80710102)?.advice?.contains("DNS") == true)
     // Codes outside 0x8001xxxx are found in messages too, and unknown ones are left out.
-    let found = ConsoleErrorCode.explain(in: "Fel 80029519, sedan 0x8002990C och 80021234")
+    let found = ConsoleErrorCode.explain(in: "Error 80029519, then 0x8002990C and 80021234")
     #expect(found.map(\.code) == [0x80029519, 0x8002990C])
     #expect(ConsoleErrorCode.describe(found[1]).hasPrefix("8002990C (VIDEO):"))
 }

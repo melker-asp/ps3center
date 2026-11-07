@@ -55,7 +55,7 @@ public struct ConsoleProfile: Codable, Equatable, Sendable {
         let firmwarePart = [firmware, kind?.label].compactMap { $0 }.joined(separator: " ")
         let exploitPart = payload ?? exploit?.label
         let parts = [firmwarePart.isEmpty ? nil : firmwarePart, exploitPart].compactMap { $0 }
-        return parts.isEmpty ? "okänd firmware" : parts.joined(separator: " · ")
+        return parts.isEmpty ? "unknown firmware" : parts.joined(separator: " · ")
     }
 }
 
@@ -89,19 +89,19 @@ public struct Requirements: Sendable {
         exploits.isEmpty && kinds.isEmpty && minFirmware == nil && maxFirmware == nil && untestedOn.isEmpty
     }
 
-    /// "Kräver HEN · firmware 4.80 eller senare"
+    /// "Requires HEN · firmware 4.80 or later"
     public var summary: String {
         var parts: [String] = []
-        if !exploits.isEmpty { parts.append("Kräver " + exploits.map(\.label).sorted().joined(separator: " eller ")) }
-        if !kinds.isEmpty { parts.append("Bara " + kinds.map(\.label).sorted().joined(separator: " eller ")) }
+        if !exploits.isEmpty { parts.append("Requires " + exploits.map(\.label).sorted().joined(separator: " or ")) }
+        if !kinds.isEmpty { parts.append("Only " + kinds.map(\.label).sorted().joined(separator: " or ")) }
         switch (minFirmware, maxFirmware) {
         case let (min?, max?): parts.append("firmware \(min)–\(max)")
-        case let (min?, nil): parts.append("firmware \(min) eller senare")
-        case let (nil, max?): parts.append("firmware till och med \(max)")
+        case let (min?, nil): parts.append("firmware \(min) or later")
+        case let (nil, max?): parts.append("firmware up to \(max)")
         case (nil, nil): break
         }
-        if !untestedOn.isEmpty { parts.append("otestad på " + untestedOn.map(\.label).sorted().joined(separator: " och ")) }
-        return parts.isEmpty ? "Inga krav på HEN, CFW eller firmware" : parts.joined(separator: " · ")
+        if !untestedOn.isEmpty { parts.append("untested on " + untestedOn.map(\.label).sorted().joined(separator: " and ")) }
+        return parts.isEmpty ? "No HEN, CFW or firmware requirements" : parts.joined(separator: " · ")
     }
 }
 
@@ -130,16 +130,16 @@ public struct Compatibility: Codable, Equatable, Sendable {
     public var blocksInstall: Bool { verdict == .incompatible || verdict == .unknown }
 
     public var summary: String {
-        reasons.isEmpty ? "Fungerar på din PS3" : reasons.joined(separator: ". ")
+        reasons.isEmpty ? "Works on your PS3" : reasons.joined(separator: ". ")
     }
 
     /// Short text for a chip next to the name, nil when there is nothing to say.
     public var badge: String? {
         switch verdict {
         case .compatible: return nil
-        case .untested: return "Otestad"
-        case .incompatible: return "Fungerar inte"
-        case .unknown: return "Okänd firmware"
+        case .untested: return "Untested"
+        case .incompatible: return "Doesn't Work"
+        case .unknown: return "Unknown Firmware"
         }
     }
 
@@ -152,35 +152,35 @@ public struct Compatibility: Codable, Equatable, Sendable {
         if !r.exploits.isEmpty {
             if let exploit = p.exploit {
                 if !r.exploits.contains(exploit) {
-                    blocked.append("Kräver \(list(r.exploits.map(\.label))), din PS3 kör \(exploit.label)")
+                    blocked.append("Requires \(list(r.exploits.map(\.label))), your PS3 runs \(exploit.label)")
                 }
             } else {
-                unknown.append("Kunde inte avgöra om konsolen kör HEN eller CFW")
+                unknown.append("Could not tell whether the console runs HEN or CFW")
             }
         }
         if !r.kinds.isEmpty {
             if let kind = p.kind {
                 if !r.kinds.contains(kind) {
-                    blocked.append("Fungerar bara på \(list(r.kinds.map(\.label))), din PS3 är \(kind.label)")
+                    blocked.append("Only works on \(list(r.kinds.map(\.label))), your PS3 is \(kind.label)")
                 }
             } else {
-                unknown.append("Kunde inte avgöra om konsolen är CEX eller DEX")
+                unknown.append("Could not tell whether the console is CEX or DEX")
             }
         }
         if r.minFirmware != nil || r.maxFirmware != nil {
             if let raw = p.firmware, let firmware = Version(raw, style: .dotted) {
                 if let min = r.minFirmware, let minimum = Version(min, style: .dotted), firmware < minimum {
-                    blocked.append("Kräver firmware \(min) eller senare, din har \(raw)")
+                    blocked.append("Requires firmware \(min) or later, yours is \(raw)")
                 }
                 if let max = r.maxFirmware, let maximum = Version(max, style: .dotted), maximum < firmware {
-                    blocked.append("Fungerar bara till och med firmware \(max), din har \(raw)")
+                    blocked.append("Only works up to firmware \(max), yours is \(raw)")
                 }
             } else {
-                unknown.append("Kunde inte läsa konsolens firmwareversion")
+                unknown.append("Could not read the console's firmware version")
             }
         }
         if let exploit = p.exploit, r.untestedOn.contains(exploit) {
-            warnings.append("Inte testad på \(exploit.label)")
+            warnings.append("Not tested on \(exploit.label)")
         }
 
         let note = r.note.map { [$0] } ?? []
@@ -193,11 +193,11 @@ public struct Compatibility: Codable, Equatable, Sendable {
     /// Throws when the install must not go ahead.
     public func enforce(_ name: String) throws {
         guard blocksInstall else { return }
-        throw PS3Error.incompatible("\(name) installeras inte: \(summary).")
+        throw PS3Error.incompatible("\(name) will not be installed: \(summary).")
     }
 
-    /// Stable order regardless of Set iteration: "HEN eller CFW".
+    /// Stable order regardless of Set iteration: "CFW or HEN".
     private static func list(_ labels: [String]) -> String {
-        labels.sorted().joined(separator: " eller ")
+        labels.sorted().joined(separator: " or ")
     }
 }

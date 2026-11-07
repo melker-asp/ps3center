@@ -26,20 +26,20 @@ public struct AppStatus: Codable, Sendable {
     public var compatibility: Compatibility = .compatible
     /// Could be installed from the catalog, but the console does not meet its requirements.
     public var blocked = false
-    /// Size of the release package in bytes, for the review before "Uppdatera alla".
+    /// Size of the release package in bytes, for the review before "Update All".
     public var assetSize: Int64?
     /// When the latest release came out, as GitHub writes it ("2026-11-02T18:04:11Z").
     public var releaseDate: String?
     /// An update to exactly this release was skipped (`IgnoredUpdates`). It still counts as
-    /// `updateAvailable`, but lists and "Uppdatera alla" leave it out.
+    /// `updateAvailable`, but lists and "Update All" leave it out.
     public var ignored = false
 
-    /// An update the user has not skipped: what the badges count and "Uppdatera alla" offers.
+    /// An update the user has not skipped: what the badges count and "Update All" offers.
     public var isPendingUpdate: Bool { state == .updateAvailable && !ignored }
 
     public var releasedAt: Date? { releaseDate.flatMap { ISO8601DateFormatter().date(from: $0) } }
 
-    /// "Nytt" in Hämta: the latest release came out in the last `days` days.
+    /// "New" in Browse: the latest release came out in the last `days` days.
     public func isNewRelease(now: Date = Date(), days: Int = 30) -> Bool {
         guard let releasedAt else { return false }
         return now.timeIntervalSince(releasedAt) < Double(days) * 86_400
@@ -121,11 +121,11 @@ public struct AppsService: Sendable {
         case .paramSFO:
             if let file = installedFile {
                 sfoVersion = ParamSFO(data: file)?.appVersion
-                status.installed = sfoVersion ?? "installerad"
+                status.installed = sfoVersion ?? "installed"
             }
         case .webman: status.installed = console.webmanVersion
         case .hen: status.installed = console.henVersion
-        case .pluginFile: status.installed = installedFile == nil ? nil : "installerad"
+        case .pluginFile: status.installed = installedFile == nil ? nil : "installed"
         }
 
         switch release {
@@ -145,13 +145,13 @@ public struct AppsService: Sendable {
             status.installable = entry.isInstallable && info.assetURL != nil
             if !entry.tracksUpdates { status.latest = nil }
             if let assetData = info.assetData, let installedData = installedFile {
-                status.installed = Self.md5(installedData) == Self.md5(assetData) ? info.version : "annan version"
+                status.installed = Self.md5(installedData) == Self.md5(assetData) ? info.version : "other version"
             }
         }
 
         if case .manual = entry.source {
             status.state = status.installed == nil ? .notInstalled : .manual
-            status.note = "Kolla manuellt: \(entry.homepage)"
+            status.note = "Check manually: \(entry.homepage)"
             return status
         }
         guard let installed = status.installed else { return status }
@@ -315,10 +315,10 @@ public struct AppsService: Sendable {
     /// title ID is in the catalog, the console must meet that program's requirements, as when it
     /// is installed by name. Logged by `TransferService.installPackage`.
     public func installOwnPackage(_ file: URL, options: TransferOptions, events: TransferHandler) async throws {
-        guard PKGInfo(url: file) != nil else { throw PS3Error.invalidFile("\(file.lastPathComponent) är inget giltigt PS3-paket.") }
+        guard PKGInfo(url: file) != nil else { throw PS3Error.invalidFile("\(file.lastPathComponent) is not a valid PS3 package.") }
         if let known = try await checkPackage(file) {
             try known.compatibility.enforce("\(file.lastPathComponent) (\(known.entry.name))")
-            if known.compatibility.verdict == .untested { events(.note("Obs: \(known.compatibility.summary).")) }
+            if known.compatibility.verdict == .untested { events(.note("Note: \(known.compatibility.summary).")) }
         }
         try await TransferService(host: host).installPackage(file, options: options, events: events)
     }
@@ -341,31 +341,31 @@ public struct AppsService: Sendable {
 
     // MARK: Install and update
 
-    /// Fetches the release package for `entry`, archives it in _Installerat/Paket (older copies
+    /// Fetches the release package for `entry`, archives it in _Installed/Packages (older copies
     /// of the same app go to the Trash), installs it and remembers which tag is installed.
     /// Refuses before downloading anything when the console does not meet the entry's requirements.
     public func install(_ entry: CatalogEntry, archive: URL, options: TransferOptions, events: TransferHandler) async throws {
         guard entry.isInstallable, case .github(let repo, let pattern, let tag) = entry.source else {
-            if case .notifyOnly(let note) = entry.action { throw PS3Error.unsupportedFile("\(entry.name) installeras inte automatiskt. \(note)") }
-            throw PS3Error.unsupportedFile("\(entry.name) kan inte installeras automatiskt. Se \(entry.homepage)")
+            if case .notifyOnly(let note) = entry.action { throw PS3Error.unsupportedFile("\(entry.name) is not installed automatically. \(note)") }
+            throw PS3Error.unsupportedFile("\(entry.name) cannot be installed automatically. See \(entry.homepage)")
         }
         let compatibility = try await self.compatibility(of: entry)
         try compatibility.enforce(entry.name)
-        if compatibility.verdict == .untested { events(.note("Obs: \(compatibility.summary).")) }
+        if compatibility.verdict == .untested { events(.note("Note: \(compatibility.summary).")) }
         let release = try await GitHub.release(repo: repo, tag: tag)
         guard let asset = release.asset(matching: pattern) else {
-            throw PS3Error.github("Releasen \(release.tagName) av \(repo) saknar paketet för \(entry.name).")
+            throw PS3Error.github("Release \(release.tagName) of \(repo) has no package for \(entry.name).")
         }
         if options.dryRun {
-            events(.note("Skulle hämta \(asset.name) (\(Format.bytes(asset.size)), \(release.tagName)) och installera det"))
+            events(.note("Would download \(asset.name) (\(Format.bytes(asset.size)), \(release.tagName)) and install it"))
             return
         }
-        events(.note("Laddar ner \(asset.name) \(release.tagName) (\(Format.bytes(asset.size)))…"))
+        events(.note("Downloading \(asset.name) \(release.tagName) (\(Format.bytes(asset.size)))…"))
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("ps3center-\(UUID().uuidString)/\(asset.name)")
         try await GitHub.download(asset.browserDownloadURL, to: staging)
         // Size and SHA-256 as GitHub lists them, before anything is archived or sent.
         if try GitHub.verify(staging, size: asset.size, digest: asset.digest) {
-            events(.note("\(asset.name) stämmer med GitHubs kontrollsumma (SHA-256)."))
+            events(.note("\(asset.name) matches GitHub's checksum (SHA-256)."))
         }
         let local = try archivePackage(staging, into: archive)
         try? FileManager.default.removeItem(at: staging.deletingLastPathComponent())
@@ -385,30 +385,30 @@ public struct AppsService: Sendable {
     /// plugins (they are not installed that way), and not while a game or app runs. Logged.
     public func uninstall(_ entry: CatalogEntry, options: TransferOptions, events: TransferHandler) async throws {
         guard entry.category != .system, let titleID = entry.titleID else {
-            throw PS3Error.refused("\(entry.name) avinstalleras inte härifrån.")
+            throw PS3Error.refused("\(entry.name) is not uninstalled from here.")
         }
         let path = "/dev_hdd0/game/" + titleID
         if let refusal = UninstallGuard.refusal(titleID: titleID, title: entry.name, path: path) { throw PS3Error.refused(refusal) }
         guard try await WebMAN(host: host).runningProcess() == nil else { throw PS3Error.gameRunning }
         if options.dryRun {
-            events(.note("Skulle ta bort \(path)"))
+            events(.note("Would delete \(path)"))
             return
         }
         try await TransferService(host: host).withFTP { ftp in
             guard try await ftp.size(path + "/PARAM.SFO") != nil else {
-                throw PS3Error.refused("\(entry.name) är inte installerat (\(path) saknas).")
+                throw PS3Error.refused("\(entry.name) is not installed (\(path) is missing).")
             }
             try await ftp.removeTree(path)
         }
         InstalledRegistry.forget(entry.id)
         OperationLog.record("uninstall", "\(entry.name) (\(path))")
         let reload = await XMBReload.afterRemoval(host: host)
-        events(.note("\(entry.name) är avinstallerat. \(reload)"))
+        events(.note("\(entry.name) is uninstalled. \(reload)"))
     }
 
     public func update(_ status: AppStatus, archive: URL, options: TransferOptions, events: TransferHandler) async throws {
         guard status.canInstall, let entry = Catalog.entries.first(where: { $0.id == status.id }) else {
-            throw PS3Error.unsupportedFile("\(status.name) kan inte uppdateras automatiskt.")
+            throw PS3Error.unsupportedFile("\(status.name) cannot be updated automatically.")
         }
         try await install(entry, archive: archive, options: options, events: events)
     }

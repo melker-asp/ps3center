@@ -19,17 +19,17 @@ public enum PlayCheck {
         public var message: String {
             switch self {
             case .libCrypt(let exe, true):
-                return "Kopieringsskyddet LibCrypt: datan som HEN behöver (\(exe).lsd) finns på PS3:an."
+                return "LibCrypt copy protection: the data HEN needs (\(exe).lsd) is on the PS3."
             case .libCrypt(let exe, false):
-                return "Kopieringsskyddet LibCrypt: spelet stannar tidigt utan datan \(exe).lsd. Installera den härifrån (ps3 games libcrypt)."
+                return "LibCrypt copy protection: the game stops early without the data \(exe).lsd. Install it from here (ps3 games libcrypt)."
             case .ps2NeedsClassic:
-                return "Startar inte på HEN: webMAN monterar bara PS2-spel som PS2 Classics (.BIN.ENC) där, inte vanliga ISO:er. Gör om den till en PS2 Classic: högerklicka på spelet under Macen i Spel-fliken (eller `ps3 ps2 classic`)."
+                return "Won't start on HEN: there webMAN only mounts PS2 games as PS2 Classics (.BIN.ENC), not plain ISOs. Convert it to a PS2 Classic: right-click the game under Mac in the Games tab (or `ps3 ps2 classic`)."
             case .ps2Config(true):
-                return "PS2 CONFIG Database har en rättning för spelet, och webMAN använder den när spelet startas."
+                return "PS2 CONFIG Database has a fix for the game, and webMAN uses it when the game starts."
             case .ps2Config(false):
-                return "PS2 CONFIG Database har ingen rättning för spelet. De flesta spel behöver ingen."
+                return "PS2 CONFIG Database has no fix for the game. Most games need none."
             case .ps2ConfigMissing:
-                return "PS2 CONFIG Database är inte installerat. Installera det under Appar så får spel med kända problem sina rättningar."
+                return "PS2 CONFIG Database is not installed. Install it under Apps, and games with known problems get their fixes."
             }
         }
 
@@ -157,28 +157,28 @@ public enum LibCrypt {
     /// Fetches the game's LSD file and puts it in /dev_hdd0/tmp/lsd. Logged.
     public static func install(exe: String, host: String, dryRun: Bool = false, events: @Sendable (String) -> Void = { _ in }) async throws {
         guard protected.contains(exe), let url = dataURL(exe: exe) else {
-            throw PS3Error.refused("\(exe) är inte ett spel med LibCrypt-skydd.")
+            throw PS3Error.refused("\(exe) is not a game with LibCrypt protection.")
         }
         let remote = "\(folder)/\(exe).lsd"
         if dryRun {
-            events("Skulle hämta \(exe).lsd från webMAN MOD och lägga den i \(remote)")
+            events("Would download \(exe).lsd from webMAN MOD and put it in \(remote)")
             return
         }
-        events("Hämtar \(exe).lsd")
+        events("Downloading \(exe).lsd")
         let (data, response) = try await URLSession.shared.data(from: url)
         // Each record is 15 bytes (read_libcrypt_sectors in PS3HEN).
         guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty, data.count % 15 == 0 else {
-            throw PS3Error.github("\(exe).lsd gick inte att hämta från webMAN MOD.")
+            throw PS3Error.github("\(exe).lsd could not be downloaded from webMAN MOD.")
         }
         try await TransferService(host: host).withFTP { ftp in
             try await ftp.makeDirectories(folder)
             try await ftp.upload(contents: data, to: remote)
             guard try await ftp.size(remote) == Int64(data.count) else {
-                throw PS3Error.ftpProtocol("\(remote) blev inte rätt på PS3:an.")
+                throw PS3Error.ftpProtocol("\(remote) did not come out right on the PS3.")
             }
         }
         OperationLog.record("libcrypt", remote)
-        events("\(exe).lsd ligger på PS3:an. Starta spelet igen.")
+        events("\(exe).lsd is on the PS3. Start the game again.")
     }
 }
 

@@ -39,11 +39,11 @@ public final class ISOImage {
         }
         let pvd = try Self.read(handle, block: 16, count: Int(Self.blockSize), sectorSize: sectorSize, dataOffset: dataOffset)
         guard pvd.count == Int(Self.blockSize) else {
-            throw PS3Error.invalidFile("\(url.lastPathComponent) är för liten för att vara en ISO.")
+            throw PS3Error.invalidFile("\(url.lastPathComponent) is too small to be an ISO.")
         }
         let b = [UInt8](pvd)
         guard b[0] == 1, String(decoding: b[1..<6], as: UTF8.self) == "CD001" else {
-            throw PS3Error.invalidFile("\(url.lastPathComponent) är ingen ISO 9660-avbild.")
+            throw PS3Error.invalidFile("\(url.lastPathComponent) is not an ISO 9660 image.")
         }
         systemID = String(decoding: b[8..<40], as: UTF8.self).trimmingCharacters(in: .whitespaces)
         volumeID = String(decoding: b[40..<72], as: UTF8.self).trimmingCharacters(in: .whitespaces)
@@ -63,7 +63,7 @@ public final class ISOImage {
             }
         }
         guard let found = rootRecord else {
-            throw PS3Error.invalidFile("\(url.lastPathComponent): trasig rotkatalog.")
+            throw PS3Error.invalidFile("\(url.lastPathComponent): broken root directory.")
         }
         root = found
         self.joliet = useJoliet

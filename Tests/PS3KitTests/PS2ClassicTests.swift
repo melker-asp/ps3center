@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import PS3Kit
 
-// Fas 10: PS2 Classics (ps2classic by psdev-net). The tests use made-up keys: the real ones are
+// Phase 10: PS2 Classics (ps2classic by psdev-net). The tests use made-up keys: the real ones are
 // never in the repo, only their SHA-256.
 
 private func hex(_ string: String) -> Data { Data(hex: string.replacingOccurrences(of: " ", with: ""))! }
@@ -129,9 +129,9 @@ private func decrypt(_ file: Data, values: [PS2ClassicKeys.Name: Data]) throws -
         raw.append(plain[(s * 2048)..<((s + 1) * 2048)])
         raw.append(Data(count: 2352 - 24 - 2048))
     }
-    try raw.write(to: root.appendingPathComponent("Spel.bin"))
-    let cue = root.appendingPathComponent("Spel.cue")
-    try Data("FILE \"Spel.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n".utf8).write(to: cue)
+    try raw.write(to: root.appendingPathComponent("Game.bin"))
+    let cue = root.appendingPathComponent("Game.cue")
+    try Data("FILE \"Game.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n".utf8).write(to: cue)
     let source = try PS2ClassicMaker.source(cue)
     #expect(source.sectorSize == 2352)
     #expect(source.size == Int64(sectors * 2048))
@@ -178,5 +178,5 @@ private func decrypt(_ file: Data, values: [PS2ClassicKeys.Name: Data]) throws -
     #expect(PS2ClassicMaker.outputName(for: URL(fileURLWithPath: "/x/God of War [SCES-53133].iso"), titleID: "SCES-53133") == "God of War [SCES-53133].BIN.ENC")
     #expect(PS2ClassicMaker.outputName(for: URL(fileURLWithPath: "/x/God of War.iso"), titleID: "SCES-53133") == "God of War [SCES-53133].BIN.ENC")
     #expect(PS2ClassicMaker.outputName(for: URL(fileURLWithPath: "/x/SLUS_206.80 Okami.iso"), titleID: "SLUS-20680") == "SLUS_206.80 Okami.BIN.ENC")
-    #expect(PS2ClassicMaker.outputName(for: URL(fileURLWithPath: "/x/Spel.cue"), titleID: nil) == "Spel.BIN.ENC")
+    #expect(PS2ClassicMaker.outputName(for: URL(fileURLWithPath: "/x/Game.cue"), titleID: nil) == "Game.BIN.ENC")
 }

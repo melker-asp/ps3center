@@ -63,7 +63,7 @@ public final class FTPClient {
 
     @discardableResult
     func command(_ line: String, expect codes: Set<Int>? = nil, timeout: TimeInterval = 20) async throws -> Reply {
-        guard let control else { throw PS3Error.ftpProtocol("inte ansluten") }
+        guard let control else { throw PS3Error.ftpProtocol("not connected") }
         Self.debug("> \(line)")
         try await control.send(Data((line + "\r\n").utf8))
         let reply = try await readReply(expect: nil, timeout: timeout)
@@ -73,7 +73,7 @@ public final class FTPClient {
     }
 
     func readReply(expect codes: Set<Int>? = nil, timeout: TimeInterval = 20) async throws -> Reply {
-        guard let control else { throw PS3Error.ftpProtocol("inte ansluten") }
+        guard let control else { throw PS3Error.ftpProtocol("not connected") }
         let first = try await control.readLine(timeout: timeout)
         guard first.count >= 3, let code = Int(first.prefix(3)) else {
             throw PS3Error.ftpProtocol(first)
@@ -163,7 +163,7 @@ public final class FTPClient {
         let fm = FileManager.default
         try? fm.removeItem(at: local)
         guard fm.createFile(atPath: local.path, contents: nil) else {
-            throw PS3Error.invalidFile("Kunde inte skapa \(local.path)")
+            throw PS3Error.invalidFile("Could not create \(local.path)")
         }
         let handle = try FileHandle(forWritingTo: local)
         defer { try? handle.close() }
@@ -174,7 +174,7 @@ public final class FTPClient {
         let written = try await data.readToEnd(into: handle, timeout: 60, progress: progress)
         _ = try await readReply(expect: [226, 250], timeout: 60)
         if let expectedSize, written != expectedSize {
-            throw PS3Error.ftpProtocol("\((path as NSString).lastPathComponent) blev \(written) byte i stället för \(expectedSize); anslutningen bröts")
+            throw PS3Error.ftpProtocol("\((path as NSString).lastPathComponent) came to \(written) bytes instead of \(expectedSize); the connection broke")
         }
     }
 
@@ -345,13 +345,13 @@ final class LineConnection {
                 switch state {
                 case .ready: finish(nil)
                 case .failed(let error), .waiting(let error): finish(error)
-                case .cancelled: finish(PS3Error.ftpProtocol("anslutningen stängdes"))
+                case .cancelled: finish(PS3Error.ftpProtocol("the connection was closed"))
                 default: break
                 }
             }
             connection.start(queue: queue)
             queue.asyncAfter(deadline: .now() + timeout) {
-                if !state.value { connection.cancel(); finish(PS3Error.timeout("anslutning")) }
+                if !state.value { connection.cancel(); finish(PS3Error.timeout("connection")) }
             }
         }
     }
@@ -436,7 +436,7 @@ final class LineConnection {
                 }
             }
         } catch {
-            if fired.value { throw PS3Error.timeout("väntar på svar från PS3:an") }
+            if fired.value { throw PS3Error.timeout("waiting for an answer from the PS3") }
             throw error
         }
     }
@@ -450,7 +450,7 @@ final class LineConnection {
                 return String(decoding: lineData, as: UTF8.self)
             }
             guard let chunk = try await receive(timeout: timeout) else {
-                throw PS3Error.ftpProtocol("anslutningen stängdes")
+                throw PS3Error.ftpProtocol("the connection was closed")
             }
             buffer.append(chunk)
         }
@@ -461,7 +461,7 @@ final class LineConnection {
         buffer.removeAll()
         while let chunk = try await receive(timeout: timeout) {
             result.append(chunk)
-            if result.count > limit { throw PS3Error.ftpProtocol("filen är större än väntat") }
+            if result.count > limit { throw PS3Error.ftpProtocol("the file is larger than expected") }
         }
         return result
     }

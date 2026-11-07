@@ -18,7 +18,8 @@ public enum RetryPolicy {
                 // Connection closed, data connection failed or aborted, local error on the console.
                 return [421, 425, 426, 450, 451].contains(code)
             case .ftpProtocol(let message):
-                return message.contains("anslutning") || message.contains("storleken")
+                // "the connection broke/was closed" and "the size of … does not match" (FTPClient, Transfer).
+                return message.contains("connection") || message.contains("the size of")
             default:
                 return false
             }
@@ -41,7 +42,7 @@ public enum RetryPolicy {
                 guard !Task.isCancelled, isTransient(error), attempt < delays.count else { throw error }
                 let delay = delays[attempt]
                 attempt += 1
-                events(.note("Anslutningen bröts (\(error.localizedDescription)). Försöker igen om \(delay) s, försök \(attempt + 1) av \(delays.count + 1)."))
+                events(.note("The connection broke (\(error.localizedDescription)). Trying again in \(delay) s, attempt \(attempt + 1) of \(delays.count + 1)."))
                 try await Task.sleep(nanoseconds: delay * 1_000_000_000)
             }
         }
