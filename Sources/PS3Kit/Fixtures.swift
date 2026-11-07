@@ -33,6 +33,65 @@ public enum Fixtures {
         }
     }
 
+    // MARK: Underhåll
+
+    public static let saves: [SaveGame] = [
+        SaveGame(user: "00000001", folder: "BCES00569-GT5PROFILE", title: "Gran Turismo 5", subtitle: "Spelprofil",
+                 size: 3_481_600, modified: Date(timeIntervalSince1970: 1_792_670_400)),
+        SaveGame(user: "00000001", folder: "BCES00757-SAVE0001", title: "Uncharted 2: Among Thieves", subtitle: "Kapitel 14",
+                 size: 262_144, modified: Date(timeIntervalSince1970: 1_792_400_000)),
+        SaveGame(user: "00000001", folder: "BLES01807-AUTO", title: "Grand Theft Auto V", subtitle: "Franklin – 61 %",
+                 size: 524_288, modified: Date(timeIntervalSince1970: 1_791_900_000)),
+        SaveGame(user: "00000001", folder: "SLES-53326-SAVE", title: "Ratchet & Clank 3", size: 98_304,
+                 modified: Date(timeIntervalSince1970: 1_790_000_000)),
+    ]
+
+    public static let maintenanceReport = MaintenanceReport(
+        findings: [
+            MaintenanceFinding(kind: .leftoverPackage, title: "IRISMAN_4.90.pkg",
+                               detail: "Ett paket som ligger kvar i /dev_hdd0/packages. Installerade program behöver det inte.",
+                               path: "/dev_hdd0/packages/IRISMAN_4.90.pkg", size: 31_457_280, canFix: true),
+            MaintenanceFinding(kind: .partialUpload, title: "Killzone 2 (Europe).iso",
+                               detail: "En överföring som inte blev klar. Den syns inte i XMB:n.",
+                               path: "/dev_hdd0/PS3ISO/Killzone 2 (Europe).iso.part", size: 4_294_967_296, canFix: true),
+            MaintenanceFinding(kind: .duplicate, title: "Gran Turismo 5",
+                               detail: "BCES00569 finns 2 gånger: /dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso, /dev_hdd0/GAMES/BCES00569-[Gran Turismo 5]. Ta bort den du inte behöver i Spel-fliken.",
+                               size: 14_470_000_000),
+            MaintenanceFinding(kind: .missingPlugin, title: "ds45pad.sprx",
+                               detail: "boot_plugins.txt pekar på /dev_hdd0/plugins/ds45pad.sprx, som inte finns. PS3 Center ändrar aldrig listan; ta bort raden själv.",
+                               path: "/dev_hdd0/plugins/ds45pad.sprx"),
+            MaintenanceFinding(kind: .updates, title: "Systemuppdateringar blockeras inte",
+                               detail: "Uppdaterar PS3:an systemprogramvaran av misstag kan HEN sluta fungera. Blockera uppdateringar här eller med ps3 maintain block-updates; det gäller från nästa start."),
+        ],
+        passed: ["webMAN:s cache är liten", "Gott om ledigt utrymme"])
+
+    public static let storageMap = StorageMap(
+        areas: [
+            StorageUsage(name: "PS3-ISO:er", path: "/dev_hdd0/PS3ISO", bytes: 61_200_000_000),
+            StorageUsage(name: "Installerade spel och program", path: "/dev_hdd0/game", bytes: 38_400_000_000),
+            StorageUsage(name: "Spelmappar", path: "/dev_hdd0/GAMES", bytes: 14_470_000_000),
+            StorageUsage(name: "PS2-ISO:er", path: "/dev_hdd0/PS2ISO", bytes: 9_800_000_000),
+            StorageUsage(name: "Tillfälligt och webMAN:s cache", path: "/dev_hdd0/tmp", bytes: 4_430_000_000),
+            StorageUsage(name: "Användare och sparfiler", path: "/dev_hdd0/home", bytes: 1_250_000_000),
+            StorageUsage(name: "Paket", path: "/dev_hdd0/packages", bytes: 31_457_280),
+        ],
+        largest: [
+            StorageUsage(name: "Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", bytes: 9_600_000_000),
+            StorageUsage(name: "Uncharted 2 - Among Thieves (Europe).iso", path: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso", bytes: 23_200_000_000),
+        ].sorted { $0.bytes > $1.bytes },
+        free: 355_800_000_000, total: 500_107_862_016)
+
+    public static let disc = DiscInfo(title: "Uncharted 3: Drake's Deception", titleID: "BCES01175", bytes: 41_300_000_000)
+
+    /// Gran Turismo 5 played on and off for a while.
+    public static let playLog: PlayLog = {
+        var log = PlayLog()
+        log.games["/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso"] = PlayLog.Record(
+            title: "Gran Turismo 5", seconds: 41 * 3600 + 25 * 60, sessions: 37,
+            lastPlayed: Date(timeIntervalSince1970: 1_792_670_400))
+        return log
+    }()
+
     public static let history: [OperationLog.Entry] = [
         .init(date: "2026-10-24T18:12:40+02:00", action: "install", detail: "apollo-ps3.pkg"),
         .init(date: "2026-10-24T17:58:03+02:00", action: "send", detail: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso (9.6 GB)"),
@@ -56,7 +115,16 @@ public enum Fixtures {
         "managunz": (nil, "v1.41"),
         "ps3health": (nil, "v2.2.1"),
         "ps3loadx": ("01.20", "v1.2.0"),
-        "filemanager": ("01.10", ""),
+        "filemanager": ("01.10", "191-3541f8d"),
+        "yoplayer": ("01.91", "191-3541f8d"),
+        "cellstream": (nil, "191-3541f8d"),
+        "thermalbench": (nil, "191-3541f8d"),
+        "renpy": (nil, "191-3541f8d"),
+        "movian": ("04.08", "Addons"),
+        "jellyfin": (nil, "Addons"),
+        "simplefm": (nil, "Addons"),
+        "teeremoteplay": (nil, "Addons"),
+        "teevanced": (nil, "Addons"),
         "ps2launcher": ("01.00", "1.47.51"),
         "ps2config": ("01.00", "1.47.51"),
         "pspremasters": (nil, "1.47.51"),
@@ -131,4 +199,122 @@ public enum Fixtures {
          rawBase: URL(string: "https://raw.githubusercontent.com/bucanero/apollo-ps3/master/"),
          htmlBase: URL(string: "https://github.com/bucanero/apollo-ps3/blob/master/"),
          htmlURL: URL(string: "https://github.com/bucanero/apollo-ps3/blob/master/README.md"))
+
+    // MARK: Games
+
+    /// A fixed day, so that dates in the screenshots stay the same between runs.
+    static func daysAgo(_ days: Int) -> Date {
+        Date(timeIntervalSince1970: 1_792_670_400 - TimeInterval(days) * 86_400)
+    }
+
+    /// The console's games as `GameLibraryService.scan` returns them: Test Drive Unlimited 2 is
+    /// the one mounted in `snapshot`, Gran Turismo 5 and The Last of Us have updates installed.
+    public static let games: [Game] = GameListing.attach(["BCES00569": "02.11", "BCES01584": "01.11"], to: [
+        Game(path: "/dev_hdd0/PS3ISO/Test Drive Unlimited 2 (Europe) (En,Fr,De,Es,It).dec.iso", title: "Test Drive Unlimited 2",
+             titleID: "BLES01200", platform: .ps3, size: 9_642_180_608, version: "01.00", added: daysAgo(1)),
+        Game(path: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
+             platform: .ps3, size: 13_481_082_880, version: "01.00", added: daysAgo(120)),
+        Game(path: "/dev_hdd0/PS3ISO/The Last of Us (Europe).iso", title: "The Last of Us", titleID: "BCES01584",
+             platform: .ps3, size: 27_525_120_000, version: "01.00", added: daysAgo(9)),
+        Game(path: "/dev_hdd0/PS3ISO/Red Dead Redemption (Europe).iso", title: "Red Dead Redemption", titleID: "BLES00680",
+             platform: .ps3, size: 7_331_643_392, version: "01.00", added: daysAgo(64)),
+        Game(path: "/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]", title: "Demon's Souls", titleID: "BLUS30443",
+             platform: .ps3, isFolder: true, version: "01.00", added: daysAgo(31)),
+        Game(path: "/dev_hdd0/game/NPEA00418", title: "Journey", titleID: "NPEA00418", platform: .psn, isFolder: true,
+             version: "01.03", added: daysAgo(200)),
+        Game(path: "/dev_hdd0/PS2ISO/Shadow of the Colossus [SCES-53326].iso", title: "Shadow of the Colossus",
+             titleID: "SCES-53326", platform: .ps2, size: 4_352_016_384, added: daysAgo(4)),
+        Game(path: "/dev_hdd0/PS2ISO/Ratchet & Clank [SCES-50916].iso", title: "Ratchet & Clank", titleID: "SCES-50916",
+             platform: .ps2, size: 3_120_562_176, added: daysAgo(88)),
+        Game(path: "/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).cue", title: "Final Fantasy VII", titleID: "SCES-00867",
+             platform: .ps1, size: 698_496_000,
+             companions: ["/dev_hdd0/PSXISO/Final Fantasy VII (Europe) (Disc 1).bin"], added: daysAgo(45)),
+        Game(path: "/dev_usb000/PSXISO/Crash Bandicoot (Europe).cue", title: "Crash Bandicoot", titleID: "SCES-00344",
+             platform: .ps1, size: 529_221_552, companions: ["/dev_usb000/PSXISO/Crash Bandicoot (Europe).bin"], added: daysAgo(150)),
+        Game(path: "/dev_hdd0/PSPISO/Patapon (Europe).iso", title: "Patapon", titleID: "UCES-00995", platform: .psp,
+             size: 312_475_648, added: daysAgo(17)),
+    ])
+
+    /// Games in the Mac's game folders: Gran Turismo 5 is on the console too, the others are not.
+    public static let macGames: [Game] = GameListing.attach([:], to: [
+        Game(path: "/Users/melker/Spel/PS3/Gran Turismo 5 (Europe).iso", title: "Gran Turismo 5", titleID: "BCES00569",
+             platform: .ps3, size: 13_481_082_880, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/Gran Turismo 5 (Europe).iso", added: daysAgo(120)),
+        Game(path: "/Users/melker/Spel/PS3/Uncharted 2 - Among Thieves (Europe).iso", title: "Uncharted 2: Among Thieves",
+             titleID: "BCES00757", platform: .ps3, size: 24_830_115_840, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/Uncharted 2 - Among Thieves (Europe).iso", added: daysAgo(0)),
+        Game(path: "/Users/melker/Spel/PS3/LittleBigPlanet 2 (Europe).iso", title: "LittleBigPlanet 2", titleID: "BCES00850",
+             platform: .ps3, size: 6_754_975_744, version: "01.00", source: .mac,
+             remotePath: "/dev_hdd0/PS3ISO/LittleBigPlanet 2 (Europe).iso", added: daysAgo(3)),
+        Game(path: "/Users/melker/Spel/PS2/God of War [SCES-53133].iso", title: "God of War", titleID: "SCES-53133",
+             platform: .ps2, size: 4_389_634_048, source: .mac, remotePath: "/dev_hdd0/PS2ISO/God of War [SCES-53133].iso", added: daysAgo(12)),
+        Game(path: "/Users/melker/Spel/PS1/Spyro the Dragon (Europe).cue", title: "Spyro the Dragon", titleID: "SCES-01438",
+             platform: .ps1, size: 621_455_088, companions: ["/Users/melker/Spel/PS1/Spyro the Dragon (Europe).bin"],
+             source: .mac, remotePath: "/dev_hdd0/PSXISO/Spyro the Dragon (Europe).cue", added: daysAgo(40)),
+    ])
+
+    /// Spelmappar: the folders behind `macGames`, the PS3 one watched, and one on a drive that is
+    /// not plugged in (`unpluggedFolders`).
+    public static var folderConfig: PS3Config {
+        var config = PS3Config(folders: [
+            "PS3ISO": ["/Users/melker/Spel/PS3", "/Volumes/Spel/PS3ISO"],
+            "PS2ISO": ["/Users/melker/Spel/PS2"],
+            "PSXISO": ["/Users/melker/Spel/PS1"],
+        ])
+        config.watchedFolders = ["/Users/melker/Spel/PS3"]
+        return config
+    }
+
+    public static let unpluggedFolders: Set<String> = ["/Volumes/Spel/PS3ISO"]
+
+    /// New on the console since the last import: two recordings and three screenshots.
+    public static let mediaItems: [MediaImport.Item] = [
+        .init(remotePath: "/dev_hdd0/VIDEO/BCES00569_2026.10.24_20_14_03.mp4", size: 412_000_000),
+        .init(remotePath: "/dev_hdd0/VIDEO/BCES01584_2026.10.23_22_40_51.mp4", size: 1_240_000_000),
+        .init(remotePath: "/dev_hdd0/photo/20261024/screenshot_001.jpg", size: 640_000),
+        .init(remotePath: "/dev_hdd0/photo/20261024/screenshot_002.jpg", size: 655_000),
+        .init(remotePath: "/dev_hdd0/photo/20261023/screenshot_001.jpg", size: 612_000),
+    ]
+
+    /// Demon's Souls, copied with `ps3 rip` and checked against its IRD.
+    public static var discReports: [String: DiscVerifier.Report] {
+        var report = DiscVerifier.Report(title: "Demon's Souls")
+        report.checked = 1_204
+        report.matched = 1_204
+        return ["/dev_hdd0/GAMES/BLUS30443-[Demon's Souls]": report]
+    }
+
+    /// The send queue halfway through Uncharted 2, set to shut the console down when done.
+    public static var queue: TransferQueue {
+        var queue = TransferQueue()
+        func item(_ game: Game, _ state: TransferQueue.Item.State, sent fraction: Double) -> TransferQueue.Item {
+            let size = game.size ?? 0
+            let file = TransferQueue.File(local: game.path, remote: game.remotePath ?? "", kind: .ps3ISO, size: size)
+            return TransferQueue.Item(id: UUID(), title: game.title, files: [file], state: state, sent: Int64(Double(size) * fraction),
+                                      message: nil, addedAt: Date(), finishedAt: state == .done ? Date() : nil)
+        }
+        let uncharted = macGames.first { $0.titleID == "BCES00757" }!
+        let lbp = macGames.first { $0.titleID == "BCES00850" }!
+        let gow = macGames.first { $0.titleID == "SCES-53133" }!
+        queue.items = [item(gow, .done, sent: 1), item(uncharted, .sending, sent: 0.42), item(lbp, .waiting, sent: 0)]
+        queue.whenDone = .shutdown
+        return queue
+    }
+
+    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: "Wi-Fi", measuredAt: Date())
+
+    /// Sony's newer patches for Gran Turismo 5 (02.11 installed) and Red Dead Redemption, by game id.
+    public static var patches: [String: [GamePatch]] {
+        func patch(_ titleID: String, _ version: String, _ size: Int64, system: String) -> GamePatch {
+            let file = "EP9000-\(titleID)_00-GRANTURISMO5XXXX-A\(version.replacingOccurrences(of: ".", with: ""))-V0100-PE.pkg"
+            return GamePatch(titleID: titleID, version: version, size: size, sha1: "", systemVersion: system,
+                             url: URL(string: "http://b0.ww.np.dl.playstation.net/tppkg/np/\(titleID)/\(titleID)_T5/\(file)")!)
+        }
+        let gt5 = games.first { $0.titleID == "BCES00569" }!
+        let rdr = games.first { $0.titleID == "BLES00680" }!
+        return [
+            gt5.id: ["02.12", "02.13", "02.14", "02.15", "02.16", "02.17"].map { patch("BCES00569", $0, 212_000_000, system: "4.00") },
+            rdr.id: [patch("BLES00680", "01.09", 98_566_144, system: "3.41")],
+        ]
+    }
 }

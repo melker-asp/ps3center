@@ -6,13 +6,22 @@ public struct WebMAN: Sendable {
     public let host: String
     public var timeout: TimeInterval
 
-    static let session: URLSession = {
+    static let session = makeSession()
+    /// For commands that can take minutes (installing a package, counting a folder), so they
+    /// never hold up the status polls queued on `session`.
+    static let longSession = makeSession()
+
+    /// True while a long command runs, and a little after: the console can be slow to answer
+    /// anything else then, which is not the same as being gone.
+    public static var isBusy: Bool { LongCommands.shared.isBusy }
+
+    static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.httpShouldUsePipelining = false
         config.httpMaximumConnectionsPerHost = 1
         config.urlCache = nil
         return URLSession(configuration: config)
-    }()
+    }
 
     public init(host: String, timeout: TimeInterval = 8) {
         self.host = host
@@ -44,6 +53,16 @@ public struct WebMAN: Sendable {
     /// Runs a raw web command such as "/refresh.ps3". `command` must already be encoded.
     @discardableResult
     public func get(encoded command: String, timeout: TimeInterval? = nil) async throws -> String {
+        let data = try await self.data(encoded: command, timeout: timeout)
+        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+
+    /// The raw answer to a web command (an image, a file). `command` must already be encoded.
+    public func data(encoded command: String, timeout: TimeInterval? = nil) async throws -> Data {
+        try await fetch(encoded: command, timeout: timeout, session: Self.session)
+    }
+
+    func fetch(encoded command: String, timeout: TimeInterval?, session: URLSession) async throws -> Data {
         guard let url = URL(string: "http://\(host)\(command)") else {
             throw PS3Error.ftpProtocol("ogiltig adress: \(command)")
         }
@@ -55,14 +74,14 @@ public struct WebMAN: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await Self.session.data(for: request)
+            (data, response) = try await session.data(for: request)
         } catch let error as URLError where [.timedOut, .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet, .cannotFindHost].contains(error.code) {
             throw PS3Error.unreachable(host: host)
         }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw PS3Error.http(status: http.statusCode, command: command)
         }
-        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        return data
     }
 
     @discardableResult
@@ -87,9 +106,19 @@ public struct WebMAN: Sendable {
         try await get("/refresh.ps3", timeout: 60)
     }
 
-    /// Installs a package already on the console. webMAN deletes the .pkg when it is done.
+    /// A command that can take minutes, on its own connection, with `isBusy` set while it runs.
+    @discardableResult
+    public func long(_ command: String, timeout: TimeInterval) async throws -> String {
+        LongCommands.shared.begin()
+        defer { LongCommands.shared.end() }
+        let data = try await fetch(encoded: Self.encodeCommand(command), timeout: timeout, session: Self.longSession)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Asks the XMB to install a package already on the console. The answer can take until the
+    /// install is done; the package is not deleted afterwards.
     public func installPackage(remotePath: String) async throws {
-        try await get("/install.ps3" + remotePath, timeout: 60)
+        try await long("/install.ps3" + remotePath, timeout: 60)
     }
 
     /// Runs a PS3MAPI command and returns the raw value of `"response"`.
@@ -166,6 +195,54 @@ public struct WebMAN: Sendable {
         guard !name.isEmpty, !name.lowercased().contains("vsh.self") else { return nil }
         if let range = name.range(of: "_main_") { return String(name[range.upperBound...]) }
         return name
+    }
+}
+
+/// webMAN's settings form (/setup.ps3). Saving it resets every setting and reads them all back
+/// from the request (include/setup.h), so the app sends the whole form (see WebMANSetup) and
+/// checks afterwards that it came back the same.
+public enum WebMANSettings {
+    /// The names of the fields whose values differ between two form queries, order aside.
+    public static func differences(sent: String, saved: String) -> [String] {
+        func fields(_ query: String) -> [String: [String]] {
+            var result: [String: [String]] = [:]
+            for pair in query.split(separator: "&") {
+                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                result[parts[0], default: []].append(parts.count > 1 ? parts[1] : "")
+            }
+            return result.mapValues { $0.sorted() }
+        }
+        let a = fields(sent), b = fields(saved)
+        return Set(a.keys).union(b.keys).filter { a[$0] != b[$0] }.sorted()
+    }
+}
+
+/// Counts the long commands in flight (see `WebMAN.isBusy`).
+final class LongCommands: @unchecked Sendable {
+    static let shared = LongCommands()
+
+    private let lock = NSLock()
+    private var running = 0
+    private var lastEnded = Date.distantPast
+
+    func begin() {
+        lock.lock()
+        running += 1
+        lock.unlock()
+    }
+
+    func end() {
+        lock.lock()
+        running = max(0, running - 1)
+        lastEnded = Date()
+        lock.unlock()
+    }
+
+    /// Also for 20 seconds after one ends: the next one in a series (folder after folder) follows.
+    var isBusy: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return running > 0 || Date().timeIntervalSince(lastEnded) < 20
     }
 }
 

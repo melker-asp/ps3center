@@ -29,6 +29,16 @@ public enum InstalledRegistry {
         try? encoder.encode(records).write(to: file, options: .atomic)
     }
 
+    /// Forgets an app that was uninstalled.
+    public static func forget(_ entryID: String) {
+        var records = load()
+        guard records.removeValue(forKey: entryID) != nil else { return }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try? encoder.encode(records).write(to: file, options: .atomic)
+    }
+
     /// The release tag for what is installed now, if PS3 Center installed it and nothing changed since.
     public static func tag(for entryID: String, installedAppVersion: String) -> String? {
         guard let record = load()[entryID], record.appVersion == installedAppVersion else { return nil }

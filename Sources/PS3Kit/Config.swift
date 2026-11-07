@@ -9,11 +9,25 @@ public struct PS3Config: Codable, Equatable, Sendable {
     /// The app's colour theme (Utseende). A plain string, so an unknown value from a newer
     /// version cannot make the whole file unreadable.
     public var theme: String?
+    /// The Mac's game folders per kind ("PS3ISO", "PS2ISO" …), as linked in the app or with
+    /// `ps3 config folder add`. See `GameFolders`.
+    public var folders: [String: [String]]?
+    /// Whether the app runs its game server (`NetServer`) for webMAN's /net0.
+    public var netServer: Bool?
+    /// Which of webMAN's network servers points at the game server: 0 for /net0 … 4 for /net4.
+    public var netServerSlot: Int?
+    /// Linked folders whose new games are queued by themselves (`FolderWatch`), as full paths.
+    public var watchedFolders: [String]?
+    /// FTP uploads: piece size in KB and pieces in flight (`FTPClient.Tuning`), to compare with
+    /// the speed test. Defaults 1024 and 2.
+    public var ftpChunkKB: Int?
+    public var ftpWindow: Int?
 
-    public init(host: String? = nil, root: String? = nil, theme: String? = nil) {
+    public init(host: String? = nil, root: String? = nil, theme: String? = nil, folders: [String: [String]]? = nil) {
         self.host = host
         self.root = root
         self.theme = theme
+        self.folders = folders
     }
 }
 

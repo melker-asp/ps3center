@@ -8,6 +8,8 @@ public final class FTPClient {
         public let name: String
         public let size: Int64
         public let isDirectory: Bool
+        /// The listing's date as printed ("Jun 05 18:33"): enough to notice that something changed.
+        public var modified = ""
     }
 
     struct Reply {
@@ -139,9 +141,9 @@ public final class FTPClient {
     }
 
     static func parseListLine(_ line: String) -> Entry? {
-        guard let m = ConsoleSnapshot.firstMatch(#"^([\-dl])\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\w{3}\s+\d+\s+[\d:]+\s(.+)$"#, in: line)
+        guard let m = ConsoleSnapshot.firstMatch(#"^([\-dl])\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\w{3}\s+\d+\s+[\d:]+)\s(.+)$"#, in: line)
         else { return nil }
-        return Entry(name: m[3], size: Int64(m[2]) ?? 0, isDirectory: m[1] == "d")
+        return Entry(name: m[4], size: Int64(m[2]) ?? 0, isDirectory: m[1] == "d", modified: m[3])
     }
 
     public func download(_ path: String, limit: Int = 64 << 20) async throws -> Data? {
@@ -153,6 +155,27 @@ public final class FTPClient {
         let raw = try await data.readToEnd(timeout: 60, limit: limit)
         _ = try await readReply(expect: [226, 250])
         return raw
+    }
+
+    /// Downloads `path` into the file `local` (replaced if it exists). With `expectedSize`, a
+    /// shorter file is an error: the connection broke.
+    public func download(_ path: String, to local: URL, expectedSize: Int64? = nil, progress: (Int64) -> Void = { _ in }) async throws {
+        let fm = FileManager.default
+        try? fm.removeItem(at: local)
+        guard fm.createFile(atPath: local.path, contents: nil) else {
+            throw PS3Error.invalidFile("Kunde inte skapa \(local.path)")
+        }
+        let handle = try FileHandle(forWritingTo: local)
+        defer { try? handle.close() }
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        let reply = try await command("RETR \(path)")
+        guard [125, 150].contains(reply.code) else { throw PS3Error.ftp(code: reply.code, message: reply.text) }
+        let written = try await data.readToEnd(into: handle, timeout: 60, progress: progress)
+        _ = try await readReply(expect: [226, 250], timeout: 60)
+        if let expectedSize, written != expectedSize {
+            throw PS3Error.ftpProtocol("\((path as NSString).lastPathComponent) blev \(written) byte i stället för \(expectedSize); anslutningen bröts")
+        }
     }
 
     public func makeDirectories(_ path: String) async throws {
@@ -168,10 +191,96 @@ public final class FTPClient {
         _ = try await command("DELE \(path)", expect: [250])
     }
 
+    /// Deletes a folder and everything in it. webMAN's RMD is recursive in builds with its file
+    /// manager (COPY_PS3 in include/ftp.h); otherwise the folder is emptied file by file first.
+    public func removeTree(_ path: String) async throws {
+        // A recursive RMD of a large game folder takes a while.
+        if try await command("RMD \(path)", timeout: 300).code == 250 { return }
+        for entry in try await list(path) {
+            let child = path + "/" + entry.name
+            if entry.isDirectory { try await removeTree(child) } else { try await delete(child) }
+        }
+        _ = try await command("RMD \(path)", expect: [250])
+    }
+
+    /// The bytes in a folder and everything under it (0 when it does not exist).
+    public func treeSize(_ path: String) async throws -> Int64 {
+        var total: Int64 = 0
+        for entry in try await list(path) {
+            if entry.isDirectory {
+                total += try await treeSize(path + "/" + entry.name)
+            } else {
+                total += entry.size
+            }
+        }
+        return total
+    }
+
+    /// Renames (or moves) a file on the console.
+    public func rename(_ path: String, to newPath: String) async throws {
+        _ = try await command("RNFR \(path)", expect: [350])
+        _ = try await command("RNTO \(newPath)", expect: [250])
+    }
+
+    /// Sends zeros to `remotePath` for `seconds` (at most `limit` bytes) and closes the file
+    /// cleanly: a speed test that takes the same time on Wi-Fi and with a cable. Returns the bytes
+    /// sent.
+    func uploadZeros(to remotePath: String, seconds: TimeInterval, limit: Int64, progress: (Int64) -> Void) async throws -> Int64 {
+        let tuning = Tuning.current
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        _ = try await command("STOR \(remotePath)", expect: [125, 150])
+        let block = Data(count: tuning.chunk)
+        let start = Date()
+        var sent: Int64 = 0
+        try await pump(data, window: tuning.window, next: {
+            sent < limit && Date().timeIntervalSince(start) < seconds ? block : nil
+        }, handed: { piece in
+            sent += Int64(piece.count)
+            progress(sent)
+        })
+        try await data.finish()
+        data.cancel()
+        _ = try await readReply(expect: [226, 250], timeout: 60)
+        return sent
+    }
+
+    /// How uploads are cut up and kept flowing: pieces of `chunk` bytes, up to `window` of them
+    /// handed to the network at once, so reading the next piece from disk overlaps with sending
+    /// the last. config.json (`ftpChunkKB`, `ftpWindow`) or PS3_FTP_CHUNK_KB / PS3_FTP_WINDOW
+    /// change it, to compare with the speed test.
+    struct Tuning {
+        var chunk: Int
+        var window: Int
+
+        static var current: Tuning {
+            let config = ConfigStore.load()
+            let environment = ProcessInfo.processInfo.environment
+            let chunkKB = environment["PS3_FTP_CHUNK_KB"].flatMap { Int($0) } ?? config.ftpChunkKB ?? 1024
+            let window = environment["PS3_FTP_WINDOW"].flatMap { Int($0) } ?? config.ftpWindow ?? 2
+            return Tuning(chunk: min(max(chunkKB, 64), 8192) << 10, window: min(max(window, 1), 8))
+        }
+    }
+
+    /// Hands what `next` returns to the data connection in order, keeping up to `window` pieces
+    /// in flight, until `next` returns nil. `handed` sees each piece once it is on its way.
+    private func pump(_ data: LineConnection, window: Int, next: () throws -> Data?, handed: (Data) -> Void) async throws {
+        var inFlight: [LineConnection.Pending] = []
+        while let piece = try next(), !piece.isEmpty {
+            try Task.checkCancellation()
+            if inFlight.count >= window { try await inFlight.removeFirst().wait() }
+            inFlight.append(data.sendQueued(piece))
+            handed(piece)
+        }
+        for pending in inFlight { try await pending.wait() }
+    }
+
     /// Uploads `file`. With `offset > 0` the rest of the file is appended (APPE),
-    /// which is how webMAN resumes an interrupted upload.
+    /// which is how webMAN resumes an interrupted upload. Cancelling the task closes the data
+    /// connection cleanly (FIN), so webMAN keeps what it got and a later APPE continues;
+    /// `chunk` sees every piece sent (for a checksum).
     public func upload(file: URL, to remotePath: String, offset: Int64 = 0,
-                       progress: (Int64) -> Void) async throws {
+                       chunk: (Data) -> Void = { _ in }, progress: (Int64) -> Void) async throws {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
         try handle.seek(toOffset: UInt64(offset))
@@ -181,18 +290,28 @@ public final class FTPClient {
         let verb = offset > 0 ? "APPE" : "STOR"
         _ = try await command("\(verb) \(remotePath)", expect: [125, 150])
 
+        let tuning = Tuning.current
         var sent = offset
         progress(sent)
-        while true {
-            try Task.checkCancellation()
-            guard let chunk = try handle.read(upToCount: 256 * 1024), !chunk.isEmpty else { break }
-            try await data.send(chunk)
-            sent += Int64(chunk.count)
+        try await pump(data, window: tuning.window, next: { try handle.read(upToCount: tuning.chunk) }, handed: { piece in
+            chunk(piece)
+            sent += Int64(piece.count)
             progress(sent)
-        }
+        })
         try await data.finish()
         data.cancel()
         _ = try await readReply(expect: [226, 250], timeout: 300)
+    }
+
+    /// Writes a small file (a few KB, such as LibCrypt data) in one go, replacing any old one.
+    public func upload(contents: Data, to remotePath: String) async throws {
+        let data = try await openDataConnection()
+        defer { data.cancel() }
+        _ = try await command("STOR \(remotePath)", expect: [125, 150])
+        try await data.send(contents)
+        try await data.finish()
+        data.cancel()
+        _ = try await readReply(expect: [226, 250], timeout: 60)
     }
 }
 
@@ -247,6 +366,47 @@ final class LineConnection {
         }
     }
 
+    /// A piece handed to the network; `wait()` returns once the connection has taken it.
+    final class Pending: @unchecked Sendable {
+        private let lock = NSLock()
+        private var result: Result<Void, Error>?
+        private var waiter: CheckedContinuation<Void, Error>?
+
+        func complete(_ error: Error?) {
+            let outcome: Result<Void, Error> = error.map { .failure($0) } ?? .success(())
+            lock.lock()
+            if let waiter {
+                self.waiter = nil
+                lock.unlock()
+                waiter.resume(with: outcome)
+            } else {
+                result = outcome
+                lock.unlock()
+            }
+        }
+
+        func wait() async throws {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(with: result)
+                } else {
+                    waiter = continuation
+                    lock.unlock()
+                }
+            }
+        }
+    }
+
+    /// Sends now, in call order, without waiting; wait on the result to keep a bound on what is
+    /// in flight.
+    func sendQueued(_ data: Data) -> Pending {
+        let pending = Pending()
+        connection.send(content: data, completion: .contentProcessed { pending.complete($0) })
+        return pending
+    }
+
     /// Sends FIN so the server sees the end of an upload.
     func finish() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -266,7 +426,7 @@ final class LineConnection {
         defer { watchdog.cancel() }
         do {
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
-                connection.receive(minimumIncompleteLength: 1, maximumLength: 256 * 1024) { data, _, isComplete, error in
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) { data, _, isComplete, error in
                     if let data, !data.isEmpty { continuation.resume(returning: data) }
                     // webMAN closing a data connection surfaces as ENODATA rather than isComplete.
                     else if case .posix(.ENODATA)? = error { continuation.resume(returning: nil) }
@@ -304,5 +464,23 @@ final class LineConnection {
             if result.count > limit { throw PS3Error.ftpProtocol("filen är större än väntat") }
         }
         return result
+    }
+
+    /// Like `readToEnd`, but straight into a file, for downloads too big to hold in memory.
+    func readToEnd(into handle: FileHandle, timeout: TimeInterval, progress: (Int64) -> Void) async throws -> Int64 {
+        var written: Int64 = 0
+        if !buffer.isEmpty {
+            try handle.write(contentsOf: buffer)
+            written += Int64(buffer.count)
+            buffer.removeAll()
+        }
+        while let chunk = try await receive(timeout: timeout) {
+            try Task.checkCancellation()
+            guard !chunk.isEmpty else { continue }
+            try handle.write(contentsOf: chunk)
+            written += Int64(chunk.count)
+            progress(written)
+        }
+        return written
     }
 }

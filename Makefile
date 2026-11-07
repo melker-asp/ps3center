@@ -2,8 +2,10 @@ PREFIX ?= $(HOME)/.local
 BIN := .build/release/ps3
 XCODE_FLAGS := -project App/PS3Center.xcodeproj -scheme PS3Center -derivedDataPath .build/xcode
 APP := .build/xcode/Build/Products/Debug/PS3 Center.app
+RELEASE_APP := .build/xcode/Build/Products/Release/PS3 Center.app
+APPS_DIR ?= /Applications
 
-.PHONY: build test install uninstall project app run-app snapshot snapshot-fixtures
+.PHONY: build test install uninstall project app run-app install-app uninstall-app icon snapshot snapshot-fixtures
 
 build:
 	swift build -c release
@@ -29,6 +31,22 @@ app: project
 
 run-app: app
 	open "$(APP)"
+
+# A Release build copied to /Applications, so it opens from Launchpad, Spotlight and the Dock like
+# any other app. Run it again to update; a running copy is quit first.
+install-app: project
+	xcodebuild $(XCODE_FLAGS) -configuration Release build
+	@if pgrep -xq "PS3 Center"; then osascript -e 'quit app "PS3 Center"'; sleep 2; fi
+	rm -rf "$(APPS_DIR)/PS3 Center.app"
+	ditto "$(RELEASE_APP)" "$(APPS_DIR)/PS3 Center.app"
+	@echo "Installerat: $(APPS_DIR)/PS3 Center.app"
+
+uninstall-app:
+	rm -rf "$(APPS_DIR)/PS3 Center.app"
+
+# Renders the app icon again after a change in scripts/make_icon.swift.
+icon:
+	swift scripts/make_icon.swift App/Sources/Assets.xcassets/AppIcon.appiconset
 
 # Renders each tab to PNG (needs a reachable console): make snapshot DIR=/tmp/shots
 snapshot: app

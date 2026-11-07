@@ -2,7 +2,7 @@ import Foundation
 
 /// Decides where on the console a local file belongs (README: "Vart ska filen?").
 public enum ContentKind: String, Codable, Sendable {
-    case ps3ISO, ps2ISO, pspISO, psxISO, bluRayISO, dvdISO, ps3Folder, package, license, other
+    case ps3ISO, ps2ISO, pspISO, psxISO, bluRayISO, dvdISO, ps3Folder, package, license, theme, other
 
     public var remoteFolder: String? {
         switch self {
@@ -15,6 +15,8 @@ public enum ContentKind: String, Codable, Sendable {
         case .ps3Folder: return "/dev_hdd0/GAMES"
         case .package: return "/dev_hdd0/packages"
         case .license: return "/dev_hdd0/exdata"
+        // Installed from there by the XMB (`TransferService.installThemes`).
+        case .theme: return "/dev_hdd0/packages"
         case .other: return nil
         }
     }
@@ -30,6 +32,7 @@ public enum ContentKind: String, Codable, Sendable {
         case .ps3Folder: return "PS3-spel (mapp)"
         case .package: return "Paket"
         case .license: return "Licens"
+        case .theme: return "Tema"
         case .other: return "Fil"
         }
     }
@@ -37,7 +40,7 @@ public enum ContentKind: String, Codable, Sendable {
     /// Kinds that show up in webMAN's game list after a refresh.
     public var needsRefresh: Bool {
         switch self {
-        case .package, .license, .other: return false
+        case .package, .license, .theme, .other: return false
         default: return true
         }
     }
@@ -115,6 +118,7 @@ public enum FileRouter {
             let (kind, title) = (try? classify(url)) ?? (.other, nil)
             var routes = [Route(local: url, remote: remote, kind: kind, size: fileSize(url), title: title)]
             if ext == "cue" { routes += cueCompanions(url, mirrorRoot: root, override: nil, title: title) }
+            if kind == .psxISO { routes += libCryptCompanions(url, remote: remote, title: title) }
             return routes
         }
 
@@ -125,6 +129,7 @@ public enum FileRouter {
         }
         var routes = [Route(local: url, remote: folder + "/" + url.lastPathComponent, kind: kind, size: fileSize(url), title: title)]
         if ext == "cue" { routes += cueCompanions(url, mirrorRoot: nil, override: folder, title: title) }
+        if kind == .psxISO { routes += libCryptCompanions(url, remote: folder + "/" + url.lastPathComponent, title: title) }
         return routes
     }
 
@@ -133,6 +138,9 @@ public enum FileRouter {
         switch url.pathExtension.lowercased() {
         case "pkg": return (.package, nil)
         case "rap": return (.license, nil)
+        case "p3t": return (.theme, GameName.clean(url.lastPathComponent))
+        // A PS2 Classic: the only kind of PS2 game webMAN mounts on HEN.
+        case "enc" where url.lastPathComponent.lowercased().hasSuffix(".bin.enc"): return (.ps2ISO, GameName.clean(url.lastPathComponent))
         case "cue", "bin", "img", "ecm": return (.psxISO, GameName.clean(url.lastPathComponent))
         case "iso": return try classifyISO(url)
         default:
@@ -182,6 +190,28 @@ public enum FileRouter {
             else { remote = (override ?? ContentKind.psxISO.remoteFolder!) + "/" + name }
             return Route(local: file, remote: remote, kind: .psxISO, size: fileSize(file), title: title)
         }
+    }
+
+    /// LibCrypt data beside a PS1 image (<name>.lsd or .sbi) goes along. HEN looks for it beside
+    /// the data track it opens, with the track's ".bin" swapped for ".lsd" or ".sbi" (lowercase),
+    /// so it is sent under the first track's name.
+    static func libCryptCompanions(_ image: URL, remote: String, title: String?) -> [Route] {
+        let folder = image.deletingLastPathComponent()
+        var track = image
+        if image.pathExtension.lowercased() == "cue", let first = cueCompanions(image, mirrorRoot: nil, override: "/", title: nil).first {
+            track = first.local
+        }
+        let stems = Set([image.deletingPathExtension().lastPathComponent, track.deletingPathExtension().lastPathComponent].map { $0.lowercased() })
+        let remoteFolder = (remote as NSString).deletingLastPathComponent
+        let remoteStem = track.deletingPathExtension().lastPathComponent
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        for ext in ["lsd", "sbi"] {
+            if let name = names.first(where: { stems.contains(($0 as NSString).deletingPathExtension.lowercased()) && ($0 as NSString).pathExtension.lowercased() == ext }) {
+                let file = folder.appendingPathComponent(name)
+                return [Route(local: file, remote: remoteFolder + "/" + remoteStem + "." + ext, kind: .psxISO, size: fileSize(file), title: title)]
+            }
+        }
+        return []
     }
 
     static func filesRecursively(in dir: URL) throws -> [URL] {

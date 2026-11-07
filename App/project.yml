@@ -14,6 +14,28 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+    # Generated next to the sources by xcodegen (not checked in); merged with the INFOPLIST_KEY_ settings.
+    info:
+      path: Sources/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          # webMAN on the console is plain HTTP on the local network.
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            # Sony's game update packages are served over plain HTTP (b0.ww.np.dl.playstation.net);
+            # each one is checked against the SHA-1 in Sony's update list before it is installed.
+            playstation.net:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+        # Finder: "Skicka till PS3" under Tjänster and Snabbåtgärder (ServiceProvider in Inbox.swift).
+        NSServices:
+          - NSMenuItem:
+              default: Skicka till PS3
+            NSMessage: sendToPS3
+            NSPortName: PS3 Center
+            NSRequiredContext: {}
+            NSSendFileTypes:
+              - public.item
     dependencies:
       - package: PS3Center
         product: PS3Kit
@@ -30,6 +52,8 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: PS3 Center pratar med webMAN på din PS3 över det lokala nätverket.
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        # Sources/Assets.xcassets/AppIcon.appiconset, rendered by scripts/make_icon.swift (`make icon`).
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Personal tool: no sandbox, signed to run locally.
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: NO

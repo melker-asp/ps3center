@@ -5,7 +5,7 @@ import PS3Kit
 struct Apps: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Homebrew på PS3:an: versioner, uppdateringar och installation av paket.",
-        subcommands: [List.self, Available.self, Info.self, Update.self, Install.self],
+        subcommands: [List.self, Available.self, Info.self, Update.self, Install.self, Uninstall.self],
         defaultSubcommand: List.self
     )
 
@@ -454,6 +454,38 @@ struct Apps: AsyncParsableCommand {
             for s in missing {
                 UI.skip(name(s) + (s.blocked ? "fungerar inte på din PS3: \(s.compatibility.summary)" : s.latest.map { "senaste \($0)" } ?? ""))
             }
+        }
+    }
+}
+
+extension Apps {
+    struct Uninstall: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Avinstallera ett program (mappen i /dev_hdd0/game). Inte HEN, webMAN eller plugins.",
+            discussion: "Programmets sparfiler ligger kvar, och det går att installera igen med `ps3 apps install`."
+        )
+
+        @OptionGroup var global: GlobalOptions
+
+        @Argument(help: "Programnamn (se ps3 apps).")
+        var name: String
+
+        @Flag(name: [.short, .long], help: "Fråga inte.")
+        var yes = false
+
+        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        var dryRun = false
+
+        func run() async throws {
+            let entry = try Apps.resolve(name)
+            let host = try await Console.host(global)
+            var options = TransferOptions()
+            options.dryRun = dryRun
+            if !dryRun {
+                guard yes || UI.confirm("Avinstallera \(entry.name) från PS3:an?") else { return }
+            }
+            let printer = TransferPrinter(dryRun: dryRun)
+            try await AppsService(host: host).uninstall(entry, options: options) { printer.handle($0) }
         }
     }
 }

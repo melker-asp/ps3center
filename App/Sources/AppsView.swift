@@ -356,6 +356,9 @@ struct OperationView: View {
             case .installing:
                 Spinner()
                 Text("Installerar…").foregroundStyle(Theme.secondaryText)
+            case .uninstalling:
+                Spinner()
+                Text("Avinstallerar…").foregroundStyle(Theme.secondaryText)
             case .done:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
                 Text("Installerat").foregroundStyle(Theme.good)

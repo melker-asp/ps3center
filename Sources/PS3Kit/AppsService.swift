@@ -315,6 +315,31 @@ public struct AppsService: Sendable {
         if case .installPackageThenManual(let note) = entry.action { events(.note(note)) }
     }
 
+    /// Removes an app installed from a package: its folder in /dev_hdd0/game. Not HEN, webMAN or
+    /// plugins (they are not installed that way), and not while a game or app runs. Logged.
+    public func uninstall(_ entry: CatalogEntry, options: TransferOptions, events: TransferHandler) async throws {
+        guard entry.category != .system, let titleID = entry.titleID else {
+            throw PS3Error.refused("\(entry.name) avinstalleras inte härifrån.")
+        }
+        let path = "/dev_hdd0/game/" + titleID
+        if let refusal = UninstallGuard.refusal(titleID: titleID, title: entry.name, path: path) { throw PS3Error.refused(refusal) }
+        guard try await WebMAN(host: host).runningProcess() == nil else { throw PS3Error.gameRunning }
+        if options.dryRun {
+            events(.note("Skulle ta bort \(path)"))
+            return
+        }
+        try await TransferService(host: host).withFTP { ftp in
+            guard try await ftp.size(path + "/PARAM.SFO") != nil else {
+                throw PS3Error.refused("\(entry.name) är inte installerat (\(path) saknas).")
+            }
+            try await ftp.removeTree(path)
+        }
+        InstalledRegistry.forget(entry.id)
+        OperationLog.record("uninstall", "\(entry.name) (\(path))")
+        let reload = await XMBReload.afterRemoval(host: host)
+        events(.note("\(entry.name) är avinstallerat. \(reload)"))
+    }
+
     public func update(_ status: AppStatus, archive: URL, options: TransferOptions, events: TransferHandler) async throws {
         guard status.canInstall, let entry = Catalog.entries.first(where: { $0.id == status.id }) else {
             throw PS3Error.unsupportedFile("\(status.name) kan inte uppdateras automatiskt.")

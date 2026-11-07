@@ -18,9 +18,14 @@ final class AppsStore {
 
     struct Operation: Equatable {
         enum Stage: Equatable {
-            case queued, downloading, uploading(Double), waitingForGame(String), installing, done, failed(String)
+            case queued, downloading, uploading(Double), waitingForGame(String), installing, uninstalling, done, failed(String)
         }
         var stage: Stage
+
+        var isFailed: Bool {
+            if case .failed = stage { return true }
+            return false
+        }
     }
 
     private(set) var phase: Phase = .idle
@@ -71,6 +76,7 @@ final class AppsStore {
         do {
             let next = try await AppsService(host: host).check()
             statuses = next
+            notifyNewUpdates(in: next)
             phase = .loaded
             lastChecked = Date()
             let installed = Catalog.entries.filter { entry in next.contains { $0.id == entry.id && $0.installed != nil } }
@@ -79,6 +85,19 @@ final class AppsStore {
         } catch {
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// One notice per new version, remembered between launches.
+    private func notifyNewUpdates(in next: [AppStatus]) {
+        let key = "notifiedUpdates"
+        var seen = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        let fresh = next.filter { $0.state == .updateAvailable && !seen.contains("\($0.id) \($0.latest ?? "")") }
+        guard !fresh.isEmpty else { return }
+        for status in fresh { seen.insert("\(status.id) \(status.latest ?? "")") }
+        UserDefaults.standard.set(Array(seen), forKey: key)
+        let names = fresh.map(\.name).joined(separator: ", ")
+        Notifier.post(title: fresh.count == 1 ? "Ny version av \(names)" : "\(fresh.count) programuppdateringar",
+                      body: fresh.count == 1 ? "Finns att installera under Appar." : names)
     }
 
     /// Fixture mode (`PS3CENTER_FIXTURES=1`): canned rows and README, no network.
@@ -119,6 +138,22 @@ final class AppsStore {
         operations[status.id] = Operation(stage: .queued)
         queue.append(status.id)
         startRunner()
+    }
+
+    /// Removes an installed app (its folder in /dev_hdd0/game), then reads the list again.
+    func uninstall(_ status: AppStatus) {
+        guard let host, let entry = Self.entry(for: status) else { return }
+        if let op = operations[status.id], op.stage != .done, !op.isFailed { return }
+        operations[status.id] = Operation(stage: .uninstalling)
+        Task {
+            do {
+                try await AppsService(host: host).uninstall(entry, options: TransferOptions()) { _ in }
+                operations[status.id] = nil
+                await load(host: host)
+            } catch {
+                operations[status.id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
+            }
+        }
     }
 
     func updateAll() {
@@ -176,7 +211,7 @@ final class AppsStore {
         } catch is CancellationError {
             // forceWaiting() re-queued it.
         } catch {
-            operations[id] = Operation(stage: .failed(error.localizedDescription))
+            operations[id] = Operation(stage: .failed(ConsoleErrorCode.annotate(error.localizedDescription)))
         }
     }
 
