@@ -61,6 +61,24 @@ final class ConsoleStore {
         start()
     }
 
+    /// Talks to `host` from now on and remembers it, like `ps3 config set host`: a console the
+    /// connection sheet found or the user typed. Only the Mac's config changes, so nothing is logged.
+    func use(host: String) {
+        guard !Snapshot.usesFixtures else { return }
+        try? ConfigStore.edit { $0.host = host }
+        guard host != self.host else { return }
+        self.host = host
+        missedPolls = 0
+        cpuHistory = []
+        rsxHistory = []
+        fanHistory = []
+        // Polled right away; `connection` stays as it is, so an open sheet is not swapped out
+        // for the splash screen while the new address answers.
+        pollTask?.cancel()
+        pollTask = nil
+        start()
+    }
+
     private func run() async {
         while !Task.isCancelled {
             if host == nil {

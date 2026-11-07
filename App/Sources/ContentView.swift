@@ -26,6 +26,9 @@ struct ContentView: View {
     @State private var tab: MainTab = .status
     @State private var showsAppearance = false
     @State private var showsTransfers = false
+    /// Here, not on the Status tab or the splash screen, so the sheet stays open when the
+    /// console it switched to comes online and the splash screen gives way to the tabs.
+    @State private var showsConnection = false
     @State private var dropped: SendReview?
 
     var body: some View {
@@ -51,7 +54,7 @@ struct ContentView: View {
                 case .online:
                     Group {
                         switch tab {
-                        case .status: StatusView()
+                        case .status: StatusView { showsConnection = true }
                         case .games: GamesView()
                         case .apps: AppsView()
                         case .maintenance: MaintenanceView()
@@ -59,7 +62,7 @@ struct ContentView: View {
                     }
                     .transition(.opacity)
                 default:
-                    ConnectionView()
+                    ConnectionView { showsConnection = true }
                 }
             }
             .padding(.horizontal, 24)
@@ -67,6 +70,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsAppearance) { AppearanceView() }
         .sheet(isPresented: $showsTransfers) { TransfersView() }
+        .sheet(isPresented: $showsConnection) { ConnectionSheet() }
         .sheet(item: $dropped) { SendReviewView(review: $0) }
         .task(id: console.host) {
             transfers.host = console.host
@@ -198,6 +202,8 @@ struct TabBar: View {
 /// blue, then connecting, scanning or offline with a way out.
 struct ConnectionView: View {
     @Environment(ConsoleStore.self) private var console
+    /// Opens the connection sheet: every PS3 on the network, or an address typed by hand.
+    var openConnection: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 18) {
@@ -216,8 +222,13 @@ struct ConnectionView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
             if isOffline {
-                Button("Try Again") { console.retry() }
-                    .buttonStyle(PillButtonStyle())
+                HStack(spacing: 10) {
+                    Button("Try Again") { console.retry() }
+                        .buttonStyle(PillButtonStyle())
+                    Button("Find PS3…") { openConnection() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .help("Search the Mac's networks, enter the address yourself, or see how to connect a cable")
+                }
             } else {
                 Spinner(size: 20)
             }

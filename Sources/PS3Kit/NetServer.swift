@@ -140,21 +140,10 @@ public final class NetServer: @unchecked Sendable {
         return all.first { $0.hasPrefix(prefix) } ?? all.first
     }
 
-    /// The Mac's IPv4 addresses on its network interfaces, to enter in webMAN's settings.
+    /// The Mac's IPv4 addresses on its network interfaces (Internet Sharing too), to enter in
+    /// webMAN's settings.
     public static func macAddresses() -> [String] {
-        var result: [String] = []
-        var pointer: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&pointer) == 0, let first = pointer else { return [] }
-        defer { freeifaddrs(pointer) }
-        for ifa in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let name = String(cString: ifa.pointee.ifa_name)
-            guard name.hasPrefix("en"), let addr = ifa.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            guard getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 else { continue }
-            let ip = String(cString: host)
-            if !ip.hasPrefix("169.254"), !result.contains(ip) { result.append(ip) }
-        }
-        return result
+        MacNetwork.addresses()
     }
 }
 

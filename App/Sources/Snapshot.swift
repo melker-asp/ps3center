@@ -92,6 +92,8 @@ enum Snapshot {
         }
         write(TransfersView(scrolls: false).environment(console).environment(transfers), name: "transfers", into: directory)
         write(NetServerView().environment(console).environment(netServer), name: "netserver", into: directory)
+        // Fixtures: two consoles found, a USB adapter straight to the PS3 at only 100 Mbit.
+        write(ConnectionSheet(live: false).environment(console), name: "connection", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
         write(SavesView(live: false).environment(maintenance), name: "saves", into: directory)
         write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),

@@ -42,7 +42,7 @@ waits until no game is running. Uploads start right away. `--force` runs anyway.
 
 | Tab | CLI | Contents |
 |---|---|---|
-| **Status** | `ps3 status` | Cards: Health, CPU, RSX, Fan, Free, Network, Now Playing, versions (FW/HEN/webMAN) |
+| **Status** | `ps3 status`, `ps3 discover`, `ps3 connection` | Cards: Health, CPU, RSX, Fan, Free, Network, Now Playing, versions (FW/HEN/webMAN). The Network card's search button (and Find PS3… on the connection screen) opens Connection: every PS3 on the Mac's networks with Use, an address typed by hand, the Mac's connections with the cable's link speed, and what to enter on the PS3 for a cable |
 | **Games** | `ps3 games`, `ps3 send`, `ps3 serve`, `ps3 usb`, `ps3 iso` | Library Mac ↔ PS3, drag and drop to send, mount/play, delete |
 | **Apps** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Like Mole's Apps → Updates: "02.40 → 02.41", Update / Ignore / Update All. Ignore skips just that version (`apps ignore`); a newer one shows up again. Update All first shows a review and afterwards a report. The Browse tab shows `apps available`, grouped as System, Programs and webMAN add-ons, with New (released in the last 30 days) on top. From Mac (`apps mac`) shows the .pkg files in the package folders, per folder, like the Mac's games in the Games tab; they are installed where they are, with the same compatibility check when the title ID is in the catalog. Clicking a row opens the detail page (`apps info`): version, compatibility with the console and the README with images |
 | **Maintenance** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Saves and system files to the Mac, Cleanup like Mole's Optimize (a report with Done and what remains, with the reason), Storage like Mole's Analyze (one bar over /dev_hdd0) and Disc |
@@ -104,6 +104,13 @@ From Mole: the layout. From the PlayStation app: colors, buttons and feel. All v
 
 ## Facts about the console that the code builds on
 
+- **Network settings** are in `/dev_flash2/etc/xRegistry.sys` with every other system setting, and
+  webMAN has no command for them. Changing them over the network would also cut the connection that
+  makes the change, with only the console's own menu to fix a wrong value. So the connection sheet and
+  `ps3 connection` show the values to type (`WiredSetup`), and the Mac side is left to System Settings.
+- **A cable, measured Nov 7, 2026** (`ps3 speedtest`): Wi-Fi 1.1 MB/s up and down; a USB adapter
+  straight to the PS3 5.5 MB/s up, with the link at only 100 Mbit (the adapter manages 5 Gbit, the
+  Super Slim gigabit), so an old cable. macOS gives the link speed in `ifi_baudrate` without admin rights.
 - **webMAN hangs on reused HTTP connections.** Every request sends `Connection: close`
   and runs one at a time. Parallel requests take 4+ seconds each while a game is running.
 - **A running game** is read via PS3MAPI `PROCESS GETCURRENTPID` + `GETNAME` (`…_EBOOT.BIN` = game,

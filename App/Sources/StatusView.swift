@@ -6,6 +6,8 @@ struct StatusView: View {
     @Environment(ConsoleStore.self) private var console
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views.
     var scrolls = true
+    /// Opens the connection sheet from the Network card.
+    var openConnection: () -> Void = {}
     @State private var showsRemote = false
     @State private var confirming: PowerAction?
 
@@ -187,9 +189,17 @@ struct StatusView: View {
 
     private func networkCard(_ s: ConsoleSnapshot) -> some View {
         Card(icon: "network", title: "Network", chip: s.network?.label) {
-            Text(s.ip ?? console.host ?? "–")
-                .font(.ui(.title, weight: .light))
-                .foregroundStyle(Theme.primaryText)
+            HStack(alignment: .center) {
+                Text(s.ip ?? console.host ?? "–")
+                    .font(.ui(.title, weight: .light))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 8)
+                Button(action: openConnection) { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(CircleIconButtonStyle(size: 30))
+                    .iconLabel("Find PS3 and Connection")
+            }
             Spacer(minLength: 0)
             HStack {
                 Footnote(text: "webMAN response time")
