@@ -1,537 +1,537 @@
-# PS3 Center – färdplan mot den kompletta kommandocentralen
+# PS3 Center – roadmap to the complete command center
 
-Den här planen tar PS3 Center från "status och homebrew" till ett ställe där allt som rör PS3:an
-görs från Macen: se och starta spelen, skicka spel från Macens mappar, spela direkt från Macen,
-styra konsolen och ta säkerhetskopior. Principerna i [DESIGN.md](DESIGN.md) gäller för allt nytt.
+This plan takes PS3 Center from "status and homebrew" to a single place where everything about the PS3
+is done from the Mac: see and start the games, send games from the Mac's folders, play straight from the Mac,
+control the console and take backups. The principles in [DESIGN.md](DESIGN.md) apply to everything new.
 
-## Var vi står (7 november 2026)
+## Where we stand (November 7, 2026)
 
-Alla tio faser nedan är byggda och har tester i `swift test`, men det mesta är inte provat på
-konsolen än (se Prova på konsolen). Appen har flikarna Status, Spel, Appar och Underhåll,
-Överföringar, menyraden och en egen ikon. `ps3` utan argument öppnar en meny.
+All ten phases below are built and have tests in `swift test`, but most of it has not been tried on
+the console yet (see Try on the console). The app has the tabs Status, Games, Apps and Maintenance,
+Transfers, the menu bar and an icon of its own. `ps3` with no arguments opens a menu.
 
-Kvar att bygga, och vad det väntar på:
-- `mygames.xml` som källa för spellistan: test 1.
-- Läsa titel och ikon direkt i en ISO på konsolen (`REST`, en `ByteSource` för `ISOImage`): test 2.
-- Två uppladdningar samtidigt: test 5. Bara om det mäts som snabbare.
+Left to build, and what it is waiting for:
+- `mygames.xml` as a source for the game list: test 1.
+- Reading title and icon straight from an ISO on the console (`REST`, a `ByteSource` for `ISOImage`): test 2.
+- Two uploads at the same time: test 5. Only if it measures as faster.
 
-Kvar utanför koden:
-- CI har inte kunnat köra sedan 24 oktober: GitHub startar inte macOS-jobben förrän betalningen
-  är ordnad (repot är privat). Alternativen står i CLAUDE.md: repo-variabeln
-  `CI_RUNNER=self-hosted` eller ett publikt repo. Till dess körs `swift test` och `make app` på
-  Macen före varje commit.
-- Proven 1–16 under Prova på konsolen.
+Left outside the code:
+- CI hasn't been able to run since October 24: GitHub doesn't start the macOS jobs until payment
+  is sorted out (the repo is private). The alternatives are in CLAUDE.md: the repo variable
+  `CI_RUNNER=self-hosted` or a public repo. Until then `swift test` and `make app` are run on
+  the Mac before every commit.
+- Tests 1–16 under Try on the console.
 
-Byggt sist (7 nov, kväll): `ps3 mcp`, en MCP-server som bara läser, och tre idéer från ps3.world:
-paket från GitHub kontrolleras mot storlek och SHA-256, Nytt i Hämta och fler felkoder med råd
+Built last (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
+packages from GitHub are checked against size and SHA-256, New in Browse and more error codes with advice
 (test 16).
 
-Byggt 7 nov: Ignorera i Appar och `ps3 apps ignore`/`unignore`, och en granskning före
-och en rapport efter Uppdatera alla (test 15). Samma dag: fas 10, ISO-verktygen från PC:n
-(`ps3 iso`, Till USB-disk… i Spel-fliken) och PS2 Classics (`ps3 ps2`, Gör om till PS2 Classic…
-på ett PS2-spel under Macen), test 17 och 18.
+Built Nov 7: Ignore in Apps and `ps3 apps ignore`/`unignore`, and a review before
+and a report after Update All (test 15). The same day: phase 10, the ISO tools from the PC
+(`ps3 iso`, Copy to USB Drive… in the Games tab) and PS2 Classics (`ps3 ps2`, Convert to PS2 Classic…
+on a PS2 game under Mac), tests 17 and 18.
 
-Byggt 6 nov: sortering på namn, storlek och senast tillagt (Spel-fliken och
-`ps3 games --sort`), att `send` sparar titel, title ID och ikon för spelen den skickar, tiden med
-kabel i granskningen, ett tips när Macen går på batteri och menyn i `ps3`.
+Built Nov 6: sorting by name, size and recently added (the Games tab and
+`ps3 games --sort`), `send` saving title, title ID and icon for the games it sends, the time with
+a cable in the review, a tip when the Mac is on battery and the menu in `ps3`.
 
-## Målbild
+## Target picture
 
-| Var | Innehåll |
+| Where | Contents |
 |---|---|
-| **Status** | Som nu, plus strömknappar (Stäng av, Starta om, Avsluta spel) |
-| **Spel** (ny, Nova Pink) | Omslagsrutnät som PS-appens bibliotek. Två lägen: *På PS3:an* och *På Macen*. Detaljsida med banderoll, Spela / Montera / Ta bort / Skicka |
-| **Appar** | Som nu |
-| **Underhåll** (ny, Cosmic Red) | Sparfiler, systemfiler, städning, lagringskarta |
-| **Överföringar** | En låda som nås från alla flikar (badge i flikraden): kö, hastighet, tid kvar, "när kön är klar" |
-| **Menyraden** | Status, kö-förlopp och snabbknappar; håller kön och spelservern igång när fönstret är stängt |
+| **Status** | As now, plus power buttons (Shut Down, Restart, Quit Game) |
+| **Games** (new, Nova Pink) | Cover grid like the PS app's library. Two modes: *PS3* and *Mac*. Detail page with banner, Play / Mount / Delete / Send |
+| **Apps** | As now |
+| **Maintenance** (new, Cosmic Red) | Saves, system files, cleanup, storage map |
+| **Transfers** | A drawer reachable from all tabs (badge in the tab bar): queue, speed, time remaining, "when the queue finishes" |
+| **Menu bar** | Status, queue progress and quick buttons; keeps the queue and the game server going when the window is closed |
 
-CLI:t får samma funktioner: `ps3 games`, `ps3 queue`, `ps3 speedtest`, `ps3 power`, `ps3 saves`,
+The CLI gets the same features: `ps3 games`, `ps3 queue`, `ps3 speedtest`, `ps3 power`, `ps3 saves`,
 `ps3 maintain`, `ps3 analyze`.
 
 ---
 
-## FTP, väntetider och att låta PS3:an stå på
+## FTP, wait times and leaving the PS3 on
 
-### Varför det tar så lång tid
+### Why it takes so long
 
-- **Wi-Fi är den största bromsen.** PS3:an har bara 2,4 GHz-Wi-Fi, och enligt svaren från din
-  konsol (fixturerna) sitter den på Wi-Fi ("WLAN"). Rapporter från forum (inte egna mätningar)
-  spänner från under 1 till runt 15 MB/s över Wi-Fi och 10–40 MB/s med kabel; test 4 under
-  Prova ger dina siffror. Exempel: Test Drive Unlimited 2 (9,6 GB) tar knappt en timme i 3 MB/s
-  och runt 6–7 minuter i 25 MB/s.
-- **webMAN klarar högst två överföringar samtidigt** (`MAX_FTP_TRANSFERS 2` i `include/ftp.h`), så
-  det finns lite att vinna på att köra flera parallellt. Det provas ändå (test 5 under Prova).
-- **Vår egen klient** skickar 256 KB åt gången och väntar på varje bit. Det kan kosta lite; det
-  mäts i fas 5 innan något ändras.
+- **Wi-Fi is the biggest brake.** The PS3 only has 2.4 GHz Wi-Fi, and according to the responses from your
+  console (the fixtures) it is on Wi-Fi ("WLAN"). Reports from forums (not our own measurements)
+  range from under 1 to around 15 MB/s over Wi-Fi and 10–40 MB/s with a cable; test 4 under
+  Try gives your numbers. Example: Test Drive Unlimited 2 (9.6 GB) takes just under an hour at 3 MB/s
+  and around 6–7 minutes at 25 MB/s.
+- **webMAN handles at most two transfers at the same time** (`MAX_FTP_TRANSFERS 2` in `include/ftp.h`), so
+  there is little to gain from running several in parallel. It is tried anyway (test 5 under Try).
+- **Our own client** sends 256 KB at a time and waits for each chunk. That can cost a bit; it is
+  measured in phase 5 before anything is changed.
 
-### Tre sätt att få in spel
+### Three ways to get games in
 
-| | FTP till hårddisken (`send`) | USB-disk | Spela från Macen (ps3netsrv) |
+| | FTP to the hard drive (`send`) | USB drive | Play from the Mac (ps3netsrv) |
 |---|---|---|---|
-| Hastighet | Wi-Fi: långsamt. Kabel: bra | Snabbast för många spel | Ingen kopiering alls |
-| Macen måste vara på | Under överföringen | Nej | Hela tiden man spelar |
-| Bäst för | Spel man behåller | Att fylla på många spel på en gång | Att prova spel, PS1/PSP, stora bibliotek |
-| Begränsning | Avbrott kan kosta hela filen (se nedan) | FAT32: filer över 4 GB delas i `.iso.0`, `.iso.1` … | Kabel behövs för PS3-spel; PS2-ISO:er kopieras ändå till hårddisken när de monteras |
+| Speed | Wi-Fi: slow. Cable: good | Fastest for many games | No copying at all |
+| The Mac must be on | During the transfer | No | All the time while playing |
+| Best for | Games you keep | Loading many games at once | Trying games, PS1/PSP, large libraries |
+| Limitation | An interruption can cost the whole file (see below) | FAT32: files over 4 GB are split into `.iso.0`, `.iso.1` … | A cable is needed for PS3 games; PS2 ISOs are copied to the hard drive anyway when mounted |
 
-Planen bygger alla tre (fas 3–6), men **den enskilt största förbättringen kostar ingen kod: en
-nätverkskabel till PS3:an.** Räcker inte routern fram går det att koppla en kabel direkt mellan
-Macen (USB-C-adapter) och PS3:an, eller använda en enkel switch eller powerline-adaptrar.
+The plan builds all three (phases 3–6), but **the single biggest improvement costs no code: a
+network cable to the PS3.** If the router doesn't reach, a cable can be run directly between
+the Mac (USB-C adapter) and the PS3, or a simple switch or powerline adapters can be used.
 
-### Ska PS3:an alltid stå på?
+### Should the PS3 always be on?
 
-Fakta som avgör:
-- **HEN måste aktiveras efter varje start.** Det enda PS3:an vinner på att stå på är att den
-  alltid är redo. Även om den gick att väcka på distans skulle någon behöva trycka på HEN-ikonen.
-- **PS3:an kan inte väckas från Macen.** Den har inget vanligt Wake-on-LAN. Fjärrstart i Remote
-  Play-inställningarna är gjord för PSP och Vita.
-- **webMAN stänger av "Stäng av automatiskt" under en FTP-session** och vid `/install.ps3` och
-  `/download.ps3`, och slår på den igen efteråt (`include/init/autopoweroff.h`). En lång
-  överföring stängs alltså inte av av konsolen själv.
-- **Om Macen somnar mitt i en överföring raderar PS3:an den halvfärdiga filen.** webMAN väntar
-  60 sekunder på data; sedan räknas överföringen som misslyckad och filen tas bort
-  (`cellFsUnlink` i `include/ftp.h`). Bara när anslutningen stängs ordentligt (som med ctrl-C)
-  ligger filen kvar så att `APPE` kan fortsätta.
-- **Ström:** ingen mätning av Super Slim i viloläge hittades. Räknat på 50 W blir dygnet runt
-  ungefär 440 kWh per år, alltså 400–900 kr beroende på elpris. Till det kommer fläkt, damm och en
-  hårddisk som aldrig vilar. En energimätare i uttaget ger det riktiga värdet.
+Facts that decide it:
+- **HEN must be enabled after every start.** The only thing the PS3 gains from being on is that it is
+  always ready. Even if it could be woken remotely, someone would have to press the HEN icon.
+- **The PS3 can't be woken from the Mac.** It has no regular Wake-on-LAN. Remote start in the Remote
+  Play settings is made for PSP and Vita.
+- **webMAN turns off "Auto Power Off" during an FTP session** and during `/install.ps3` and
+  `/download.ps3`, and turns it back on afterwards (`include/init/autopoweroff.h`). A long
+  transfer is therefore not shut off by the console itself.
+- **If the Mac goes to sleep in the middle of a transfer, the PS3 deletes the half-finished file.** webMAN waits
+  60 seconds for data; after that the transfer counts as failed and the file is deleted
+  (`cellFsUnlink` in `include/ftp.h`). Only when the connection is closed properly (as with ctrl-C)
+  does the file stay so that `APPE` can continue.
+- **Power:** no measurement of the Super Slim in standby was found. Calculated at 50 W, around the clock is
+  roughly 440 kWh per year, that is 400–900 SEK depending on the electricity price. On top of that come fan, dust and a
+  hard drive that never rests. An energy meter in the outlet gives the real value.
 
-Rekommendation: **inte dygnet runt, utan i omgångar.** Starta PS3:an, aktivera HEN, lägg spelen i
-kön och låt PS3 Center göra resten: Macen hålls vaken så länge kön går, PS3:an stängs av när kön
-är klar och Macen får somna igen. Det blir "nattläget" i fas 4. Om PS3 Center någon gång ska vara
-spelserver hela tiden (fas 6) är det i stället Macen som behöver stå på, och då är en Mac mini
-eller en NAS bättre än en bärbar.
+Recommendation: **not around the clock, but in batches.** Start the PS3, enable HEN, put the games in
+the queue and let PS3 Center do the rest: the Mac is kept awake as long as the queue runs, the PS3 is shut down when the queue
+finishes and the Mac is allowed to sleep again. That becomes the "night mode" in phase 4. If PS3 Center is ever to be
+a game server all the time (phase 6) it is the Mac that needs to be on instead, and then a Mac mini
+or a NAS is better than a laptop.
 
-För Macen gäller:
-- En bärbar Mac på batteri somnar när locket stängs, vad appen än gör. Med laddare och extern
-  skärm går det bra.
-- Appen och `ps3 send` ska själva hindra att Macen somnar medan kön går (som `caffeinate -i`).
-  Skärmen får släckas.
+For the Mac:
+- A laptop Mac on battery goes to sleep when the lid is closed, whatever the app does. With a charger and an external
+  display it works fine.
+- The app and `ps3 send` should themselves prevent the Mac from sleeping while the queue runs (like `caffeinate -i`).
+  The display may turn off.
 
 ---
 
-## Faser
+## Phases
 
-Varje fas blir en PR. Varje ny skärm läggs till i `Snapshot.run` med data i `Fixtures.swift`, så att
-CI-artefakten `screenshots` visar den. Allt som ändrar konsolen loggas med `OperationLog.record`
-och har `--dry-run` i CLI:t.
+Each phase becomes a PR. Each new screen is added to `Snapshot.run` with data in `Fixtures.swift`, so that
+the CI artifact `screenshots` shows it. Everything that changes the console is logged with `OperationLog.record`
+and has `--dry-run` in the CLI.
 
-### Fas 1 – Spelbiblioteket på PS3:an
+### Phase 1 – The game library on the PS3
 
-**Mål:** se alla spel på konsolen med ikon, titel, title ID, storlek och plats, och starta dem.
+**Goal:** see all games on the console with icon, title, title ID, size and location, and start them.
 
-**Läge 24 okt 2026:** byggt utan tester på konsolen, med reservvägar där fakta saknas. Klart är
-listningen (steg 2 nedan plus wmtmp-cachen), ikoner och bakgrunder, starta/montera/avsluta/ta bort,
-`ps3 games` och Spel-fliken med detaljsida. Sortering på storlek och datum och att `send` sparar det
-den vet är byggda (6 nov). Kvar: `mygames.xml` (väntar på test 1) och läsning i ISO:n via `REST`
-(väntar på test 2).
+**Status Oct 24, 2026:** built without tests on the console, with fallbacks where facts are missing. Done
+are the listing (step 2 below plus the wmtmp cache), icons and backgrounds, start/mount/quit/delete,
+`ps3 games` and the Games tab with a detail page. Sorting by size and date and `send` saving what
+it knows are built (Nov 6). Left: `mygames.xml` (waiting for test 1) and reading in the ISO via `REST`
+(waiting for test 2).
 
 PS3Kit:
-- `Game.swift`: `Game` (titel, title ID, plattform, region, storlek, sökväg) med `Game.Platform`
-  (PS3, PSN, PS2, PS1, PSP, Blu-ray, DVD). Regionen läses ur title ID: `BLES`/`SLES` = Europa,
-  `BLUS`/`SLUS` = USA osv. Platser på Macen kommer i fas 3.
-- `GameLibrary.swift` (`GameLibraryService`) hittar spelen i tre steg, billigast först:
-  1. **webMAN:s egen lista** `/dev_hdd0/xmlhost/game_plugin/mygames.xml` (titel, ikon och sökväg
-     eller title ID per spel) och dess cache i `/dev_hdd0/tmp/wmtmp` (`<namn>.SFO`, `<namn>.PNG`).
-     Formatet kontrolleras mot en riktig fil först (test 1 under Prova).
-  2. **FTP-listning** av `PS3ISO`, `GAMES`, `GAMEZ`, `PS2ISO`, `PSXISO`, `PSPISO`, `BDISO`, `DVDISO`
-     på `/dev_hdd0` och `/dev_usb00*`, med en nivå undermappar som webMAN. Ger storlek och `MDTM`.
-  3. **Läs i ISO:n på konsolen** när inget annat finns: `ISOImage` får en `ByteSource` så att samma
-     kod läser lokala filer och, via FTP `REST` + `RETR`, bara de sektorer som behövs
-     (PVD, kataloger, `PARAM.SFO`, `ICON0.PNG`). webMAN har `REST` enligt källkoden.
-- PSN-spel och speluppdateringar ur `/dev_hdd0/game/*/PARAM.SFO`: `CATEGORY` `HG` är ett spel,
-  `GD` är data eller en uppdatering som kopplas till spelet med samma title ID ("uppdatering
-  1.05 installerad"). Program från katalogen och homebrew-ID:n hålls utanför.
+- `Game.swift`: `Game` (title, title ID, platform, region, size, path) with `Game.Platform`
+  (PS3, PSN, PS2, PS1, PSP, Blu-ray, DVD). The region is read from the title ID: `BLES`/`SLES` = Europe,
+  `BLUS`/`SLUS` = USA etc. Locations on the Mac come in phase 3.
+- `GameLibrary.swift` (`GameLibraryService`) finds the games in three steps, cheapest first:
+  1. **webMAN's own list** `/dev_hdd0/xmlhost/game_plugin/mygames.xml` (title, icon and path
+     or title ID per game) and its cache in `/dev_hdd0/tmp/wmtmp` (`<name>.SFO`, `<name>.PNG`).
+     The format is checked against a real file first (test 1 under Try).
+  2. **FTP listing** of `PS3ISO`, `GAMES`, `GAMEZ`, `PS2ISO`, `PSXISO`, `PSPISO`, `BDISO`, `DVDISO`
+     on `/dev_hdd0` and `/dev_usb00*`, with one level of subfolders like webMAN. Gives size and `MDTM`.
+  3. **Read in the ISO on the console** when nothing else is available: `ISOImage` gets a `ByteSource` so that the same
+     code reads local files and, via FTP `REST` + `RETR`, only the sectors that are needed
+     (PVD, directories, `PARAM.SFO`, `ICON0.PNG`). webMAN has `REST` according to the source code.
+- PSN games and game updates from `/dev_hdd0/game/*/PARAM.SFO`: `CATEGORY` `HG` is a game,
+  `GD` is data or an update that is tied to the game with the same title ID ("update
+  1.05 installed"). Apps from the catalog and homebrew IDs are kept out.
 - Metadata per format: PS3 `PARAM.SFO`; PS2 `SYSTEM.CNF` (`BOOT2` → `SLES-12345`); PS1 `SYSTEM.CNF`
-  i `.bin` med 2352-byte-sektorer (`ISOImage` behöver läget MODE2); PSP `UMD_DATA.BIN` och
+  in `.bin` with 2352-byte sectors (`ISOImage` needs the MODE2 mode); PSP `UMD_DATA.BIN` and
   `PSP_GAME/PARAM.SFO`.
-- Cache i `~/Library/Caches/ps3center/` (lista + ikoner), nyckel sökväg + storlek + `MDTM`. En ny
-  läsning blir bara en listning.
-- `send` sparar det den redan vet om spelen den skickar (title ID, titel, ikon), så att de spelen
-  aldrig behöver läsas på konsolen.
-- `GameLibraryService` styr också: montera (`/mount.ps3/<sökväg>`), starta (`/play.ps3/<sökväg>`,
-  installerade spel med `/play.ps3?<title ID>`), avmontera (`/mount.ps3/unmount`), avsluta spelet
-  (`/xmb.ps3$exit`), ta bort (FTP `DELE`/`RMD`). Installerade spel tas aldrig bort av PS3 Center.
+- Cache in `~/Library/Caches/ps3center/` (list + icons), key path + size + `MDTM`. A new
+  read becomes just a listing.
+- `send` saves what it already knows about the games it sends (title ID, title, icon), so that those games
+  never need to be read on the console.
+- `GameLibraryService` also controls: mount (`/mount.ps3/<path>`), start (`/play.ps3/<path>`,
+  installed games with `/play.ps3?<title ID>`), unmount (`/mount.ps3/unmount`), quit the game
+  (`/xmb.ps3$exit`), delete (FTP `DELE`/`RMD`). Installed games are never deleted by PS3 Center.
 
 CLI:
-- `ps3 games` (gruppering per plattform, `--platform ps2`, `--json`), `ps3 games info <namn>`.
-- `ps3 games play <namn>`: körs ett annat spel frågar den om det ska avslutas (`-y` hoppar
-  över frågan). `ps3 games mount|unmount|exit`.
-- `ps3 games delete <namn>` med fråga, `--dry-run` och logg.
+- `ps3 games` (grouping per platform, `--platform ps2`, `--json`), `ps3 games info <name>`.
+- `ps3 games play <name>`: if another game is running it asks whether to quit it (`-y` skips
+  the question). `ps3 games mount|unmount|exit`.
+- `ps3 games delete <name>` with a question, `--dry-run` and log.
 
-Appen:
-- `GamesStore` och `GamesView`: rutnät med XMB-ikonerna (320×176), filterpiller (Alla, PS3, PS2,
-  PS1, PSP, Film), sök och sortering (namn, storlek, senast tillagt). Spelet som körs markeras.
-- `GameDetailView` återanvänder `HeroBackdrop` med spelets `PIC1.PNG`. Vit huvudknapp "Spela",
-  konturknappar Montera och Ta bort (med bekräftelse).
-- Fixturer: en handfull spel av varje sort. Ikonerna ritas som färgade platshållare i appen, så att
-  CI inte behöver nätet. Skärmar: `games`, `games-detail`.
+The app:
+- `GamesStore` and `GamesView`: grid with the XMB icons (320×176), filter pills (All, PS3, PS2,
+  PS1, PSP, Movies), search and sorting (name, size, recently added). The running game is highlighted.
+- `GameDetailView` reuses `HeroBackdrop` with the game's `PIC1.PNG`. White main button "Play",
+  outline buttons Mount and Delete (with confirmation).
+- Fixtures: a handful of games of each kind. The icons are drawn as colored placeholders in the app, so that
+  CI doesn't need the network. Screens: `games`, `games-detail`.
 
-Klart när: `ps3 games` visar samma spel som XMB:n, och ett spel kan startas från appen.
+Done when: `ps3 games` shows the same games as the XMB, and a game can be started from the app.
 
-### Fas 2 – Omslag
+### Phase 2 – Covers
 
-**Mål:** riktiga fodral i rutnätet, inte bara XMB-ikoner.
+**Goal:** real cases in the grid, not just XMB icons.
 
-**Läge 24 okt 2026:** byggt. `CoverService` (källorna nedan, egen bild genom att dra den till
-banderollen, `ps3 games covers --to-ps3`) och speluppdateringar från Sony (`GameUpdateService`,
-`ps3 games updates|update`, "Sök uppdateringar" och en ruta på spelets sida). Rutnätet visar
-fodral eller XMB-ikoner. Kvar att prova hemma: att Sonys server svarar och att certifikatet godtas.
+**Status Oct 24, 2026:** built. `CoverService` (the sources below, your own image by dragging it onto the
+banner, `ps3 games covers --to-ps3`) and game updates from Sony (`GameUpdateService`,
+`ps3 games updates|update`, "Check for Updates" and a box on the game's page). The grid shows
+cases or XMB icons. Left to try at home: that Sony's server answers and that the certificate is accepted.
 
-- `CoverStore` i PS3Kit med källor per plattform, alla nycklade på title ID och sparade för gott i
+- `CoverStore` in PS3Kit with sources per platform, all keyed on title ID and saved permanently in
   `~/Library/Caches/ps3center/covers/`:
-  - PS3: spelets egen `ICON0`/`PIC1` (finns alltid), och fodral från GameTDB eller webMAN:s
-    onlinekälla (DeViL303). Exakt URL och villkor tas fram ur webMAN:s källkod och GameTDB innan
-    koden skrivs.
-  - PS2 och PS1: samlingarna `xlenore/ps2-covers` och `xlenore/psx-covers` (samma som PCSX2 och
-    DuckStation använder), nycklade på serienummer. README och licens läses först.
-  - PSP: `ICON0` ur ISO:n tills en fodralkälla är vald.
-- Byta omslag själv: dra en bild till detaljsidan.
-- Valfritt: "Visa omslagen på PS3:an också" lägger fodralen som `<TITLEID>.JPG` i
-  `/dev_hdd0/tmp/wmtmp/covers`, där webMAN letar (loggas, `--dry-run`).
-- Rutnätet får valet Ikoner / Fodral.
+  - PS3: the game's own `ICON0`/`PIC1` (always available), and cases from GameTDB or webMAN's
+    online source (DeViL303). The exact URL and terms are worked out from webMAN's source code and GameTDB before
+    the code is written.
+  - PS2 and PS1: the collections `xlenore/ps2-covers` and `xlenore/psx-covers` (the same ones PCSX2 and
+    DuckStation use), keyed on serial number. README and license are read first.
+  - PSP: `ICON0` from the ISO until a case source is chosen.
+- Changing the cover yourself: drag an image onto the detail page.
+- Optional: "Show covers on the PS3 too" puts the cases as `<TITLEID>.JPG` in
+  `/dev_hdd0/tmp/wmtmp/covers`, where webMAN looks (logged, `--dry-run`).
+- The grid gets the choice Icons / Cases.
 
-### Fas 3 – Macens spelmappar och skicka därifrån
+### Phase 3 – The Mac's game folders and sending from there
 
-**Mål:** koppla mappar per typ och skicka spel med ett klick eller genom att dra dem till fönstret.
+**Goal:** connect folders per type and send games with one click or by dragging them onto the window.
 
-**Läge 24 okt 2026:** byggt: `GameFolders`, `LocalLibrary` (läser PARAM.SFO, SYSTEM.CNF och ICON0 ur
-ISO:er och råa .bin-avbilder), `LibraryMatch`, läget Macen i Spel-fliken med urval, granskningsvy,
-Spelmappar och dra-och-släpp; `ps3 config folder` och `ps3 games mac`. Bevakade mappar är byggda
-(25 okt): `FolderWatch`, reglaget Bevaka i Spelmappar, `ps3 config folder watch` och `ps3 watch`.
+**Status Oct 24, 2026:** built: `GameFolders`, `LocalLibrary` (reads PARAM.SFO, SYSTEM.CNF and ICON0 from
+ISOs and raw .bin images), `LibraryMatch`, the Mac mode in the Games tab with selection, review view,
+Game Folders and drag and drop; `ps3 config folder` and `ps3 games mac`. Watched folders are built
+(Oct 25): `FolderWatch`, the Watch toggle in Game Folders, `ps3 config folder watch` and `ps3 watch`.
 
-- `config.json` får `folders`, en lista med mappar per typ:
-  `{"PS3ISO": ["~/Spel/PS3"], "PS2ISO": ["/Volumes/Extern/PS2"], …}`. Spegelmappens
-  `dev_hdd0/PS3ISO` osv. räknas med automatiskt, så den som redan har en spegelmapp behöver inte
-  göra något.
-- CLI: `ps3 config folder add PS3ISO ~/Spel/PS3`, `folder list`, `folder remove`.
-- Appen: Inställningar → Spelmappar, en rad per typ med "Välj mapp…" eller dra in en mapp. En
-  extern disk som inte är ansluten visas som "inte ansluten", inte som borttagen.
-- `LocalLibrary` läser mapparna med samma metadata som fas 1 (snabbt, filerna är lokala), och läser
-  om när något ändras (FSEvents).
-- Matchning Mac ↔ PS3 på title ID och plattform, sedan storlek: *Bara på Macen*, *På båda*,
-  *Bara på PS3:an*, *Avbruten uppladdning* (mindre på konsolen).
-- Spel-fliken får lägena *På PS3:an* och *På Macen*. Markera flera → vit knapp "Skicka 3 spel ·
-  24,1 GB" → en granskningsvy som i DESIGN.md: kryssrutor, ledigt utrymme före och efter, beräknad
-  tid från den senast uppmätta hastigheten och varningar ("Wi-Fi: cirka 55 minuter, med kabel
-  cirka 7").
-- Dra filer eller mappar var som helst i fönstret → samma granskningsvy.
-- Bevakad mapp (av som standard, per mapp): nya spel köas när filen slutat växa.
+- `config.json` gets `folders`, a list of folders per type:
+  `{"PS3ISO": ["~/Games/PS3"], "PS2ISO": ["/Volumes/External/PS2"], …}`. The mirror folder's
+  `dev_hdd0/PS3ISO` etc. is counted automatically, so anyone who already has a mirror folder doesn't need to
+  do anything.
+- CLI: `ps3 config folder add PS3ISO ~/Games/PS3`, `folder list`, `folder remove`.
+- The app: Settings → Game Folders, one row per type with "Choose Folder…" or drag in a folder. An
+  external drive that isn't connected is shown as "not connected", not as removed.
+- `LocalLibrary` reads the folders with the same metadata as phase 1 (fast, the files are local), and rereads
+  when something changes (FSEvents).
+- Matching Mac ↔ PS3 on title ID and platform, then size: *Mac only*, *On both*,
+  *PS3 only*, *Interrupted upload* (smaller on the console).
+- The Games tab gets the modes *PS3* and *Mac*. Select several → white button "Send 3 games ·
+  24.1 GB" → a review view as in DESIGN.md: checkboxes, free space before and after, estimated
+  time from the most recently measured speed and warnings ("Wi-Fi: about 55 minutes, with a cable
+  about 7").
+- Drag files or folders anywhere in the window → the same review view.
+- Watched folder (off by default, per folder): new games are queued when the file has stopped growing.
 
-### Fas 4 – Överföringar som tål avbrott
+### Phase 4 – Transfers that survive interruptions
 
-**Mål:** inget går förlorat när Macen somnar eller nätet hackar, och kön sköter sig själv.
+**Goal:** nothing is lost when the Mac goes to sleep or the network hiccups, and the queue takes care of itself.
 
-**Läge 24 okt 2026:** byggt: `TransferQueue` med lås, `.part` + `RNTO`, ren stängning vid paus och
-viloläge, `KeepAwake`, MD5 via `/md5.ps3`, "När kön är klar" och notiser; `ps3 queue` och
-Överföringar i appen. Nya försök efter nätverksfel är byggda (25 okt): `RetryPolicy` väntar 15 s,
-30 s, 1, 2 och 4 minuter och fortsätter från `.part`-filen; har webMAN tagit bort den sägs det.
+**Status Oct 24, 2026:** built: `TransferQueue` with lock, `.part` + `RNTO`, clean close on pause and
+sleep, `KeepAwake`, MD5 via `/md5.ps3`, "When the Queue Finishes" and notifications; `ps3 queue` and
+Transfers in the app. Retries after network errors are built (Oct 25): `RetryPolicy` waits 15 s,
+30 s, 1, 2 and 4 minutes and continues from the `.part` file; if webMAN has deleted it, that is said.
 
-- `TransferQueue` i PS3Kit, sparad i `~/Library/Application Support/ps3center/queue.json`: lägg
-  till, pausa, fortsätt, ändra ordning, ta bort. En överföring åt gången. Ett lås ser till att
-  appen och CLI:t aldrig skickar samtidigt. CLI: `ps3 queue` (`list`, `start`, `pause`, `clear`).
-- **Ladda upp till `<namn>.part` och byt namn när filen är klar** (`RNFR`/`RNTO`, som webMAN har).
-  Då syns aldrig ett halvt spel i XMB:n, och en ofullständig fil går inte att ta för en hel.
-- **Stoppa ordentligt:** paus, avbryt, när appen avslutas och när Macen ska somna
-  (`NSWorkspace.willSleepNotification`) stängs dataanslutningen med FIN (`NWConnection.cancel()`,
-  inte `forceCancel()`), så att webMAN behåller filen och `APPE` kan fortsätta. Efter väckning
-  hittas konsolen igen och kön fortsätter.
-- **Håll Macen vaken** med `ProcessInfo.beginActivity(options: .idleSystemSleepDisabled, …)` så
-  länge kön går, i både appen och CLI:t. Tips i appen när Macen går på batteri.
-- **Verifiering:** storleken kontrolleras som nu. Valfritt MD5: räknas på Macen medan filen läses
-  (gratis) och jämförs med `/md5.ps3/<sökväg>` på konsolen, som tar några minuter för ett stort
-  spel. På i nattläget, av annars.
-- **Bryts anslutningen ändå** försöker kön igen med paus emellan och fortsätter från `SIZE`. Har
-  webMAN raderat filen sägs det rakt ut ("PS3:an tog bort den halvfärdiga filen, börjar om").
-- **När kön är klar:** Ingenting / Popup på TV:n / Stäng av PS3:an (`/shutdown.ps3`, loggas), plus
-  en notis på Macen. CLI: `ps3 send … --shutdown-when-done`.
+- `TransferQueue` in PS3Kit, saved in `~/Library/Application Support/ps3center/queue.json`: add,
+  pause, resume, reorder, remove. One transfer at a time. A lock makes sure the
+  app and the CLI never send at the same time. CLI: `ps3 queue` (`list`, `start`, `pause`, `clear`).
+- **Upload to `<name>.part` and rename when the file is done** (`RNFR`/`RNTO`, which webMAN has).
+  That way a half game is never shown in the XMB, and an incomplete file can't be mistaken for a complete one.
+- **Stop properly:** pause, cancel, when the app quits and when the Mac is about to sleep
+  (`NSWorkspace.willSleepNotification`) the data connection is closed with FIN (`NWConnection.cancel()`,
+  not `forceCancel()`), so that webMAN keeps the file and `APPE` can continue. After wake-up
+  the console is found again and the queue continues.
+- **Keep the Mac awake** with `ProcessInfo.beginActivity(options: .idleSystemSleepDisabled, …)` as
+  long as the queue runs, in both the app and the CLI. A tip in the app when the Mac is on battery.
+- **Verification:** the size is checked as now. Optional MD5: computed on the Mac while the file is read
+  (free) and compared with `/md5.ps3/<path>` on the console, which takes a few minutes for a large
+  game. On in night mode, off otherwise.
+- **If the connection breaks anyway** the queue retries with a pause in between and continues from `SIZE`. If
+  webMAN has deleted the file, that is said outright ("The PS3 deleted the half-finished file, starting over").
+- **When the queue finishes:** Nothing / Notify on TV / Shut Down PS3 (`/shutdown.ps3`, logged), plus
+  a notification on the Mac. CLI: `ps3 send … --shutdown-when-done`.
 
-### Fas 5 – Snabbare: mät, finjustera och USB
+### Phase 5 – Faster: measure, tune and USB
 
-**Läge 24 okt 2026:** `ps3 speedtest` (och knappen i Överföringar) och `ps3 usb prepare` är byggda.
-Finjusteringen är byggd (25 okt): 1 MB-bitar och två i luften, inställbart med `ftpChunkKB` och
-`ftpWindow` i config.json för att jämföra med hastighetstestet (test 13). Tiden med kabel visas i
-granskningen (6 nov): från en mätning över LAN om det finns en, annars 10–40 MB/s. Två filer
-samtidigt är inte byggt (test 5).
+**Status Oct 24, 2026:** `ps3 speedtest` (and the button in Transfers) and `ps3 usb prepare` are built.
+The tuning is built (Oct 25): 1 MB chunks and two in flight, adjustable with `ftpChunkKB` and
+`ftpWindow` in config.json to compare with the speed test (test 13). The time with a cable is shown in the
+review (Nov 6): from a measurement over LAN if there is one, otherwise 10–40 MB/s. Two files
+at the same time is not built (test 5).
 
-- `ps3 speedtest` (och en knapp i Överföringar): skickar 256 MB från minnet till `/dev_hdd0/tmp`,
-  hämtar tillbaka och tar bort filen. Visar MB/s åt båda hållen och om det är Wi-Fi eller kabel.
-  Resultatet sparas och ger tidsberäkningarna i granskningsvyn.
-- Finjustera klienten mot `curl` som jämförelse: större bitar (1–4 MB) och ett par sändningar i
-  luften samtidigt. Två parallella uppladdningar (webMAN:s max) provas också. Bara det som
-  mäts som snabbare behålls.
-- Föreslå kabel när konsolen är på Wi-Fi och kön är större än ett par GB, med tiden för båda.
-- **USB-vägen:** `ps3 usb prepare /Volumes/<disk>` (och "Förbered USB-disk" i Spel-fliken)
-  kontrollerar att disken är FAT32, skapar `PS3ISO`, `PS2ISO`, `PSXISO`, `PSPISO`, `GAMES` och
-  kopierar spelen. PS3-ISO:er över 4 GB delas i `.iso.0`, `.iso.1` … (högst 4 GB, lika stora delar
-  utom den sista, enligt webMAN:s wiki). Spelmappar med en fil över 4 GB fungerar inte på FAT32
-  och stoppas med ett besked.
+- `ps3 speedtest` (and a button in Transfers): sends 256 MB from memory to `/dev_hdd0/tmp`,
+  fetches it back and deletes the file. Shows MB/s in both directions and whether it is Wi-Fi or cable.
+  The result is saved and gives the time estimates in the review view.
+- Tune the client against `curl` as a comparison: larger chunks (1–4 MB) and a couple of sends in the
+  air at the same time. Two parallel uploads (webMAN's max) are also tried. Only what
+  measures as faster is kept.
+- Suggest a cable when the console is on Wi-Fi and the queue is larger than a couple of GB, with the time for both.
+- **The USB route:** `ps3 usb prepare /Volumes/<disk>` (and "Prepare USB Drive" in the Games tab)
+  checks that the drive is FAT32, creates `PS3ISO`, `PS2ISO`, `PSXISO`, `PSPISO`, `GAMES` and
+  copies the games. PS3 ISOs over 4 GB are split into `.iso.0`, `.iso.1` … (at most 4 GB, equal-sized parts
+  except the last, according to webMAN's wiki). Game folders with a file over 4 GB don't work on FAT32
+  and are stopped with a message.
 
-### Fas 6 – Spela direkt från Macen (inbyggd ps3netsrv)
+### Phase 6 – Play straight from the Mac (built-in ps3netsrv)
 
-**Mål:** spelen i Macens mappar syns och startar på PS3:an utan att kopieras.
+**Goal:** the games in the Mac's folders show up and start on the PS3 without being copied.
 
-**Läge 24 okt 2026:** byggt: `NetServer` (läsning bara, de kopplade mapparna som rot, `.SFO`/`.PNG`
-ur PS3-ISO:erna, bara konsolens adress släpps in), `ps3 serve`, Spelservern i Spel-fliken med
-stegen för webMAN, "Spela från Macen" och Macen hålls vaken medan ett nätverksspel är monterat.
-Testat mot en egen klient i `swift test`, inte mot konsolen eller den riktiga ps3netsrv än (test 10).
-Menyraden kommer i fas 7.
+**Status Oct 24, 2026:** built: `NetServer` (read-only, the connected folders as the root, `.SFO`/`.PNG`
+from the PS3 ISOs, only the console's address is let in), `ps3 serve`, Game Server in the Games tab with
+the steps for webMAN, "Play from Mac" and the Mac is kept awake while a network game is mounted.
+Tested against a custom client in `swift test`, not against the console or the real ps3netsrv yet (test 10).
+The menu bar comes in phase 7.
 
-webMAN har en inbyggd klient för ps3netsrv (`/net0`–`/net4`, port 38008). Protokollet är litet:
-16 byte långa kommandon i big-endian (`OPEN_FILE` = 0x1224, `READ_FILE`, `READ_CD_2048_CRITICAL`,
-`STAT_FILE`, `OPEN_DIR`, `READ_DIR` …), definierade i `include/netiso.h` i aldostools/ps3netsrv.
+webMAN has a built-in client for ps3netsrv (`/net0`–`/net4`, port 38008). The protocol is small:
+16-byte big-endian commands (`OPEN_FILE` = 0x1224, `READ_FILE`, `READ_CD_2048_CRITICAL`,
+`STAT_FILE`, `OPEN_DIR`, `READ_DIR` …), defined in `include/netiso.h` in aldostools/ps3netsrv.
 
-- `NetServer` i PS3Kit på `NWListener`, med bara läsande kommandon. Skrivande kommandon får fel,
-  så konsolen kan aldrig ändra något på Macen.
-- **Den virtuella roten är de kopplade mapparna från fas 3**, ihopslagna till `/PS3ISO`,
-  `/PS2ISO` osv. Bredvid varje PS3-ISO skapas `<namn>.SFO` och `<namn>.PNG` i farten, eftersom
-  webMAN hämtar dem från servern för titel och ikon. Med den vanliga ps3netsrv måste man ta fram
-  dem själv.
-- Bara konsolens IP-adress släpps in.
-- Tester: inspelade paket, och en jämförelse mot den riktiga ps3netsrv byggd från källkod.
-- Inställning på PS3:an: webMAN:s `/setup.ps3` → nätverksserver 1 = Macens IP och 38008. Appen
-  visar stegen och kontrollerar att det fungerar. Macen behöver en fast IP (reservera adressen i
-  routern).
-- Appen: märket "Från Macen" på spelen, Spela → `/play.ps3/net0/PS3ISO/<fil>`. Macen hålls vaken
-  medan ett nätverksspel är monterat. Menyraden håller servern igång när fönstret är stängt.
-- Begränsningar att visa: PS3-spel bör gå över kabel, och PS2-ISO:er kopieras till hårddisken när
-  de monteras (webMAN:s wiki).
+- `NetServer` in PS3Kit on `NWListener`, with read-only commands only. Write commands get an error,
+  so the console can never change anything on the Mac.
+- **The virtual root is the connected folders from phase 3**, merged into `/PS3ISO`,
+  `/PS2ISO` etc. Next to each PS3 ISO, `<name>.SFO` and `<name>.PNG` are created on the fly, because
+  webMAN fetches them from the server for title and icon. With the regular ps3netsrv you have to produce
+  them yourself.
+- Only the console's IP address is let in.
+- Tests: recorded packets, and a comparison against the real ps3netsrv built from source.
+- Setup on the PS3: webMAN's `/setup.ps3` → network server 1 = the Mac's IP and 38008. The app
+  shows the steps and checks that it works. The Mac needs a fixed IP (reserve the address in the
+  router).
+- The app: the "From Mac" badge on games, Play → `/play.ps3/net0/PS3ISO/<file>`. The Mac is kept awake
+  while a network game is mounted. The menu bar keeps the server going when the window is closed.
+- Limitations to show: PS3 games should go over a cable, and PS2 ISOs are copied to the hard drive when
+  mounted (webMAN's wiki).
 
-### Fas 7 – Styr konsolen
+### Phase 7 – Control the console
 
-**Läge 24 okt 2026:** byggt: strömraden i Status-fliken och `ps3 power`/`ps3 disc`, "På men HEN är
-av" (ping eller TCP-svar utan webMAN), fjärrkontrollen med XMB-bild och `ps3 pad`/`ps3 screenshot`,
-fläktmålet (`ps3 fan`), menyraden med inloggningsobjekt, notiser (kön, värme, programuppdateringar),
-"Skicka till PS3" i Finder, Genvägar och speltid. Kvar att prova hemma: test 7, 8 och 11.
+**Status Oct 24, 2026:** built: the power row in the Status tab and `ps3 power`/`ps3 disc`, "On but HEN is
+off" (ping or TCP reply without webMAN), the remote with XMB image and `ps3 pad`/`ps3 screenshot`,
+the fan target (`ps3 fan`), the menu bar with login item, notifications (queue, heat, app updates),
+"Send to PS3" in Finder, Shortcuts and play time. Left to try at home: tests 7, 8 and 11.
 
-- **Ström:** Stäng av (`/shutdown.ps3`), Starta om (`/restart.ps3`) med varningen "HEN måste
-  aktiveras igen efter omstarten", Avsluta spel, Mata ut/Mata in skiva. CLI `ps3 power off|restart`.
-  Loggas, `--dry-run`.
-- **"På men HEN är av":** svarar konsolen på ping men inte webMAN säger anslutningsskärmen just det
-  och visar hur HEN aktiveras (förutsatt att PS3:an svarar på ping, test 7 under Prova).
-- **Fjärrkontroll:** `/pad.ps3?<knappar>` på skärmen och med tangentbordet (piltangenter, Retur = ✕,
-  Esc = ◯), med XMB:n som bild via `/xmb.ps3$screenshot?show?fast` med några sekunders mellanrum. Räcker för att
-  aktivera saker och navigera XMB:n från soffan.
-- **Fläkt:** visa webMAN:s läge och måltemperatur. Ändring bara i dynamiskt läge med mål mellan
-  60 och 75 °C (`/cpursx.ps3?max=`), aldrig fast låg hastighet. Loggas.
-- **Menyraden** (`MenuBarExtra`) och inloggningsobjekt (`SMAppService`): hälsa, temperaturer, vad
-  som spelas, kö-förlopp; Skicka fil…, Uppdatera spellistan, Avsluta spel, Stäng av.
-- **Notiser:** kön klar eller misslyckad, hög temperatur, nya programuppdateringar.
-- **Finder och Genvägar:** "Skicka till PS3" som snabbåtgärd, och App Intents: Skicka till PS3,
-  Starta spel, Stäng av PS3, Status.
-- **Speltid:** `ConsoleStore` ser redan vilket spel som är monterat var tredje sekund. Sessionerna
-  sparas lokalt och ger "Senast spelat" och total speltid på detaljsidan.
+- **Power:** Shut Down (`/shutdown.ps3`), Restart (`/restart.ps3`) with the warning "HEN must be
+  enabled again after the restart", Quit Game, Eject/Insert Disc. CLI `ps3 power off|restart`.
+  Logged, `--dry-run`.
+- **"On but HEN is off":** if the console answers ping but webMAN doesn't, the connection screen says just that
+  and shows how to enable HEN (provided the PS3 answers ping, test 7 under Try).
+- **Remote:** `/pad.ps3?<buttons>` on screen and with the keyboard (arrow keys, Return = ✕,
+  Esc = ◯), with the XMB as an image via `/xmb.ps3$screenshot?show?fast` every few seconds. Enough to
+  activate things and navigate the XMB from the couch.
+- **Fan:** show webMAN's mode and target temperature. Changes only in dynamic mode with a target between
+  60 and 75 °C (`/cpursx.ps3?max=`), never a fixed low speed. Logged.
+- **The menu bar** (`MenuBarExtra`) and login item (`SMAppService`): health, temperatures, what
+  is playing, queue progress; Send File…, Refresh Game List, Quit Game, Shut Down.
+- **Notifications:** queue done or failed, high temperature, new app updates.
+- **Finder and Shortcuts:** "Send to PS3" as a quick action, and App Intents: Send to PS3,
+  Start Game, Shut Down PS3, Status.
+- **Play time:** `ConsoleStore` already sees which game is mounted every three seconds. The sessions
+  are saved locally and give "Last Played" and total play time on the detail page.
 
-### Fas 8 – Säkerhetskopior och underhåll (Underhåll-fliken)
+### Phase 8 – Backups and maintenance (the Maintenance tab)
 
-**Läge 24 okt 2026:** byggt: `ps3 saves`/`ps3 backup` och sparfiler varje vecka i appen (med
-den förra kopian sparad och det som låg på konsolen sparat före en återställning), systemfiler,
-`ps3 maintain` med Städning, `ps3 analyze` med Lagring (via `/stat.ps3`) och `ps3 rip` med Skivan.
-Kvar att prova hemma: test 12.
+**Status Oct 24, 2026:** built: `ps3 saves`/`ps3 backup` and weekly saves in the app (with
+the previous copy kept and what was on the console saved before a restore), system files,
+`ps3 maintain` with Cleanup, `ps3 analyze` with Storage (via `/stat.ps3`) and `ps3 rip` with Disc.
+Left to try at home: test 12.
 
-- **Sparfiler:** `ps3 saves list|backup|restore`. Kopierar `/dev_hdd0/home/<användare>/savedata`
-  till `~/Library/Application Support/ps3center/Sparfiler/` (eller `_Säkerhetskopior` i
-  spegelmappen), bara det som ändrats (storlek + `MDTM`). Återställning bara när inget spel körs,
-  med fråga och logg. Automatiskt en gång i veckan när konsolen syns (bara läsning).
-- **Systemfiler:** kopia av `/dev_flash2/etc/xRegistry.sys` (systeminställningarna),
-  `/dev_hdd0/tmp/wm_config.bin` och `boot_plugins.txt`. Bara läsning.
-- **`ps3 maintain`:** kvarglömda `.pkg` i `/dev_hdd0/packages`, `.part` från avbrutna
-  överföringar, samma spel både i `PS3ISO` och `GAMES`, stor `wmtmp`, rader i `boot_plugins.txt`
-  som pekar på filer som saknas, `hen_updater.off`. Rapport med Klart / Hoppade över och skälet.
-- **`ps3 analyze`:** lagringskarta över `/dev_hdd0`.
-- **`ps3 rip`:** kopiera skivan i spelaren med `/copy.ps3/dev_bdvd` (redan planerat).
+- **Saves:** `ps3 saves list|backup|restore`. Copies `/dev_hdd0/home/<user>/savedata`
+  to `~/Library/Application Support/ps3center/Saves/` (or `_Backups` in
+  the mirror folder), only what has changed (size + `MDTM`). Restore only when no game is running,
+  with a question and log. Automatically once a week when the console is visible (read-only).
+- **System files:** a copy of `/dev_flash2/etc/xRegistry.sys` (the system settings),
+  `/dev_hdd0/tmp/wm_config.bin` and `boot_plugins.txt`. Read-only.
+- **`ps3 maintain`:** forgotten `.pkg` in `/dev_hdd0/packages`, `.part` from interrupted
+  transfers, the same game in both `PS3ISO` and `GAMES`, a large `wmtmp`, lines in `boot_plugins.txt`
+  that point to missing files, `hen_updater.off`. A report with Done / Skipped and the reason.
+- **`ps3 analyze`:** a storage map over `/dev_hdd0`.
+- **`ps3 rip`:** copy the disc in the drive with `/copy.ps3/dev_bdvd` (already planned).
 
-### Fas 9 – Det som aldostools/Resources gav idéer till
+### Phase 9 – What aldostools/Resources gave ideas for
 
-**Läge 25 okt 2026:** byggt, oprovat på konsolen: test 14.
+**Status Oct 25, 2026:** built, untried on the console: test 14.
 
-- **Ladda om XMB** (`ps3 refresh --xmb`, Fjärrkontroll → Ladda om XMB), och av sig själv efter en
-  avinstallation när webMAN kan göra det med Reload XMB.
-- **Fler program i Appar:** mohasis File Manager, Yo! Player, Cell Stream, Thermal Bench och
-  Ren'Py Player (`mohasi/ps3-dev`), samt Movian, JellyFin, Simple File Manager MOD, TEE Remote
-  Play och TEE Vanced (aldostools Addons). Inte Swarm (torrentklient) eller multiMAN (delar mapp
-  med webMAN:s omslagspaket).
-- **Omslag** för PSP-spel, och aldostools PS1/PS2-omslag när xlenores saknas.
-- **Inspelning och bilder:** `ps3 record` och Spela in i Status-fliken; `ps3 media` och Filmer och
-  bilder i Underhåll hämtar filmer och skärmbilder till `~/Pictures/PS3 Center`; Skärmbilder i
-  spel slår på XMB:ns skärmbilder.
-- **PS1 och PS2:** spelsidan och `ps3 games info` säger när en PS2-ISO inte startar på HEN (bara
-  PS2 Classics gör det), om PS2 CONFIG har en rättning, och när ett PAL-PS1-spel behöver
-  LibCrypt-data (`ps3 games libcrypt`). Granskningsvyn varnar innan en PS2-ISO skickas till HEN.
-  `.lsd`/`.sbi` bredvid en PS1-avbild skickas med.
-- **Kontroll mot IRD:** `ps3 verify` och Kontrollera mot IRD på spelsidan för en spelmapp i GAMES.
-- **Teman:** en `.p3t` som skickas installeras av XMB:n.
-- **Småsaker:** `ps3 beep`, `ps3 music on|off`, `ps3 error <kod>` och förklarade felkoder i
-  appen, namn ur aldostools titellista när PARAM.SFO saknas, och `ps3 maintain block-updates` med
-  Blockera i Städning.
-- **Byggdes inte:** att ställa klockan (webMAN skriver den säkra klockan) och säker utmatning av
-  USB (webMAN:s är en låtsad händelse).
+- **Reload XMB** (`ps3 refresh --xmb`, Remote → Reload XMB), and by itself after an
+  uninstall when webMAN can do it with Reload XMB.
+- **More apps in Apps:** mohasi's File Manager, Yo! Player, Cell Stream, Thermal Bench and
+  Ren'Py Player (`mohasi/ps3-dev`), as well as Movian, JellyFin, Simple File Manager MOD, TEE Remote
+  Play and TEE Vanced (aldostools Addons). Not Swarm (torrent client) or multiMAN (shares a folder
+  with webMAN's cover pack).
+- **Covers** for PSP games, and aldostools' PS1/PS2 covers when xlenore's are missing.
+- **Recording and images:** `ps3 record` and Record in the Status tab; `ps3 media` and Videos &
+  Photos in Maintenance import videos and screenshots to `~/Pictures/PS3 Center`; In-Game Screenshots
+  turns on the XMB's screenshots.
+- **PS1 and PS2:** the game page and `ps3 games info` say when a PS2 ISO doesn't start on HEN (only
+  PS2 Classics do), whether PS2 CONFIG has a fix, and when a PAL PS1 game needs
+  LibCrypt data (`ps3 games libcrypt`). The review view warns before a PS2 ISO is sent to HEN.
+  `.lsd`/`.sbi` next to a PS1 image are sent along.
+- **Checking against IRD:** `ps3 verify` and Verify Against IRD on the game page for a game folder in GAMES.
+- **Themes:** a `.p3t` that is sent is installed by the XMB.
+- **Small things:** `ps3 beep`, `ps3 music on|off`, `ps3 error <code>` and explained error codes in
+  the app, names from aldostools' title list when PARAM.SFO is missing, and `ps3 maintain block-updates` with
+  Block in Cleanup.
+- **Not built:** setting the clock (webMAN writes the secure clock) and safe ejection of
+  USB (webMAN's is a faked event).
 
-### Fas 10 – PC-verktygen för ISO:er på Macen
+### Phase 10 – The PC tools for ISOs on the Mac
 
-**Läge 7 nov 2026:** byggt, provat på Macen (se DESIGN.md), oprovat på konsolen: test 17.
+**Status Nov 7, 2026:** built, tried on the Mac (see DESIGN.md), untried on the console: test 17.
 
-Verktygen på ps3.world/iso-tools är Windows-program. Det här är vad de blev:
+The tools at ps3.world/iso-tools are Windows programs. This is what they became:
 
-| PC-verktyg | I PS3 Center |
+| PC tool | In PS3 Center |
 |---|---|
-| PS3 ISO Tools: Generator (mapp → ISO) | `ps3 iso make`, och av sig själv för spelmappar med en fil över 4 GB på USB |
-| PS3 ISO Tools: Extractor (ISO → mapp) | `ps3 iso extract` |
-| PS3 ISO Tools: Splitter och Joiner | `ps3 iso split`/`join`, och av sig själv i `ps3 usb prepare` och Till USB-disk… |
-| PS3 ISO Tools: ISO Patcher, Game Patcher | Inte byggt: sänker firmwarekravet för CFW 4.20 och 3.55, behövs inte på 4.93 |
-| PS3 Disc Dumper | Finns redan: `ps3 rip` kopierar skivan i PS3:an, utan speciell Blu-ray-läsare |
-| PS3 ISO Decryptor GUI (ps3dec) | Inte byggt. webMAN läser inte `.dkey`, så en krypterad Redump-ISO måste dekrypteras först |
-| PS2 Classic GUI | `ps3 ps2 classic` och Gör om till PS2 Classic… (nedan); nycklarna bara på Macen |
-| PS2 Config Database | Delvis: spelsidan säger om PS2 CONFIG har en rättning (fas 9) |
+| PS3 ISO Tools: Generator (folder → ISO) | `ps3 iso make`, and by itself for game folders with a file over 4 GB on USB |
+| PS3 ISO Tools: Extractor (ISO → folder) | `ps3 iso extract` |
+| PS3 ISO Tools: Splitter and Joiner | `ps3 iso split`/`join`, and by itself in `ps3 usb prepare` and Copy to USB Drive… |
+| PS3 ISO Tools: ISO Patcher, Game Patcher | Not built: lowers the firmware requirement for CFW 4.20 and 3.55, not needed on 4.93 |
+| PS3 Disc Dumper | Already exists: `ps3 rip` copies the disc in the PS3, without a special Blu-ray reader |
+| PS3 ISO Decryptor GUI (ps3dec) | Not built. webMAN doesn't read `.dkey`, so an encrypted Redump ISO must be decrypted first |
+| PS2 Classic GUI | `ps3 ps2 classic` and Convert to PS2 Classic… (below); the keys only on the Mac |
+| PS2 Config Database | Partly: the game page says whether PS2 CONFIG has a fix (phase 9) |
 
-- `ISOTools.swift`: `PS3ISOBuilder` (makeps3iso:s layout, flera extents för filer över 4 GB,
-  `.66600`-delar blir en fil, `PS3_UPDATE` lämnas tom), `PS3ISO.split`/`join`/`extract` och
-  `PartWriter`, som skriver `.part` och döper om när allt är klart.
-- `USBDrive`: ISO:er över 4 GB delas för PS3, Blu-ray och DVD; en spelmapp med en fil över 4 GB
-  blir en PS3-ISO i delar i PS3ISO i stället för att hoppas över. `BDISO`/`DVDISO` listar
+- `ISOTools.swift`: `PS3ISOBuilder` (makeps3iso's layout, multiple extents for files over 4 GB,
+  `.66600` parts become one file, `PS3_UPDATE` is left empty), `PS3ISO.split`/`join`/`extract` and
+  `PartWriter`, which writes `.part` and renames when everything is done.
+- `USBDrive`: ISOs over 4 GB are split for PS3, Blu-ray and DVD; a game folder with a file over 4 GB
+  becomes a PS3 ISO in parts in PS3ISO instead of being skipped. `BDISO`/`DVDISO` list
   `.iso.0`.
-- Appen: Till USB-disk… i urvalsraden under Macen öppnar `USBCopyView`: diskarna som piller,
-  vad som händer med varje spel (delar, blir en ISO), ledigt före och efter, förlopp och Mata ut.
+- The app: Copy to USB Drive… in the selection row under Mac opens `USBCopyView`: the drives as pills,
+  what happens to each game (parts, becomes an ISO), free space before and after, progress and Eject.
 
-**PS2 Classics med nycklarna bara på Macen (byggt 7 nov, oprovat på konsolen: test 18).** Fakta
-och källor står i DESIGN.md. På HEN behövs bara PS2 Classics Launcher (finns i Appar) och en
-`.BIN.ENC` i PS2ISO; PS3HEN gör licensen själv. Så blev det:
-- `PS2Classic.encrypt` i PS3Kit: ISO → `<namn>.BIN.ENC` med LIMG i farten (ISO:n på Macen
-  ändras inte), CommonCrypto för AES-CBC, AES-CMAC ovanpå, CryptoKit för SHA-1. CD-spel i
-  `.bin` (2352 byte) görs först om till 2048-byte-sektorer.
-- Nycklarna i `~/.config/ps3center/ps2classic-keys.json`, aldrig i repot, loggen eller utskrifter.
-  Repot har bara SHA-256 av de sju värdena, så PS3 Center kan säga exakt vilket som är fel.
-- Två sätt att få dem dit: Importera… (`ps2classic.c` och `.rifkey`, som PS2 Classic GUI också
-  har), eller en knapp som hämtar dem ur webMAN MOD:s repo på GitHub och sparar dem på Macen.
-- `ps3 ps2 classic <iso>` och Gör om till PS2 Classic där granskningsvyn och spelsidan i dag
-  varnar för PS2-ISO:er på HEN. Kräver att PS2 Classics Launcher är installerad.
-- Prov: test 18 (en PS2-ISO på konsolen). Krypteringen går att kontrollera fram och tillbaka i
-  `swift test` med testnycklar, men om spelet startar visar bara konsolen.
-- Beslutat 7 nov: nycklarna får ligga på Macen, och PS3 Center får hämta dem (Hämta nycklarna i
-  appen, `ps3 ps2 keys --fetch`). Importera finns också.
+**PS2 Classics with the keys only on the Mac (built Nov 7, untried on the console: test 18).** Facts
+and sources are in DESIGN.md. On HEN only the PS2 Classics Launcher (available in Apps) and a
+`.BIN.ENC` in PS2ISO are needed; PS3HEN makes the license itself. This is how it turned out:
+- `PS2Classic.encrypt` in PS3Kit: ISO → `<name>.BIN.ENC` with LIMG on the fly (the ISO on the Mac
+  is not changed), CommonCrypto for AES-CBC, AES-CMAC on top, CryptoKit for SHA-1. CD games in
+  `.bin` (2352 bytes) are first converted to 2048-byte sectors.
+- The keys in `~/.config/ps3center/ps2classic-keys.json`, never in the repo, the log or printouts.
+  The repo only has the SHA-256 of the seven values, so PS3 Center can say exactly which one is wrong.
+- Two ways to get them there: Import… (`ps2classic.c` and `.rifkey`, as PS2 Classic GUI also
+  has), or a button that fetches them from webMAN MOD's repo on GitHub and saves them on the Mac.
+- `ps3 ps2 classic <iso>` and Convert to PS2 Classic where the review view and the game page today
+  warn about PS2 ISOs on HEN. Requires the PS2 Classics Launcher to be installed.
+- Test: test 18 (a PS2 ISO on the console). The encryption can be checked back and forth in
+  `swift test` with test keys, but whether the game starts only the console shows.
+- Decided Nov 7: the keys may live on the Mac, and PS3 Center may fetch them (Download Keys in the
+  app, `ps3 ps2 keys --fetch`). Import also exists.
 
-## Ordning och storlek
+## Order and size
 
-| Fas | Storlek | Bygger på | Varför i den ordningen |
+| Phase | Size | Builds on | Why in that order |
 |---|---|---|---|
-| 1 Spelbiblioteket | L | – | Det du bad om först; allt annat i Spel-fliken bygger på `Game` |
-| 2 Omslag | M | 1 | Gör fliken till ett bibliotek |
-| 3 Mac-mappar | L | 1 | Det andra du bad om |
-| 4 Avbrottssäkert | M | 3 | Behövs innan stora köer körs på natten |
-| 5 Snabbare och USB | M | 4 | Mät först, ändra sen |
-| 6 ps3netsrv | L | 3 | Löser väntetiden på ett annat sätt |
-| 7 Styr konsolen | M | 1 | Små delar som kan tas i valfri ordning |
-| 8 Underhåll | M | – | Kan göras när som helst |
-| 9 Idéer från aldostools | L | 1–8 | Byggt när resten fungerade |
-| 10 ISO-verktygen från PC:n | M | 5 | Du bad om dem 7 nov |
+| 1 The game library | L | – | What you asked for first; everything else in the Games tab builds on `Game` |
+| 2 Covers | M | 1 | Makes the tab a library |
+| 3 Mac folders | L | 1 | The second thing you asked for |
+| 4 Interruption-safe | M | 3 | Needed before large queues run overnight |
+| 5 Faster and USB | M | 4 | Measure first, change later |
+| 6 ps3netsrv | L | 3 | Solves the wait time in another way |
+| 7 Control the console | M | 1 | Small parts that can be taken in any order |
+| 8 Maintenance | M | – | Can be done at any time |
+| 9 Ideas from aldostools | L | 1–8 | Built once the rest worked |
+| 10 The ISO tools from the PC | M | 5 | You asked for them Nov 7 |
 
-## Prova på konsolen
+## Try on the console
 
-Det här går bara att göra hemma, och svaren styr fas 1, 4 och 7. Kör på Macen och klistra in vad
-som kommer ut (inget av det innehåller PSID/IDPS). Byt mellanslag i filnamn mot `%20`.
+This can only be done at home, and the answers steer phases 1, 4 and 7. Run on the Mac and paste what
+comes out (none of it contains PSID/IDPS). Replace spaces in filenames with `%20`.
 
 ```bash
-PS3=10.0.1.35   # din PS3:as adress (ps3 config visar den)
+PS3=10.0.1.35   # your PS3's address (ps3 config shows it)
 
-# 1. webMAN:s egen spellista och cache (fas 1)
+# 1. webMAN's own game list and cache (phase 1)
 curl -s "ftp://$PS3/dev_hdd0/xmlhost/game_plugin/mygames.xml" -o mygames.xml && head -c 3000 mygames.xml
 curl -s "ftp://$PS3/dev_hdd0/tmp/wmtmp/" | head -40
 
-# 2. Läsa en bit av en ISO på konsolen utan att hämta hela (REST). Väntat: "01 43 44 30 30 31" (CD001)
-curl -s -r 32768-32773 "ftp://$PS3/dev_hdd0/PS3ISO/<filnamn>.iso" | xxd
+# 2. Read a piece of an ISO on the console without fetching the whole thing (REST). Expected: "01 43 44 30 30 31" (CD001)
+curl -s -r 32768-32773 "ftp://$PS3/dev_hdd0/PS3ISO/<filename>.iso" | xxd
 
-# 3. Starta och avsluta ett spel från Macen
-curl "http://$PS3/play.ps3/dev_hdd0/PS3ISO/<filnamn>.iso"
+# 3. Start and quit a game from the Mac
+curl "http://$PS3/play.ps3/dev_hdd0/PS3ISO/<filename>.iso"
 curl "http://$PS3/xmb.ps3\$exit"
 
-# 4. Hastighet, först över Wi-Fi och sedan med kabel; MD5 på konsolen; städa
+# 4. Speed, first over Wi-Fi and then with a cable; MD5 on the console; clean up
 dd if=/dev/zero bs=1m count=300 2>/dev/null | curl -s -T - "ftp://$PS3/dev_hdd0/tmp/speedtest.bin" -o /dev/null -w '%{speed_upload}\n' | awk '{printf "%.1f MB/s\n", $1/1e6}'
 time curl -s "http://$PS3/md5.ps3/dev_hdd0/tmp/speedtest.bin" | grep -io '[0-9a-f]\{32\}'
 curl -s "ftp://$PS3/" -Q "DELE /dev_hdd0/tmp/speedtest.bin" -o /dev/null
 
-# 5. Två uppladdningar samtidigt: går det fortare totalt?
+# 5. Two uploads at the same time: is it faster in total?
 for i in 1 2; do (dd if=/dev/zero bs=1m count=150 2>/dev/null | curl -s -T - "ftp://$PS3/dev_hdd0/tmp/speed$i.bin" -o /dev/null -w "$i: %{speed_upload}\n") & done; wait
 curl -s "ftp://$PS3/" -Q "DELE /dev_hdd0/tmp/speed1.bin" -Q "DELE /dev_hdd0/tmp/speed2.bin" -o /dev/null
 
-# 6. Vad händer med en halvfärdig fil? Starta test 4 med count=3000, avbryt med ctrl-C och kolla
-#    storleken (filen ska finnas kvar). Gör om, men stäng av Macens Wi-Fi i två minuter i stället
-#    (enligt källkoden ska filen vara borta).
+# 6. What happens to a half-finished file? Start test 4 with count=3000, cancel with ctrl-C and check
+#    the size (the file should still exist). Do it again, but turn off the Mac's Wi-Fi for two minutes
+#    instead (according to the source code the file should be gone).
 curl -sI "ftp://$PS3/dev_hdd0/tmp/speedtest.bin"
 
-# 7. Svarar PS3:an på ping när HEN inte är aktiverat? (direkt efter en omstart)
+# 7. Does the PS3 answer ping when HEN isn't enabled? (right after a restart)
 ping -c 3 $PS3
 
-# 8. Virtuell handkontroll (◯ är ofarligt i XMB:n) och skärmbild av XMB:n
+# 8. Virtual controller (◯ is harmless in the XMB) and a screenshot of the XMB
 curl "http://$PS3/pad.ps3?cancel"
 open "http://$PS3/xmb.ps3\$screenshot?show?fast"
 ```
 
-9. Mät strömmen med en energimätare i uttaget: i XMB:n, under ett spel och under en överföring.
-10. Spelservern (fas 6): öppna Spelservern i appen och tryck "Ställ in webMAN åt mig" (eller
-    ställ in nätverksserver 1 själv i `http://$PS3/setup.ps3` med Macens adress och port 38008
-    och kör `ps3 serve`). Kolla efteråt i webMAN:s inställningar att inget annat ändrats. Syns spelen i Macens PS3ISO-mapp med titel och ikon? Starta ett och spela
-    en stund, gärna både över Wi-Fi och med kabel. Säg vad `ps3 serve` skrev och om något hackade.
-11. Fas 7 i appen: Fjärrkontroll i Status-fliken (rör sig XMB:n på TV:n när du trycker på
-    piltangenterna?), − och + på fläktkortet (bara om webMAN kör dynamiskt läge), menyraden
-    med fönstret stängt, "Skicka till PS3" i Finder (högerklick → Snabbåtgärder eller Tjänster;
-    kan kräva att appen ligger i Program och har startats en gång) och Genvägar → PS3-status.
-    Stäng av HEN genom en omstart och se om appen säger "HEN är inte aktiverat".
-12. Fas 8: `ps3 saves` (syns dina sparfiler med namn?), `ps3 backup`, och `ps3 saves restore` på
-    en sparfil du har en kopia av på annat håll. `ps3 maintain` och `ps3 analyze` (hur lång tid tog
-    det?). Om du har en PS3-skiva: `ps3 rip` och se om mappen i GAMES startar. Kolla också vad
-    `curl "http://$PS3/stat.ps3/dev_hdd0/game"` skriver, så att tolkningen stämmer.
-13. Det sista: bevaka en mapp i Spelmappar och kopiera in ett spel (kommer det i kön en minut efter
-    att kopieringen är klar?), dra ur nätverkskabeln mitt i en överföring och sätt i den igen
-    (fortsätter kön själv?), avinstallera ett program du kan installera igen, ta bort en sparfil
-    och lägg tillbaka den. Kör hastighetstestet med `"ftpWindow": 1` och sedan `4` i
-    config.json och säg vilket som gick fortast.
-14. Fas 9:
-    - Avinstallera ett program med Reload XMB installerat: försvinner ikonen av sig själv?
-    - Spela in en halv minut av ett spel (Spela in i Status-fliken) och hämta filmen under
-      Underhåll → Filmer och bilder. Slå på Skärmbilder i spel, ta en bild med PS-knappen →
-      Spara skärmbild, och se om den också kommer med. Säg var på PS3:an den hamnade.
-    - Öppna ett PS2-spel i Spel-fliken: stämmer varningen om HEN?
-    - Har du ett PAL-PS1-spel med LibCrypt (t.ex. Ape Escape): visar spelsidan det?
-    - `ps3 verify` på en mapp från `ps3 rip`, och om du har en dekrypterad ISO på Macen.
-    - Skicka ett tema (.p3t) och se om XMB:n installerar det.
-    - `ps3 beep`, `ps3 music on` under ett spel med musik i XMB:n, och
-      `ps3 maintain block-updates` följt av en omstart: säger Inställningar → Systemuppdatering
-      att ingen uppdatering finns?
-15. Appar:
-    - Tryck Ignorera på en uppdatering. Flyttas den till Ignorerade, försvinner den från
-      sifferbadgen och säger `ps3 apps` och `ps3 apps ignore` samma sak? Sluta ignorera den sedan.
-    - Uppdatera alla: stämmer storlekarna i granskningen med paketen på GitHub, och syns HEN under
-      Hoppas över? Bocka ur ett program och installera resten. Kommer rapporten när kön är klar, med
-      det urbockade under Hoppade över? Prova gärna medan ett spel körs, så att kön får vänta.
-16. MCP och ps3.world-idéerna:
-    - `claude mcp add ps3 -- ~/.local/bin/ps3 mcp`, och fråga Claude om PS3:ans status, om det finns
-      uppdateringar och vad en felkod betyder. Stäng av HEN (starta om PS3:an): säger Claude att HEN
-      inte är aktiverat?
-    - Installera eller uppdatera ett program: står det "stämmer med GitHubs kontrollsumma" i förloppet
+9. Measure the power with an energy meter in the outlet: in the XMB, during a game and during a transfer.
+10. The game server (phase 6): open Game Server in the app and press "Set Up webMAN for Me" (or
+    set network server 1 yourself in `http://$PS3/setup.ps3` with the Mac's address and port 38008
+    and run `ps3 serve`). Afterwards check in webMAN's settings that nothing else changed. Do the games show up in the Mac's PS3ISO folder with title and icon? Start one and play
+    for a while, preferably both over Wi-Fi and with a cable. Say what `ps3 serve` printed and whether anything stuttered.
+11. Phase 7 in the app: Remote in the Status tab (does the XMB on the TV move when you press the
+    arrow keys?), − and + on the fan card (only if webMAN runs in dynamic mode), the menu bar
+    with the window closed, "Send to PS3" in Finder (right-click → Quick Actions or Services;
+    may require the app to be in Applications and to have been started once) and Shortcuts → PS3 Status.
+    Turn off HEN with a restart and see whether the app says "HEN is not enabled".
+12. Phase 8: `ps3 saves` (are your saves shown with names?), `ps3 backup`, and `ps3 saves restore` on
+    a save you have a copy of elsewhere. `ps3 maintain` and `ps3 analyze` (how long did
+    it take?). If you have a PS3 disc: `ps3 rip` and see whether the folder in GAMES starts. Also check what
+    `curl "http://$PS3/stat.ps3/dev_hdd0/game"` prints, so that the interpretation is right.
+13. The last one: watch a folder in Game Folders and copy in a game (does it land in the queue a minute after
+    the copy is done?), pull out the network cable in the middle of a transfer and plug it back in
+    (does the queue continue by itself?), uninstall an app you can install again, delete a save
+    and put it back. Run the speed test with `"ftpWindow": 1` and then `4` in
+    config.json and say which went fastest.
+14. Phase 9:
+    - Uninstall an app with Reload XMB installed: does the icon disappear by itself?
+    - Record half a minute of a game (Record in the Status tab) and import the video under
+      Maintenance → Videos & Photos. Turn on In-Game Screenshots, take a picture with the PS button →
+      Save Screenshot, and see whether it comes along too. Say where on the PS3 it ended up.
+    - Open a PS2 game in the Games tab: is the warning about HEN right?
+    - If you have a PAL PS1 game with LibCrypt (e.g. Ape Escape): does the game page show it?
+    - `ps3 verify` on a folder from `ps3 rip`, and if you have a decrypted ISO on the Mac.
+    - Send a theme (.p3t) and see whether the XMB installs it.
+    - `ps3 beep`, `ps3 music on` during a game with music in the XMB, and
+      `ps3 maintain block-updates` followed by a restart: does Settings → System Update
+      say that no update is available?
+15. Apps:
+    - Press Ignore on an update. Is it moved to Ignored, does it disappear from the
+      number badge, and do `ps3 apps` and `ps3 apps ignore` say the same thing? Then stop ignoring it.
+    - Update All: do the sizes in the review match the packages on GitHub, and is HEN shown under
+      Skipped? Uncheck an app and install the rest. Does the report arrive when the queue is done, with
+      the unchecked one under Skipped? Feel free to try while a game is running, so that the queue has to wait.
+16. MCP and the ps3.world ideas:
+    - `claude mcp add ps3 -- ~/.local/bin/ps3 mcp`, and ask Claude about the PS3's status, whether there are
+      updates and what an error code means. Turn off HEN (restart the PS3): does Claude say that HEN
+      is not enabled?
+    - Install or update an app: does the progress say "matches GitHub's checksum"
       (`ps3 apps install …`)?
-    - Hämta: stämmer raden Nytt med programmen som fått en release den senaste månaden?
-17. Fas 10, med en USB-sticka som är formaterad som "MS-DOS (FAT)":
-    - `ps3 iso split "Blur (Europe) (En,Fr,De,Es,It).iso" /Volumes/<stickan>/PS3ISO` (eller lägg
-      mappen med Blur i Spelmappar och välj Till USB-disk… i Spel-fliken). Sätt stickan i PS3:an:
-      syns Blur i webMAN:s spellista, och startar det?
-    - Har du ett spel som mapp (GAMES, t.ex. från `ps3 rip`): `ps3 iso make <mappen>` och starta
-      ISO:n från PS3ISO. Kör `ps3 verify` på ISO:n om spelet finns i IRD-databasen.
-18. PS2 Classics (fas 10):
-    - Installera PS2 Classics Launcher under Appar → Hämta om den saknas.
-    - Ett eget PS2-spel under Macen: högerklicka → Gör om till PS2 Classic…, Hämta nycklarna, Gör om,
-      Skicka till PS3:an. Syns spelet i webMAN:s lista under PS2, och startar det? Om inte: vad
-      står på TV:n (en felkod, eller svart skärm)?
-    - Gärna både ett DVD-spel (.iso) och ett CD-spel (.cue/.bin).
+    - Browse: does the New row match the apps that got a release in the last month?
+17. Phase 10, with a USB stick formatted as "MS-DOS (FAT)":
+    - `ps3 iso split "Blur (Europe) (En,Fr,De,Es,It).iso" /Volumes/<the stick>/PS3ISO` (or put the folder
+      with Blur in Game Folders and choose Copy to USB Drive… in the Games tab). Put the stick in the PS3:
+      does Blur show up in webMAN's game list, and does it start?
+    - If you have a game as a folder (GAMES, e.g. from `ps3 rip`): `ps3 iso make <the folder>` and start
+      the ISO from PS3ISO. Run `ps3 verify` on the ISO if the game is in the IRD database.
+18. PS2 Classics (phase 10):
+    - Install PS2 Classics Launcher under Apps → Browse if it is missing.
+    - A PS2 game of your own under Mac: right-click → Convert to PS2 Classic…, Download Keys, Convert,
+      Send to PS3. Does the game show up in webMAN's list under PS2, and does it start? If not: what
+      is on the TV (an error code, or a black screen)?
+    - Preferably both a DVD game (.iso) and a CD game (.cue/.bin).
 
-## Beslut (24 okt 2026)
+## Decisions (Oct 24, 2026)
 
-1. **Speluppdateringar (patchar): ja**, så länge inget kan uppdatera konsolen eller leda till
-   ban. Patcharna hämtas från Sonys öppna server
-   (`a0.ww.np.dl.playstation.net/tpl/np/<ID>/<ID>-ver.xml`), som RPCS3 gör, på Macen och utan
-   inloggning. De installeras som vanliga paket i `/dev_hdd0/game/<ID>`, vilket inte rör
-   systemprogramvaran. Aldrig firmware (`PS3UPDAT.PUP`), konsolen går aldrig ut på PSN för det, och
-   en patch som kräver nyare systemprogramvara än konsolens (`ps3_system_ver` i XML:en) blockeras
-   som i säkerhetsspärren. Kommer i fas 2 som "Uppdateringar" i Spel-fliken.
-2. **ps3netsrv:** egen implementation i Swift (fas 6): läsning bara, de kopplade mapparna som rot
-   och ikoner i farten.
-3. **Ordningen** står fast: biblioteket, omslag, Mac-mapparna och sedan överföringarna.
+1. **Game updates (patches): yes**, as long as nothing can update the console or lead to a
+   ban. The patches are fetched from Sony's open server
+   (`a0.ww.np.dl.playstation.net/tpl/np/<ID>/<ID>-ver.xml`), as RPCS3 does, on the Mac and without
+   signing in. They are installed as regular packages in `/dev_hdd0/game/<ID>`, which doesn't touch
+   the system software. Never firmware (`PS3UPDAT.PUP`), the console never goes out to PSN for that, and
+   a patch that requires newer system software than the console's (`ps3_system_ver` in the XML) is blocked
+   as in the compatibility check. Comes in phase 2 as "Updates" in the Games tab.
+2. **ps3netsrv:** our own implementation in Swift (phase 6): read-only, the connected folders as the root
+   and icons on the fly.
+3. **The order** stands: the library, covers, the Mac folders and then the transfers.

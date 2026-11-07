@@ -2,207 +2,191 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Projektet
+## The project
 
-PS3 Center styr en PS3 (Super Slim, HFW 4.93, PS3HEN, webMAN MOD) från en Mac: status, uppladdning av
-spel, installation och uppdatering av homebrew. Användaren skriver svenska; all text i CLI, app och
-dokumentation är på svenska. Kod, identifierare och kommentarer skrivs på engelska.
+PS3 Center controls a PS3 (Super Slim, HFW 4.93, PS3HEN, webMAN MOD) from a Mac: status, uploading
+games, installing and updating homebrew. The user writes Swedish; all text in the CLI, app and
+documentation is English, while code, identifiers and comments are English as before (decision Nov 7, 2026).
 
-Inspirationen är Mole (ett CLI med en separat Mac-app). Här delar CLI och app samma motor. Läs
-`DESIGN.md` innan du lägger till funktioner: den har principerna, flikarna och fakta om konsolen som
-koden bygger på. `PLAN.md` har färdplanen fas för fas och vad som ska provas på konsolen.
+The inspiration is Mole (a CLI with a separate Mac app). Here the CLI and the app share the same engine. Read
+`DESIGN.md` before adding features: it has the principles, the tabs and facts about the console that the
+code builds on. `PLAN.md` has the roadmap phase by phase and what to try on the console.
 
 ```
-Sources/PS3Kit/   bibliotek med all logik (webMAN-HTTP, FTP, ISO/SFO/PKG, katalog, uppdateringar)
-Sources/ps3/      CLI:t (swift-argument-parser), tunt lager ovanpå PS3Kit
-App/              SwiftUI-appen; App/project.yml → xcodegen → App/PS3Center.xcodeproj (inte incheckad)
-Tests/            swift-testing, fixturer från riktiga svar från konsolen
+Sources/PS3Kit/   library with all logic (webMAN HTTP, FTP, ISO/SFO/PKG, catalog, updates)
+Sources/ps3/      the CLI (swift-argument-parser), a thin layer on top of PS3Kit
+App/              the SwiftUI app; App/project.yml → xcodegen → App/PS3Center.xcodeproj (not checked in)
+Tests/            swift-testing, fixtures from real responses from the console
 ```
 
-## Kommandon
+## Commands
 
 ```bash
 swift build                     # PS3Kit + CLI
-swift test                      # alla tester
-swift test --filter parsesSysInfoAndStatusPage   # ett test
-make install                    # release-CLI → ~/.local/bin/ps3
-make app                        # xcodegen + xcodebuild (kräver `brew install xcodegen`)
-make run-app                    # bygg och öppna appen
-make install-app                # Release-bygge → /Applications/PS3 Center.app (uppdaterar en befintlig)
-make icon                       # rendera appikonen igen från scripts/make_icon.swift
-make snapshot DIR=/tmp/shots    # rendera varje flik till PNG och avsluta (kräver nåbar PS3)
-make snapshot-fixtures DIR=/tmp/shots   # samma sak från PS3Kit:s Fixtures, utan PS3
+swift test                      # all tests
+swift test --filter parsesSysInfoAndStatusPage   # one test
+make install                    # release CLI → ~/.local/bin/ps3
+make app                        # xcodegen + xcodebuild (requires `brew install xcodegen`)
+make run-app                    # build and open the app
+make install-app                # Release build → /Applications/PS3 Center.app (updates an existing one)
+make icon                       # render the app icon again from scripts/make_icon.swift
+make snapshot DIR=/tmp/shots    # render every tab to PNG and exit (requires a reachable PS3)
+make snapshot-fixtures DIR=/tmp/shots   # the same from PS3Kit's Fixtures, without a PS3
 ```
 
-Lägger du till en fil i `App/Sources` måste projektet genereras om (`make project`), annars hittar
-xcodebuild den inte.
+If you add a file to `App/Sources` the project must be regenerated (`make project`), otherwise
+xcodebuild won't find it.
 
-## I en molnsession (Linux)
+## In a cloud session (Linux)
 
-- **Bara macOS kan bygga.** PS3Kit använder Network.framework och CryptoKit, och appen är SwiftUI,
-  så varken `swift build` eller `swift test` fungerar på Linux.
-- **CI kontrollerar varje commit** i en pull request och på main. GitHub Actions
-  (`.github/workflows/ci.yml`, macos-15) kör `swift test`, bygger CLI:t och bygger appen. Pusha
-  och läs CI-resultatet i stället för att bygga lokalt. Är repot publikt kostar GitHubs runners
-  inget. Är det privat kan repo-variabeln `CI_RUNNER=self-hosted` köra jobbet på användarens egen
-  Mac, men aldrig i ett publikt repo (en pull request från en fork skulle kunna köra kod där).
-  Repot innehåller inget som inte tål att vara publikt: ingen PSID/IDPS, inga nycklar eller
-  lösenord. Håll det så.
-- **Skärmbilder:** CI renderar varje skärm från `Fixtures` (`PS3CENTER_FIXTURES=1`) och laddar upp
-  dem som artefakten `screenshots`. Granska designändringar där. Nya skärmar läggs till i
-  `Snapshot.run`, och data som behövs för dem i `Fixtures.swift`.
-- **Rapportera med skärmbilder.** Är en fas eller en ändring som syns i appen klar, hämta
-  artefakten `screenshots` från CI-körningen för den commiten. Skicka sedan de skärmar som är nya
-  eller har ändrats tillsammans med rapporten (användarens önskan 24 okt 2026). Går CI inte att
-  köra, säg det, och skicka inga gamla bilder som om de vore nya.
-- **Konsolen finns bara på användarens hemnätverk.** Allt som kräver en riktig PS3 (snapshot,
-  installationer, `ps3 status`) får användaren köra på sin Mac. Beskriv vad som ska provas.
-- **CI kan ha en äldre Xcode** än användarens (Xcode 27 / Swift 6.4). Undvik helt nya API:er utan
+- **Only macOS can build.** PS3Kit uses Network.framework and CryptoKit, and the app is SwiftUI,
+  so neither `swift build` nor `swift test` works on Linux.
+- **CI checks every commit** in a pull request and on main. GitHub Actions
+  (`.github/workflows/ci.yml`, macos-15) runs `swift test`, builds the CLI and builds the app. Push
+  and read the CI result instead of building locally. If the repo is public, GitHub's runners cost
+  nothing. If it is private, the repo variable `CI_RUNNER=self-hosted` can run the job on the user's own
+  Mac, but never in a public repo (a pull request from a fork could run code there).
+  The repo contains nothing that can't be public: no PSID/IDPS, no keys or
+  passwords. Keep it that way.
+- **Screenshots:** CI renders every screen from `Fixtures` (`PS3CENTER_FIXTURES=1`) and uploads
+  them as the artifact `screenshots`. Review design changes there. New screens are added to
+  `Snapshot.run`, and the data they need to `Fixtures.swift`.
+- **Report with screenshots.** When a phase or a change that shows in the app is done, fetch the
+  artifact `screenshots` from the CI run for that commit. Then send the screens that are new
+  or have changed together with the report (the user's request, Oct 24, 2026). If CI can't be
+  run, say so, and don't send old images as if they were new.
+- **The console is only on the user's home network.** Anything that needs a real PS3 (snapshot,
+  installations, `ps3 status`) the user has to run on their Mac. Describe what to try.
+- **CI may have an older Xcode** than the user's (Xcode 27 / Swift 6.4). Avoid brand-new APIs without
   `if #available`.
 
-## Arkitektur som kräver flera filer för att förstå
+## Architecture that takes several files to understand
 
-- **Hitta konsolen:** `ConsoleLocator` provar `--host`, sedan `PS3_HOST`, sedan sparad config och
-  till sist en nätverkssökning (`Discovery`). En ny adress sparas i `~/.config/ps3center/config.json`,
-  samma fil som appen läser.
-- **webMAN:s egenheter** hanteras i `WebMAN.swift` och `FTPClient.swift`:
-  - varje HTTP-anrop skickar `Connection: close` och körs ett i taget, utom kommandon som kan ta
-    minuter (`/install.ps3`, `/stat.ps3`): de går via `WebMAN.long` på en egen anslutning och
-    sätter `WebMAN.isBusy`, så att appen inte tar långsamma statussvar för att konsolen är borta
-  - ENODATA på dataanslutningen betyder filslut
-  - `APPE` fortsätter en avbruten uppladdning
+- **Finding the console:** `ConsoleLocator` tries `--host`, then `PS3_HOST`, then the saved config and
+  finally a network search (`Discovery`). A new address is saved in `~/.config/ps3center/config.json`,
+  the same file the app reads.
+- **webMAN's quirks** are handled in `WebMAN.swift` and `FTPClient.swift`:
+  - every HTTP request sends `Connection: close` and runs one at a time, except commands that can take minutes
+    (`/install.ps3`, `/stat.ps3`): they go through `WebMAN.long` on a connection of their own and
+    set `WebMAN.isBusy`, so that the app doesn't mistake slow status responses for the console being gone
+  - ENODATA on the data connection means end of file
+  - `APPE` continues an interrupted upload
 
-  Ändra inget av detta utan att läsa avsnittet om fakta i DESIGN.md.
-- **Spel som körs** känns av via PS3MAPI `PROCESS GETCURRENTPID` + `GETNAME`. Det driver
-  "varna och vänta" (`TransferService.waitUntilIdle`): installation och uppdatering av spellistan
-  väntar tills inget spel körs.
-- **Installationen är klar** när `PARAM.SFO` i `/dev_hdd0/game/<titleID>` fått ny `MDTM` och mappen
-  slutat ändras. webMAN tar *inte* bort paketet, trots vad wikin säger. Börjar inget hända skickas
-  `/install.ps3` en gång till, sedan ett fel med råd. `ConsoleStore` går offline först efter tre
-  missade statusanrop i rad.
-- **Katalogen** (`Catalog.swift`): varje program har ett title ID, läst ur pkg-huvudet vid offset
-  0x30. `AppsService` jämför installerad `APP_VER` med GitHub-releasen. Har PS3 Center själv
-  installerat programmet används kopplingen tagg ↔ `APP_VER` i `installed.json` i stället för
+  Don't change any of this without reading the section on facts in DESIGN.md.
+- **A running game** is detected via PS3MAPI `PROCESS GETCURRENTPID` + `GETNAME`. It drives
+  "warn and wait" (`TransferService.waitUntilIdle`): installation and refreshing the game list
+  wait until no game is running.
+- **The installation is done** when `PARAM.SFO` in `/dev_hdd0/game/<titleID>` has a new `MDTM` and the folder
+  has stopped changing. webMAN does *not* delete the package, despite what the wiki says. If nothing starts to happen,
+  `/install.ps3` is sent once more, then an error with advice. `ConsoleStore` goes offline only after three
+  missed status calls in a row.
+- **The catalog** (`Catalog.swift`): each app has a title ID, read from the pkg header at offset
+  0x30. `AppsService` compares the installed `APP_VER` with the GitHub release. If PS3 Center itself
+  installed the app, the link tag ↔ `APP_VER` in `installed.json` is used instead of
   `VersionStyle`.
-- **Säkerhetsspärren** (`Compatibility.swift`): `ConsoleProfile` läses ur snapshoten (HEN/CFW,
-  CEX/DEX, firmware) och jämförs med `CatalogEntry.requirements`. `AppsService.status` sätter
-  `compatibility`/`blocked` och nollar `canInstall`/`installable`; `AppsService.install` och CLI:ts
-  `apps install` (även egna .pkg via title ID) stoppar före nedladdning. Okänd firmware blockerar
-  program med krav.
-- **Ignorerade uppdateringar** (`IgnoredUpdates.swift`): katalog-id → release-tagg i `config.json`
-  (`ignoredUpdates`). `AppsService.status` sätter `AppStatus.ignored` när just den taggen är den
-  senaste, så en nyare release visas igen. `isPendingUpdate` är det som räknas: badges,
-  notiser, Uppdatera alla och `ps3 apps update` utan namn. Bara Macen ändras, så ingen
-  `OperationLog` eller `--dry-run`.
-- **Uppdatera alla** i appen: `AppsStore.updatePlan()` → `UpdateReviewView` →
-  `updateAll(_:from:)`, som köar det valda och sparar en `UpdateBatch`. När kön är tom gör
-  `finishBatch()` en `UpdateReport` (Klart / Misslyckades / Hoppade över) som `UpdateReportCard`
-  visar överst i Uppdateringar.
-- **Paket från GitHub** kontrolleras med `GitHub.verify` (storlek och `digest` "sha256:…" från
-  release-filen) direkt efter nedladdningen i `AppsService.install`; stämmer de inte tas filen bort.
-  `AppStatus.releaseDate` (bara för program som följer releaserna) ger Nytt i Hämta
-  (`isNewRelease`, 30 dagar).
-- **MCP** (`MCPServer.swift`, `ps3 mcp`): JSON-RPC 2.0 över stdio, en rad per meddelande, och
-  inget annat får skrivas till stdout. `consoleTools` är verktygen; alla läser bara
-  (`readOnlyHint`). Ett verktyg som misslyckas svarar med `isError`, inte ett protokollfel. Svarar
-  inte webMAN men konsolen gör det säger felet att HEN är av. Verktyg som ändrar konsolen ska i så
-  fall följa samma regler som CLI:t (fråga, `--dry-run`, `OperationLog`).
-- **Detaljsidan:** `AppsStore.selectedID` öppnar `AppDetailView` i Appar-fliken. README hämtas med
-  `GitHub.readme` och tolkas av `Readme` (block + inline-Markdown som `AttributedString` ritar).
-  Samma data visar `ps3 apps info`.
-- **Spelen** (`GameLibrary.swift`): `GameLibraryService.scan` listar webMAN:s spelmappar (PS3ISO,
-  GAMES, PS2ISO …) på hdd0 och USB plus `/dev_hdd0/game`. Titel och title ID kommer ur PARAM.SFO,
-  för ISO:er webMAN:s kopia i `/dev_hdd0/tmp/wmtmp`, och cachas i `~/Library/Caches/ps3center/`.
-  `GameListing` är den nätverksfria delen som testerna matar med listningar. Installerade spel i
-  `/dev_hdd0/game` startas via title ID och avinstalleras bara på begäran (`delete`, efter en
-  fråga; `UninstallGuard` skyddar det HEN behöver). `GamesStore` och `GamesView` är Spel-fliken.
-- **Macens paket** (`PackageFolders.swift`): `PackageFolders` (`packageFolders` i config.json,
-  typen PKG i `ps3 config folder`) och `PackageLibrary.scan` (.pkg i mappen och en nivå ner,
-  namn ur katalogen via title ID). `AppsService.installOwnPackage` kör säkerhetsspärren och
-  lämnar filen kvar; `AppsStore` tar paketen i samma kö som katalogen ("Från Macen", `ps3 apps mac`).
-- **Macens spel och kön:** `GameFolders` (mappar per typ i config.json plus spegelmappen),
-  `LocalLibrary` (samma `GameListing`-regler som konsolen, metadata ur avbilderna) och
-  `LibraryMatch`. `TransferQueue` (queue.json) delas av `ps3 queue` och appens `TransferStore`:
-  alla ändringar går via `TransferQueue.edit`, som läser om filen under ett lås, och
-  `QueueLock` ser till att bara en process skickar. Allt skickas via `TransferService.send`, som
-  laddar upp till `.part` och döper om. `QueueRunner.send` och `ps3 send` försöker igen efter
-  nätverksfel (`RetryPolicy`). `FolderWatch` (watch.json) hittar nya spel i bevakade mappar;
-  appens `TransferStore` och `ps3 watch` lägger dem i kön. `FTPClient.Tuning` styr bitstorlek och
-  antal bitar i luften (config.json `ftpChunkKB`/`ftpWindow`).
-- **Spelservern** (`NetServer.swift`): en egen ps3netsrv som bara läser. Roten är de kopplade
-  mapparna ihopslagna per typ (`/PS3ISO` …); `<namn>.SFO`/`.PNG` bredvid en PS3-ISO läses ur
-  avbilden. Skrivande kommandon stänger anslutningen och bara konsolens adress släpps in. Ett
-  Mac-spel har `netPath`, och appen startar det som `/net<slot>` + `netPath`. `NetServerStore`
-  håller Macen vaken medan en `/net`-sökväg är monterad och ställer in webMAN med `WebMANSetup`
-  (en ledig nätverksserver; numret sparas som `netServerSlot` i config.json).
-- **Styrning** (`Control.swift`): `PadButton` (fasta namn till `/pad.ps3`), skiva, skärmbild,
-  `FanControl` (bara mål i dynamiskt läge), `Reachability` (ping/TCP när webMAN inte svarar = HEN
-  av) och `PlayLog`/`PlayTracker` (speltid ur statusen, `playtime.json`). Appen: `ConsoleStore`
-  har knapparna, `RemoteView` fjärrkontrollen, `MenuBarView` menyraden. Filer utifrån (Finder-
-  tjänsten, menyraden, Genvägar i `Intents.swift`) går via `Inbox` till granskningsvyn.
-- **Underhåll** (`Maintenance.swift`): `SaveBackupService` (sparfiler till `Sparfiler/<användare>/
-  <mapp>` med en manifest per mapp, förra kopian i `.tidigare`), `SystemFiles`, `MaintenanceService`
-  (rapport + `fix` som bara tar bort paket och `.part`), `StorageAnalyzer` (`/stat.ps3`) och
-  `DiscRipper` (`/copy.ps3`, förlopp över FTP). Appen: `MaintenanceStore` och `MaintenanceView`.
-- **Fas 9** (idéer från aldostools/Resources):
-  - `ConsoleExtras.swift`: XMB-omladdning, inspelning, skärmbilder i spel, pip, musik i spel,
-    `UpdateBlock` och `MediaImport` (filmer och bilder till Macen, `imported.json`).
-  - `PlayCompatibility.swift`: `PlayCheck`, `LibCrypt` (225 ID:n ur webMAN MOD) och `PS2Classic`
-    (bara `.BIN.ENC` på HEN).
-  - `IRD.swift`: `IRD`, `DiscVerifier` och `IRDLibrary` (FlexBy420 på GitHub). `ISOImage` läser
-    Joliet för det.
-  - `ErrorCodes.swift`: 0x8001xxxx ur RPCS3, plus XMB:ns vanligaste koder (`xmbTable`, betydelsen
-    kontrollerad mot ps3.world/error-codes; råden är våra egna). `TitleDatabase.swift`: aldostools titleid.txt.
-  - I appen finns knapparna i Status-fliken (Spela in), Fjärrkontroll (Ladda om XMB, Pip,
-    Skärmbilder, Musik), på spelsidan och i Underhåll.
-- **Fas 10** (ISO-verktygen från PC:n, `ISOTools.swift`): `PS3ISOBuilder` gör en ISO av en
-  spelmapp med makeps3iso:s layout (se DESIGN.md), `PS3ISO.split`/`join`/`extract`, och
-  `PartWriter` skriver allt som `.part` och döper om när det är helt. `USBDrive.plan` delar ISO:er
-  över 4 GB och gör en spelmapp med en fil över 4 GB till en ISO i delar. CLI: `ps3 iso`. Appen:
-  Till USB-disk… i Spel-fliken (Macen) öppnar `USBCopyView` med `USBCopyModel`.
-- **PS2 Classics** (`PS2Classics.swift`): `PS2ClassicMaker` krypterar en PS2-ISO (eller .cue/.bin)
-  till `<namn> [ID].BIN.ENC` som ps2classic gör, för platshållaren `PS2U10000` (PS3HEN gör dess
-  licens själv). `PS2ClassicKeys` hämtar, importerar och kontrollerar nycklarna. CLI: `ps3 ps2`.
-  Appen: Gör om till PS2 Classic… i högerklicksmenyn på ett PS2-spel under Macen (`PS2ClassicView`).
-- **Förlopp:** `TransferEvent` går via `@Sendable`-callbacks. CLI:t skriver ut dem (`TransferPrinter`),
-  appen lägger dem i `AppsStore.operations` på MainActor.
-- **Appen:** `ConsoleStore` hämtar status var 3:e sekund, `AppsStore` har en installationskö som tar
-  ett program i taget eftersom webMAN:s FTP inte klarar parallella överföringar. Designtokens finns i
-  `Theme.swift` (Mole-stil).
+- **The compatibility check** (`Compatibility.swift`): `ConsoleProfile` is read from the snapshot (HEN/CFW,
+  CEX/DEX, firmware) and compared with `CatalogEntry.requirements`. `AppsService.status` sets
+  `compatibility`/`blocked` and zeroes `canInstall`/`installable`; `AppsService.install` and the CLI's
+  `apps install` (also custom .pkg files via title ID) stop before download. Unknown firmware blocks
+  apps that have requirements.
+- **The detail page:** `AppsStore.selectedID` opens `AppDetailView` in the Apps tab. The README is fetched with
+  `GitHub.readme` and parsed by `Readme` (blocks + inline Markdown that `AttributedString` draws).
+  The same data is shown by `ps3 apps info`.
+- **The games** (`GameLibrary.swift`): `GameLibraryService.scan` lists webMAN's game folders
+  (PS3ISO, GAMES, PS2ISO …) on hdd0 and USB plus `/dev_hdd0/game`. Title and title ID come from PARAM.SFO,
+  for ISOs webMAN's copy in `/dev_hdd0/tmp/wmtmp`, and are cached in `~/Library/Caches/ps3center/`.
+  `GameListing` is the network-free part that the tests feed with listings. Installed games in
+  `/dev_hdd0/game` are started via title ID and uninstalled only on request (`delete`, after a
+  question; `UninstallGuard` protects what HEN needs). `GamesStore` and `GamesView` are the Games tab.
+- **The Mac's packages** (`PackageFolders.swift`): `PackageFolders` (`packageFolders` in config.json,
+  the type PKG in `ps3 config folder`) and `PackageLibrary.scan` (.pkg in the folder and one level down,
+  name from the catalog via title ID). `AppsService.installOwnPackage` runs the compatibility check and
+  leaves the file in place; `AppsStore` takes the packages in the same queue as the catalog ("From Mac", `ps3 apps mac`).
+- **The Mac's games and the queue:** `GameFolders` (folders per type in config.json plus the mirror folder),
+  `LocalLibrary` (the same `GameListing` rules as the console, metadata from the images) and
+  `LibraryMatch`. `TransferQueue` (queue.json) is shared by `ps3 queue` and the app's `TransferStore`:
+  all changes go through `TransferQueue.edit`, which rereads the file under a lock, and
+  `QueueLock` makes sure only one process sends. Everything is sent via `TransferService.send`, which
+  uploads to `.part` and renames. `QueueRunner.send` and `ps3 send` retry after network errors
+  (`RetryPolicy`). `FolderWatch` (watch.json) finds new games in watched folders;
+  the app's `TransferStore` and `ps3 watch` put them in the queue. `FTPClient.Tuning` controls chunk size and
+  the number of chunks in flight (config.json `ftpChunkKB`/`ftpWindow`).
+- **The game server** (`NetServer.swift`): a custom read-only ps3netsrv. The root is the connected
+  folders merged per type (`/PS3ISO` …); `<name>.SFO`/`.PNG` next to a PS3 ISO are read from the
+  image. Write commands close the connection and only the console's address is let in. A
+  Mac game has `netPath`, and the app starts it as `/net<slot>` + `netPath`. `NetServerStore`
+  keeps the Mac awake while a `/net` path is mounted and sets up webMAN with `WebMANSetup`
+  (a free network server; the number is saved as `netServerSlot` in config.json).
+- **Control** (`Control.swift`): `PadButton` (fixed names for `/pad.ps3`), disc, screenshot,
+  `FanControl` (targets only in dynamic mode), `Reachability` (ping/TCP when webMAN doesn't respond = HEN
+  off) and `PlayLog`/`PlayTracker` (play time from the status, `playtime.json`). The app: `ConsoleStore`
+  has the buttons, `RemoteView` the remote, `MenuBarView` the menu bar. Files from outside (the Finder
+  service, the menu bar, Shortcuts in `Intents.swift`) go via `Inbox` to the review view.
+- **Maintenance** (`Maintenance.swift`): `SaveBackupService` (saves to `Saves/<user>/
+  <folder>` with a manifest per folder, the previous copy in `.previous`), `SystemFiles`, `MaintenanceService`
+  (report + `fix` which only removes packages and `.part`), `StorageAnalyzer` (`/stat.ps3`) and
+  `DiscRipper` (`/copy.ps3`, progress over FTP). The app: `MaintenanceStore` and `MaintenanceView`.
+- **Phase 9** (ideas from aldostools/Resources):
+  - `ConsoleExtras.swift`: XMB reload, recording, in-game screenshots, beep, in-game music,
+    `UpdateBlock` and `MediaImport` (videos and photos to the Mac, `imported.json`).
+  - `PlayCompatibility.swift`: `PlayCheck`, `LibCrypt` (225 IDs from webMAN MOD) and `PS2Classic`
+    (only `.BIN.ENC` on HEN).
+  - `IRD.swift`: `IRD`, `DiscVerifier` and `IRDLibrary` (FlexBy420 on GitHub). `ISOImage` reads
+    Joliet for that.
+  - `ErrorCodes.swift`: 0x8001xxxx from RPCS3. `TitleDatabase.swift`: aldostools' titleid.txt.
+  - In the app the buttons are in the Status tab (Record), Remote (Reload XMB, Beep,
+    In-Game Screenshots, In-Game Music), on the game page and in Maintenance.
+- **Phase 10** (the ISO tools from the PC, `ISOTools.swift`): `PS3ISOBuilder` makes an ISO of a
+  game folder with makeps3iso's layout (see DESIGN.md), `PS3ISO.split`/`join`/`extract`, and
+  `PartWriter` writes everything as `.part` and renames when it is complete. `USBDrive.plan` splits ISOs over
+  4 GB and turns a game folder with a file over 4 GB into an ISO in parts. CLI: `ps3 iso`. The app:
+  Copy to USB Drive… in the Games tab (Mac) opens `USBCopyView` with `USBCopyModel`.
+- **PS2 Classics** (`PS2Classics.swift`): `PS2ClassicMaker` encrypts a PS2 ISO (or .cue/.bin)
+  to `<name> [ID].BIN.ENC` as ps2classic does, for the placeholder `PS2U10000` (PS3HEN makes its
+  license itself). `PS2ClassicKeys` downloads, imports and checks the keys. CLI: `ps3 ps2`.
+  The app: Convert to PS2 Classic… in the right-click menu on a PS2 game under Mac (`PS2ClassicView`).
+- **Progress:** `TransferEvent` goes via `@Sendable` callbacks. The CLI prints them (`TransferPrinter`),
+  the app puts them in `AppsStore.operations` on the MainActor.
+- **The app:** `ConsoleStore` fetches status every 3 seconds, `AppsStore` has an installation queue that takes
+  one app at a time because webMAN's FTP can't handle parallel transfers. Design tokens are in
+  `Theme.swift` (Mole style), and the rules for using them (one white button per screen,
+  `destructive` for removals, `DoneButton` on sheets, `.font(.ui(…))` sizes, English dates via
+  `Theme.locale`/`Format`) are under Appearance in DESIGN.md. Never compare a display string in
+  code (a status text, a label): keep a flag or an enum, so text can change freely.
 
-## Regler
+## Rules
 
-- **Krav i katalogen ska ha en källa** (README, releaseanteckningar). Gissa inte att något kräver
-  CFW; ett felaktigt krav blockerar ett program som fungerar.
-- **HEN och plugins (ds45pad) installeras aldrig automatiskt.** De får bara `notifyOnly` med råd.
-  En trasig sprx kan få konsolen att frysa vid start.
-- **Spara eller visa aldrig PSID/IDPS.** `/cpursx.ps3` innehåller dem.
-- **Ingen inbyggd nedladdning av spel från ROM- eller ISO-arkiv.** `send` tar användarens egna filer.
-- **Nycklarna för PS2 Classics finns aldrig i repot** (användarens beslut 7 nov 2026): koden har
-  bara deras SHA-256. De hämtas på begäran ur webMAN MOD:s repo på GitHub (eller importeras) till
-  `~/.config/ps3center/ps2classic-keys.json` med rättigheterna 0600, och skrivs aldrig ut, loggas
-  eller läggs i tester eller Fixtures.
-- **Speluppdateringar** får hämtas från Sonys officiella uppdateringsserver, som RPCS3 gör: bara
-  spelpatchar, aldrig firmware (PUP), utan PSN-inloggning, och en patch som kräver nyare
-  systemprogramvara än konsolens blockeras. Inget får kunna uppdatera konsolen eller leda till ban
-  (användarens beslut 24 okt 2026).
-- **Brewology** ligger bakom ett Cloudflare-skydd och ska inte kringgås. Program som bara finns där
-  får en länk.
-- **Ur sparfilernas PARAM.SFO visas bara TITLE och SUB_TITLE,** aldrig konto-fälten.
-- **boot_plugins.txt ändras aldrig av PS3 Center;** saknade plugins rapporteras bara.
-- **Fläkten ändras bara som mål i webMAN:s dynamiska läge, 60–75 °C,** aldrig som fast hastighet.
-- **Ingen fri text till `/pad.ps3`:** "cross=" byter OK-knapp och startar om konsolen.
-- **Avinstallation och radering:** bara en mapp direkt i `/dev_hdd0/game`, aldrig det HEN behöver
-  (`UninstallGuard`), aldrig medan ett spel körs, alltid efter en fråga. En sparfil kopieras till
-  Macen innan den tas bort från konsolen.
-- **webMAN:s inställningar ändras bara via `WebMANSetup`:** hela formuläret som Safari skulle
-  skicka, en kopia av inställningarna först och en kontroll efteråt. Ett ofullständigt anrop till
-  `/setup.ps3` nollställer alla andra inställningar.
-- **Klockan ställs aldrig av PS3 Center:** webMAN:s `/fixclock.ps3` skriver den säkra klockan.
-  USB-diskar "matas inte ut" via webMAN; det är bara en låtsad händelse.
-- **Systemuppdateringar blockeras bara via `UpdateBlock`,** på begäran: webMAN MOD:s egen fil i
-  `/dev_hdd0`, aldrig något i dev_flash.
-- **Inget hämtas från ps3.aldostools.org** (självsignerat certifikat, bara HTTP) eller psdevwiki
-  (Cloudflare). Använd kopiorna på GitHub.
-- **Allt som ändrar konsolen loggas** med `OperationLog.record`, som visas med `ps3 history` och i
-  appens historiktabell, och har `--dry-run` i CLI:t.
+- **Requirements in the catalog must have a source** (README, release notes). Don't guess that something requires
+  CFW; a wrong requirement blocks an app that works.
+- **HEN and plugins (ds45pad) are never installed automatically.** They only get `notifyOnly` with advice.
+  A broken sprx can make the console freeze at startup.
+- **Never save or show PSID/IDPS.** `/cpursx.ps3` contains them.
+- **No built-in downloading of games from ROM or ISO archives.** `send` takes the user's own files.
+- **The keys for PS2 Classics are never in the repo** (the user's decision Nov 7, 2026): the code has
+  only their SHA-256. They are fetched on request from webMAN MOD's repo on GitHub (or imported) to
+  `~/.config/ps3center/ps2classic-keys.json` with permissions 0600, and are never printed, logged
+  or put in tests or Fixtures.
+- **Game updates** may be fetched from Sony's official update server, as RPCS3 does: only game
+  patches, never firmware (PUP), without PSN sign-in, and a patch that requires newer
+  system software than the console's is blocked. Nothing may be able to update the console or lead to a ban
+  (the user's decision Oct 24, 2026).
+- **Brewology** is behind a Cloudflare protection and must not be circumvented. Apps that are only found there
+  get a link.
+- **From the saves' PARAM.SFO only TITLE and SUB_TITLE are shown,** never the account fields.
+- **boot_plugins.txt is never changed by PS3 Center;** missing plugins are only reported.
+- **The fan is only changed as a target in webMAN's dynamic mode, 60–75 °C,** never as a fixed speed.
+- **No free text to `/pad.ps3`:** "cross=" switches the OK button and restarts the console.
+- **Uninstall and delete:** only a folder directly in `/dev_hdd0/game`, never what HEN needs
+  (`UninstallGuard`), never while a game is running, always after a question. A save is copied to
+  the Mac before it is removed from the console.
+- **webMAN's settings are only changed via `WebMANSetup`:** the whole form that Safari would
+  send, a copy of the settings first and a check afterwards. An incomplete call to `/setup.ps3`
+  resets all the other settings.
+- **The clock is never set by PS3 Center:** webMAN's `/fixclock.ps3` writes the secure clock.
+  USB drives are not "ejected" via webMAN; it is only a faked event.
+- **System updates are only blocked via `UpdateBlock`,** on request: webMAN MOD's own file
+  in `/dev_hdd0`, never anything in dev_flash.
+- **Nothing is fetched from ps3.aldostools.org** (self-signed certificate, HTTP only) or psdevwiki
+  (Cloudflare). Use the copies on GitHub.
+- **Everything that changes the console is logged** with `OperationLog.record`, which is shown with `ps3 history` and in
+  the app's history table, and has `--dry-run` in the CLI.
