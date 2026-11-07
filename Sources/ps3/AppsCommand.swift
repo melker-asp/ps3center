@@ -67,12 +67,12 @@ struct Apps: AsyncParsableCommand {
             // An ignored update is left out unless it was named.
             let skipsIgnored = names.isEmpty
             for status in statuses where skipsIgnored && status.ignored {
-                UI.skip("\(status.name) \(status.latest ?? "") is ignored  (ps3 apps unignore \(status.id))")
+                UI.skip("\(status.name) \(status.latestForDisplay ?? "") is ignored  (ps3 apps unignore \(status.id))")
             }
             let installable = statuses.filter { $0.canInstall && !(skipsIgnored && $0.ignored) }
             let advisories = statuses.filter { $0.state == .updateAvailable && !$0.canInstall && !(skipsIgnored && $0.ignored) }
             for status in advisories {
-                UI.warn("\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?"): \(status.note ?? "update manually")")
+                UI.warn("\(status.name) \(status.versionChange): \(status.note ?? "update manually")")
             }
             guard !installable.isEmpty else {
                 UI.ok("Everything that can be updated automatically is already up to date.")
@@ -94,7 +94,7 @@ struct Apps: AsyncParsableCommand {
             var installed = 0
             for status in installable {
                 let size = status.assetSize.map { " (\(Format.bytes($0)))" } ?? ""
-                let line = "\(status.name) \(status.installed ?? "?") → \(status.latest ?? "?")\(size)"
+                let line = "\(status.name) \(status.versionChange)\(size)"
                 if dryRun {
                     UI.step(line + UI.paint("  \(status.assetName ?? "")", .gray))
                     continue
@@ -146,12 +146,12 @@ struct Apps: AsyncParsableCommand {
                         version = UI.paint(plain, .red)
                     case (.some(let v), .updateAvailable) where s.ignored:
                         marker = UI.paint("↑", .gray)
-                        plain = "\(v) → \(s.latest ?? "?")"
+                        plain = "\(v) → \(s.latestForDisplay ?? "?")"
                         version = UI.paint(plain, .gray)
                     case (.some(let v), .updateAvailable):
                         marker = UI.paint("↑", .yellow)
-                        plain = "\(v) → \(s.latest ?? "?")"
-                        version = "\(v) → " + UI.paint(s.latest ?? "?", .yellow)
+                        plain = "\(v) → \(s.latestForDisplay ?? "?")"
+                        version = "\(v) → " + UI.paint(s.latestForDisplay ?? "?", .yellow)
                     case (.some(let v), _):
                         marker = UI.paint("✓", .green)
                         plain = v
@@ -466,11 +466,14 @@ struct Apps: AsyncParsableCommand {
         UI.row("About", entry.summary)
         if let repo = entry.repository { UI.row("Source", "https://github.com/\(repo)") } else { UI.row("Source", entry.homepage) }
         UI.row("Installed", status.installed ?? UI.paint("no", .gray))
-        if let latest = status.latest {
+        if let tag = status.latest {
+            // "02.41 (v2.4.1)": the console's form first, the release tag after it when they differ.
+            let shown = status.latestForDisplay ?? tag
+            let release = shown == tag ? "" : UI.paint("  (release \(tag))", .gray)
             if status.ignored {
-                UI.row("Latest", latest + UI.paint("  (ignored, show again with ps3 apps unignore \(entry.id))", .gray))
+                UI.row("Latest", shown + release + UI.paint("  (ignored, show again with ps3 apps unignore \(entry.id))", .gray))
             } else {
-                UI.row("Latest", status.state == .updateAvailable ? UI.paint(latest, .bold, .yellow) : latest)
+                UI.row("Latest", (status.state == .updateAvailable ? UI.paint(shown, .bold, .yellow) : shown) + release)
             }
         }
         UI.row("Your PS3", console.label)
@@ -556,7 +559,7 @@ struct Apps: AsyncParsableCommand {
         if !updates.isEmpty {
             UI.header("Updates", detail: "\(updates.count)")
             for s in updates {
-                let arrow = "\(s.installed ?? "?") → " + UI.paint(s.latest ?? "?", .bold, .yellow)
+                let arrow = "\(s.installed ?? "?") → " + UI.paint(s.latestForDisplay ?? "?", .bold, .yellow)
                 let tag = s.canInstall ? "" : UI.paint("  manual", .gray)
                 print("  " + UI.paint("↑", .yellow) + " " + name(s) + arrow + tag)
                 if !s.canInstall, let note = s.note { print("      " + UI.paint(note, .gray)) }
@@ -574,7 +577,7 @@ struct Apps: AsyncParsableCommand {
             print()
             UI.header("Ignored", detail: "\(ignored.count)")
             for s in ignored {
-                UI.skip(name(s) + "\(s.installed ?? "?") → \(s.latest ?? "?")  ps3 apps unignore \(s.id)")
+                UI.skip(name(s) + "\(s.versionChange)  ps3 apps unignore \(s.id)")
             }
         }
         if !missing.isEmpty {

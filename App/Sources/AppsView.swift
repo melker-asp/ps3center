@@ -111,7 +111,7 @@ struct AppsView: View {
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
             } else if let checked = apps.lastChecked {
-                Text("Checked \(Theme.time(checked))")
+                Text("Checked \(Format.time(checked))")
                     .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
             }
@@ -255,18 +255,6 @@ struct AppsView: View {
                 .padding(.horizontal, 14)
             }
         }
-    }
-}
-
-extension AppStatus {
-    /// The release tag in the console's own APP_VER form when the catalog knows how they map
-    /// ("v2.4.1" → "02.41"), so "02.40 → 02.41" compares like with like. Else the tag itself.
-    @MainActor var latestForDisplay: String? {
-        guard let latest else { return nil }
-        guard let entry = AppsStore.entry(for: self), entry.installedStyle == .appVer,
-              entry.releaseStyle == .semverAsAppVer || entry.releaseStyle == .artemis,
-              let version = Version(latest, style: entry.releaseStyle), version.parts.count == 2 else { return latest }
-        return String(format: "%02d.%02d", version.parts[0], version.parts[1])
     }
 }
 

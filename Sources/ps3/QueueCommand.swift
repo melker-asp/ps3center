@@ -32,7 +32,7 @@ struct Queue: AsyncParsableCommand {
                 return
             }
             UI.header("Queue", detail: "\(queue.pending.count) left · \(Format.bytes(queue.remainingBytes))"
-                      + (SpeedTest.estimate(bytes: queue.remainingBytes).map { " · about \(Format.duration($0))" } ?? ""))
+                      + (SpeedTest.estimate(bytes: queue.remainingBytes).map { " · about \(Format.estimate($0))" } ?? ""))
             for (index, item) in queue.items.enumerated() {
                 let number = UI.paint(String(format: "%2d", index + 1), .gray)
                 let marker: String
@@ -236,7 +236,7 @@ struct Speedtest: AsyncParsableCommand {
         if let down = result.download { UI.row("From the PS3", Format.rate(down)) }
         if let network = result.network { UI.row("Network", network) }
         let tenGB: Int64 = 10_000_000_000
-        UI.row("10 GB takes", Format.duration(Double(tenGB) / result.upload))
+        UI.row("10 GB takes", "about " + Format.estimate(Double(tenGB) / result.upload))
         if result.network == "Wi-Fi" {
             print()
             UI.warn("The PS3 is on Wi-Fi (2.4 GHz only). With a network cable it is usually several times faster.")
@@ -362,7 +362,9 @@ struct USB: AsyncParsableCommand {
             for (game, reason) in plan.skipped { UI.skip("\(game.title): \(reason)") }
             let total = plan.total
             UI.header(dryRun ? "Preview" : "Copying", detail: "\(plan.copies.count) file\(plan.copies.count == 1 ? "" : "s") · \(Format.bytes(total)) · free \(Format.bytes(info.free))")
-            guard total < info.free else { throw PS3Error.notEnoughSpace(needed: total, free: info.free) }
+            guard total < info.free else {
+                throw PS3Error.refused("Not enough space on \(info.name): needs \(Format.bytes(total)), \(Format.bytes(info.free)) free.")
+            }
             for copy in plan.copies {
                 let notes = [copy.kind == .isoFromFolder ? "converted to an ISO" : nil, copy.parts > 1 ? "\(copy.parts) parts" : nil].compactMap { $0 }
                 UI.step("\(copy.game.title) → \(copy.destination.path)" + (notes.isEmpty ? "" : UI.paint("  (\(notes.joined(separator: ", ")))", .gray)))

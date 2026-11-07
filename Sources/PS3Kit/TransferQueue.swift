@@ -160,6 +160,18 @@ public final class QueueLock: @unchecked Sendable {
         flock(descriptor, LOCK_UN)
         close(descriptor)
     }
+
+    /// Whether a process is sending the queue right now (the app or `ps3 queue start`), without
+    /// keeping the lock: it is only asked for, shared, and let go at once.
+    public static var isHeld: Bool {
+        let path = TransferQueue.file.deletingLastPathComponent().appendingPathComponent("queue.lock").path
+        let fd = open(path, O_RDONLY)
+        guard fd >= 0 else { return false }  // no lock file: nothing has sent yet
+        defer { close(fd) }
+        guard flock(fd, LOCK_SH | LOCK_NB) == 0 else { return true }
+        flock(fd, LOCK_UN)
+        return false
+    }
 }
 
 /// Runs queue items against the console; the app and `ps3 queue start` drive it.

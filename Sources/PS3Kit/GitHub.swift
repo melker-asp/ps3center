@@ -50,9 +50,54 @@ public enum GitHub {
     public static func release(repo: String, tag: String? = nil) async throws -> GitHubRelease {
         let path = tag.map { "tags/" + ($0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? $0) } ?? "latest"
         let url = URL(string: "https://api.github.com/repos/\(repo)/releases/\(path)")!
-        let (data, response) = try await URLSession.shared.data(for: request(url))
-        try validate(response, repo: repo)
-        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+        return try JSONDecoder().decode(GitHubRelease.self, from: try await api(url, repo: repo))
+    }
+
+    /// An API answer, asked for with the ETag of the last one. GitHub does not count a 304 (not
+    /// modified) against the rate limit of 60 requests an hour without GITHUB_TOKEN, so the
+    /// app, the CLI and `ps3 mcp` can check as often as they like and still get fresh answers.
+    /// When GitHub rate-limits anyway, the last answer is used if there is one.
+    static func api(_ url: URL, repo: String, notFound: String? = nil) async throws -> Data {
+        var request = request(url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData  // the ETag is handled here, not by URLCache
+        let cached = APICache.load(url)
+        if let cached { request.setValue(cached.etag, forHTTPHeaderField: "If-None-Match") }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode
+        if let cached, status == 304 || status == 403 || status == 429 { return cached.data }
+        try validate(response, repo: repo, notFound: notFound)
+        if let etag = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "ETag") {
+            APICache.save(APICache.Entry(etag: etag, data: data), for: url)
+        }
+        return data
+    }
+
+    /// GitHub API answers by URL with their ETag, in ~/Library/Caches/ps3center/github, shared by
+    /// the app, the CLI and `ps3 mcp`.
+    enum APICache {
+        struct Entry: Codable {
+            let etag: String
+            let data: Data
+        }
+
+        static var folder: URL {
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/ps3center/github", isDirectory: true)
+        }
+
+        static func file(for url: URL, in folder: URL = folder) -> URL {
+            let key = SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
+            return folder.appendingPathComponent(key + ".json")
+        }
+
+        static func load(_ url: URL, in folder: URL = folder) -> Entry? {
+            guard let data = try? Data(contentsOf: file(for: url, in: folder)) else { return nil }
+            return try? JSONDecoder().decode(Entry.self, from: data)
+        }
+
+        static func save(_ entry: Entry, for url: URL, in folder: URL = folder) {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? JSONEncoder().encode(entry).write(to: file(for: url, in: folder), options: .atomic)
+        }
     }
 
     static func validate(_ response: URLResponse, repo: String, notFound: String? = nil) throws {
@@ -80,8 +125,7 @@ public enum GitHub {
             }
         }
         let url = URL(string: "https://api.github.com/repos/\(repo)/readme")!
-        let (data, response) = try await URLSession.shared.data(for: request(url))
-        try validate(response, repo: repo, notFound: "\(repo) has no README.")
+        let data = try await api(url, repo: repo, notFound: "\(repo) has no README.")
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         guard payload.encoding == "base64",
               let decoded = Data(base64Encoded: payload.content, options: .ignoreUnknownCharacters) else {

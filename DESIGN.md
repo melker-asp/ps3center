@@ -70,7 +70,11 @@ From Mole: the layout. From the PlayStation app: colors, buttons and feel. All v
   and their main button. The remote uses ⌘W instead, since Esc there is the PS3's Back.
 - **Text:** every size comes from `Theme.TextSize` (`.font(.ui(.body))`). `tertiaryText` is 50 %
   white (5.1:1 on a card; WCAG AA asks for 4.5:1), and red text on the dark base is `hotText`.
-  Dates and numbers are always English (`Theme.locale`, `Format`), never the system language.
+  Dates and numbers are always English (`Format`, `Format.locale`), never the system language.
+  Time still to go is written in words (`Format.estimate`: "51 min", "1 h 48 min"), never as a clock
+  like "51:17" beside "4–17 min"; a running clock or elapsed time may use `Format.duration`. Labels
+  that sit side by side must not share a word with different meanings ("On PS3 | On Mac" beside the
+  platform pill "PS3").
   Clickable targets are at least 28 pt, and a switch (`PillToggle`) has a VoiceOver label and value.
 - **Labels** like the PS app's "PS5": bold text on a small black plate.
 - **Typeface:** large numbers, page headings and app names in a thin weight (the PS app's SST isn't

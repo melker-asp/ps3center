@@ -280,10 +280,14 @@ struct GameDetailView: View {
                 Spacer(minLength: 0)
                 Footnote(text: game.titleID == nil ? "Not in the file name, and webMAN hasn't read the game yet" : idFootnote)
             }
-            Card(icon: "internaldrive", title: "Size", chip: game.isOnUSB ? "USB" : "Hard Drive") {
-                BigValue(value: sizeParts.value, unit: sizeParts.unit)
-                Spacer(minLength: 0)
-                Footnote(text: sizeFootnote)
+            // Only with a size: an installed game or a game folder on the console has none, and a
+            // card with just "–" would repeat the path the banner shows (DESIGN.md, Cards).
+            if game.size != nil {
+                Card(icon: "internaldrive", title: "Size", chip: game.isOnUSB ? "USB" : "Hard Drive") {
+                    BigValue(value: sizeParts.value, unit: sizeParts.unit)
+                    Spacer(minLength: 0)
+                    Footnote(text: sizeFootnote)
+                }
             }
             Card(icon: "shippingbox.fill", title: "Version", chip: versionChip) {
                 BigValue(value: game.updateVersion ?? game.version ?? "–")
@@ -314,8 +318,7 @@ struct GameDetailView: View {
 
     private var sizeFootnote: String {
         if !game.companions.isEmpty { return "\(game.companions.count + 1) files" }
-        if game.isInstalled { return "Installed in /dev_hdd0/game" }
-        return game.isFolder ? "Game folder; the size isn't counted" : "One file"
+        return game.isFolder ? "Game folder" : "One file"
     }
 
     private var versionFootnote: String {

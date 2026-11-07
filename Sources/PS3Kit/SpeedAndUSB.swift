@@ -145,6 +145,16 @@ public enum USBDrive {
                       free: Int64(values.volumeAvailableCapacity ?? 0), capacity: Int64(values.volumeTotalCapacity ?? 0))
     }
 
+    /// The volume `url` will be written to, also when the folder does not exist yet: the nearest
+    /// parent that does ("/Volumes/PS3/PS3ISO" on a freshly formatted drive is "/Volumes/PS3").
+    public static func volume(containing url: URL) -> Volume? {
+        var current = url.standardizedFileURL
+        while !FileManager.default.fileExists(atPath: current.path), current.pathComponents.count > 1 {
+            current = current.deletingLastPathComponent()
+        }
+        return volume(current)
+    }
+
     /// The drives a game can go to: mounted under /Volumes, writable, and not the Mac's own disk.
     public static func volumes() -> [Volume] {
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: volumeKeys, options: [.skipHiddenVolumes]) ?? []
@@ -175,6 +185,9 @@ public enum USBDrive {
         public let size: Int64
         public var kind: Kind = .file
         var iso: PS3ISOBuilder?
+        /// Already on the drive with the right size when the plan was made; `copy` skips it,
+        /// and it does not count toward the space the plan needs.
+        public internal(set) var isOnDrive = false
 
         public var id: String { destination.path }
     }
@@ -183,7 +196,9 @@ public enum USBDrive {
         public var copies: [Copy] = []
         /// Games that cannot go on FAT32, with the reason.
         public var skipped: [(game: Game, reason: String)] = []
-        public var total: Int64 { copies.reduce(0) { $0 + $1.size } }
+        /// Bytes still to copy: what is already on the drive (after a copy that stopped, say)
+        /// needs no more room.
+        public var total: Int64 { copies.filter { !$0.isOnDrive }.reduce(0) { $0 + $1.size } }
 
         public init() {}
     }
@@ -232,7 +247,62 @@ public enum USBDrive {
                 plan.copies.append(Copy(game: game, source: url, destination: destination, parts: parts, size: size))
             }
         }
+        for index in plan.copies.indices {
+            plan.copies[index].isOnDrive = isOnDrive(plan.copies[index])
+        }
         return plan
+    }
+
+    /// The names a copy ends up as: the file, or name.0, name.1 … for a split image.
+    static func targets(of copy: Copy) -> [URL] {
+        guard copy.parts > 1 else { return [copy.destination] }
+        let base = String(copy.destination.path.dropLast(2))
+        return (0..<copy.parts).map { URL(fileURLWithPath: "\(base).\($0)") }
+    }
+
+    /// Whether the copy is already complete on the drive: a game folder by its name (it only
+    /// gets it when whole), a file or split image by the size of every part.
+    static func isOnDrive(_ copy: Copy) -> Bool {
+        if copy.kind == .folder { return FileManager.default.fileExists(atPath: copy.destination.path) }
+        return zip(targets(of: copy), PS3ISO.partSizes(for: copy.size, parts: copy.parts)).allSatisfy { FileRouter.fileSize($0) == $1 }
+    }
+
+    /// Copies a game folder file by file, with progress and cancellation between pieces. Hidden
+    /// files (.DS_Store, ._*) stay behind, as when an ISO is made of the folder.
+    static func copyFolder(_ source: URL, to target: URL, progress: (Int64) -> Void) throws {
+        let fm = FileManager.default
+        guard let walker = fm.enumerator(atPath: source.path) else {
+            throw PS3Error.invalidFile("Can't read \(source.path).")
+        }
+        try fm.createDirectory(at: target, withIntermediateDirectories: true)
+        var written: Int64 = 0
+        while let relative = walker.nextObject() as? String {
+            try Task.checkCancellation()
+            let type = walker.fileAttributes?[.type] as? FileAttributeType
+            if (relative as NSString).lastPathComponent.hasPrefix(".") || FileRouter.ignoredNames.contains((relative as NSString).lastPathComponent) {
+                if type == .typeDirectory { walker.skipDescendants() }
+                continue
+            }
+            let destination = target.appendingPathComponent(relative)
+            if type == .typeDirectory {
+                try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+                continue
+            }
+            guard type == .typeRegular else { continue }  // symbolic links are not part of a game
+            guard fm.createFile(atPath: destination.path, contents: nil) else {
+                throw PS3Error.invalidFile("Can't create \(destination.path).")
+            }
+            let input = try FileHandle(forReadingFrom: source.appendingPathComponent(relative))
+            defer { try? input.close() }
+            let output = try FileHandle(forWritingTo: destination)
+            defer { try? output.close() }
+            while let chunk = try input.read(upToCount: PS3ISO.chunkSize), !chunk.isEmpty {
+                try Task.checkCancellation()
+                try output.write(contentsOf: chunk)
+                written += Int64(chunk.count)
+                progress(written)
+            }
+        }
     }
 
     /// Copies (and splits, or makes into an ISO) the planned files, skipping ones already there
@@ -240,21 +310,11 @@ public enum USBDrive {
     public static func copy(_ copies: [Copy], events: TransferHandler) async throws {
         let fm = FileManager.default
         for copy in copies {
+            // Between games too: a cancel must not wait for every game folder left in the plan.
+            try Task.checkCancellation()
             let route = Route(local: copy.source, remote: copy.destination.path, kind: .other, size: copy.size, title: copy.game.title)
             try fm.createDirectory(at: copy.destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if copy.kind == .folder {
-                if fm.fileExists(atPath: copy.destination.path) {
-                    events(.skipped(route, reason: "already on the drive"))
-                    continue
-                }
-                events(.started(route, resumingFrom: 0))
-                try fm.copyItem(at: copy.source, to: copy.destination)
-                events(.finished(route, seconds: 0))
-                continue
-            }
-            let base = URL(fileURLWithPath: copy.parts > 1 ? String(copy.destination.path.dropLast(2)) : copy.destination.path)
-            let targets = copy.parts > 1 ? (0..<copy.parts).map { URL(fileURLWithPath: "\(base.path).\($0)") } : [base]
-            if zip(targets, PS3ISO.partSizes(for: copy.size, parts: copy.parts)).allSatisfy({ FileRouter.fileSize($0) == $1 }) {
+            if isOnDrive(copy) {
                 events(.skipped(route, reason: "already on the drive"))
                 continue
             }
@@ -267,7 +327,20 @@ public enum USBDrive {
                 lastReport = now
                 events(.progress(route, sent: written, total: copy.size, bytesPerSecond: Double(written) / max(now.timeIntervalSince(start), 0.001)))
             }
-            if copy.kind == .isoFromFolder, let iso = copy.iso {
+            let base = URL(fileURLWithPath: copy.parts > 1 ? String(copy.destination.path.dropLast(2)) : copy.destination.path)
+            if copy.kind == .folder {
+                // Name.part until the whole folder is there, so a cut-off copy is never taken
+                // for a game that is already on the drive.
+                let partial = PartWriter.partial(copy.destination)
+                try? fm.removeItem(at: partial)  // left by an earlier copy that stopped
+                do {
+                    try copyFolder(copy.source, to: partial) { report($0) }
+                    try fm.moveItem(at: partial, to: copy.destination)
+                } catch {
+                    try? fm.removeItem(at: partial)
+                    throw error
+                }
+            } else if copy.kind == .isoFromFolder, let iso = copy.iso {
                 try iso.write(to: base, split: copy.parts > 1) { report($0) }
             } else {
                 let writer = PartWriter(base: base, split: copy.parts > 1)

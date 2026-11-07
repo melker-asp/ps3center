@@ -174,7 +174,7 @@ public final class FTPClient {
         let written = try await data.readToEnd(into: handle, timeout: 60, progress: progress)
         _ = try await readReply(expect: [226, 250], timeout: 60)
         if let expectedSize, written != expectedSize {
-            throw PS3Error.ftpProtocol("\((path as NSString).lastPathComponent) came to \(written) bytes instead of \(expectedSize); the connection broke")
+            throw PS3Error.transferInterrupted("\((path as NSString).lastPathComponent) came to \(written) bytes instead of \(expectedSize); the connection broke")
         }
     }
 
@@ -345,7 +345,7 @@ final class LineConnection {
                 switch state {
                 case .ready: finish(nil)
                 case .failed(let error), .waiting(let error): finish(error)
-                case .cancelled: finish(PS3Error.ftpProtocol("the connection was closed"))
+                case .cancelled: finish(PS3Error.transferInterrupted("the connection was closed"))
                 default: break
                 }
             }
@@ -450,7 +450,7 @@ final class LineConnection {
                 return String(decoding: lineData, as: UTF8.self)
             }
             guard let chunk = try await receive(timeout: timeout) else {
-                throw PS3Error.ftpProtocol("the connection was closed")
+                throw PS3Error.transferInterrupted("the connection was closed")
             }
             buffer.append(chunk)
         }

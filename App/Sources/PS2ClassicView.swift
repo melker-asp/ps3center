@@ -23,22 +23,23 @@ final class PS2ClassicModel {
     private(set) var read: Int64 = 0
     private(set) var total: Int64 = 0
     private var task: Task<Void, Error>?
+    /// The PS2 Classic's size, read once: a raw .bin counts 2048 of every 2352 bytes.
+    let size: Int64
 
     init(game: Game, live: Bool = true, fixtureKeys: Bool = false) {
         self.game = game
         self.live = live
         self.fixtureKeys = fixtureKeys
         keys = live ? PS2ClassicKeys.load() : nil
+        let image = URL(fileURLWithPath: game.path)
+        let imageSize = live ? ((try? PS2ClassicMaker.imageSize(of: image)) ?? FileRouter.fileSize(image)) : (game.size ?? 0)
+        size = PS2ClassicMaker.encryptedSize(forImage: imageSize)
     }
 
     var keysReady: Bool { live ? keys?.isComplete == true : fixtureKeys }
     var image: URL { URL(fileURLWithPath: game.path) }
     var output: URL {
         image.deletingLastPathComponent().appendingPathComponent(PS2ClassicMaker.outputName(for: image, titleID: game.titleID))
-    }
-    var size: Int64 {
-        let imageSize = live ? FileRouter.fileSize((try? PS2ClassicMaker.dataFile(for: image)) ?? image) : (game.size ?? 0)
-        return PS2ClassicMaker.encryptedSize(forImage: imageSize)
     }
     var alreadyMade: Bool { live && FileManager.default.fileExists(atPath: output.path) }
 
@@ -230,7 +231,9 @@ struct PS2ClassicView: View {
                             Text(model.fetching ? "Downloading…" : "Download Keys")
                         }
                     }
-                    .buttonStyle(PillButtonStyle(tint: Theme.accent))
+                    // Outlined: a tint is for buttons inside a coloured banner, and the sheet's one
+                    // white button is Convert.
+                    .buttonStyle(PillButtonStyle(prominent: false))
                     .disabled(model.fetching)
                     Button("Import…") { importing = true }
                         .buttonStyle(PillButtonStyle(prominent: false))
@@ -330,7 +333,8 @@ struct PS2ClassicView: View {
                 .buttonStyle(PillButtonStyle())
                 .keyboardShortcut(.defaultAction)
             case .ready, .failed:
-                Button("Close") {
+                // Cancel beside the main button, as on every review sheet (DESIGN.md, Sheets).
+                Button("Cancel") {
                     if case .failed = model.phase {} else if live { Task { await library.loadMac() } }
                     dismiss()
                 }

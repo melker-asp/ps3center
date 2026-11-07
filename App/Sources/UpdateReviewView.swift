@@ -158,7 +158,7 @@ struct UpdateReviewView: View {
                     HStack(spacing: 5) {
                         Text(status.installed ?? "?").foregroundStyle(Theme.secondaryText)
                         Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(Theme.tertiaryText)
-                        Text(status.latest ?? "?").foregroundStyle(Theme.accent).fontWeight(.semibold)
+                        Text(status.latestForDisplay ?? "?").foregroundStyle(Theme.accent).fontWeight(.semibold)
                     }
                     .font(.ui(.footnote, design: .rounded))
                 }
@@ -228,7 +228,7 @@ struct UpdateReportCard: View {
                 Text(title)
                     .font(.ui(.headline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
-                Text(Theme.time(report.finished))
+                Text(Format.time(report.finished))
                     .font(.ui(.footnote))
                     .foregroundStyle(Theme.tertiaryText)
                 Spacer()

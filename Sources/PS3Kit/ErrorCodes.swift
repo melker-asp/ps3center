@@ -111,7 +111,9 @@ public enum ConsoleErrorCode {
 
     /// Every known code in `text`, explained: for an error message from the console.
     public static func explain(in text: String) -> [Info] {
-        let pattern = #"(?:0x)?(80[0-9A-Fa-f]{6})"#
+        // A code stands on its own: not part of a longer hex string or number ("1800100060
+        // bytes" holds no 80010006), and "0x8080010006" is not read as 80800100.
+        let pattern = #"(?<![0-9A-Fa-f])(?:0[xX])?(80[0-9A-Fa-f]{6})(?![0-9A-Fa-f])"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         var seen = Set<UInt32>()

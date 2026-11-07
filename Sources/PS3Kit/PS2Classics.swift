@@ -244,6 +244,12 @@ public enum PS2ClassicMaker {
         return Source(url: url, sectorSize: 2048, dataOffset: 0, size: fileSize)
     }
 
+    /// The game's data in bytes of 2048-byte sectors, what `encryptedSize` takes: an ISO's size,
+    /// or 2048 of every 2352 bytes of a raw CD image (.bin, or the .bin a .cue names).
+    public static func imageSize(of image: URL) throws -> Int64 {
+        try source(image).size
+    }
+
     /// The image itself: for a .cue, the first file it names.
     public static func dataFile(for image: URL) throws -> URL {
         guard image.pathExtension.lowercased() == "cue" else { return image }

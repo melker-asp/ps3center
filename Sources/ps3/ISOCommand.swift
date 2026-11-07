@@ -47,7 +47,9 @@ struct ISO: ParsableCommand {
             let source = URL(fileURLWithPath: (folder as NSString).expandingTildeInPath)
             let builder = try PS3ISOBuilder(folder: source)
             let target = ISOPaths.target(for: source, destination: destination)
-            let onFAT32 = USBDrive.volume(target.deletingLastPathComponent())?.isFAT32 == true
+            // The drive, also when the destination folder is not made yet (PS3ISO on a new drive).
+            let volume = USBDrive.volume(containing: target.deletingLastPathComponent())
+            let onFAT32 = volume?.isFAT32 == true
             let splits = builder.size > PS3ISO.partSize && (split || onFAT32)
             let parts = splits ? PS3ISO.partCount(for: builder.size) : 1
             let first = splits ? URL(fileURLWithPath: target.path + ".0") : target
@@ -63,8 +65,8 @@ struct ISO: ParsableCommand {
             guard !FileManager.default.fileExists(atPath: first.path) else {
                 throw PS3Error.refused("\(first.lastPathComponent) already exists in \(first.deletingLastPathComponent().path).")
             }
-            if let free = USBDrive.volume(target.deletingLastPathComponent())?.free, free < builder.size {
-                throw PS3Error.notEnoughSpace(needed: builder.size, free: free)
+            if let volume, volume.free < builder.size {
+                throw PS3Error.refused("Not enough space on \(volume.name): needs \(Format.bytes(builder.size)), \(Format.bytes(volume.free)) free.")
             }
             UI.step("\(source.lastPathComponent) → \(UI.paint(first.path, .gray))" + (parts > 1 ? UI.paint("  (\(parts) parts)", .gray) : ""))
             guard !dryRun else { return }
@@ -144,7 +146,7 @@ struct ISO: ParsableCommand {
             let image = try ISOImage(url: source, joliet: true)
             let files = try image.allFiles()
             if let big = files.map(\.size).max(), big > UInt64(PS3ISO.partSize),
-               USBDrive.volume(target.deletingLastPathComponent())?.isFAT32 == true {
+               USBDrive.volume(containing: target.deletingLastPathComponent())?.isFAT32 == true {
                 throw PS3Error.refused("The ISO has a file over 4 GB, which FAT32 cannot hold. Keep the ISO as an ISO, or split it with `ps3 iso split`.")
             }
             let size = Int64(files.reduce(0) { $0 + $1.size })

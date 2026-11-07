@@ -210,7 +210,9 @@ struct MaintenanceView: View {
                 Button(store.report == nil ? "Check" : "Check Again") { store.check() }
                     .buttonStyle(PillButtonStyle(prominent: store.report == nil))
                 if !store.fixable.isEmpty {
-                    // Red: it deletes from the console, even if only leftovers.
+                    // Red, and apart on the right (DESIGN.md, Buttons): it deletes from the
+                    // console, even if only leftovers, so it never sits where Check Again is.
+                    Spacer()
                     Button("Delete \(store.fixable.count) \(store.fixable.count == 1 ? "File" : "Files") · \(Format.bytes(store.fixable.compactMap(\.size).reduce(0, +)))…") { confirmsFix = true }
                         .buttonStyle(PillButtonStyle(destructive: true))
                 }

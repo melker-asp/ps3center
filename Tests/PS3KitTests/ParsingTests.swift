@@ -1012,8 +1012,10 @@ private final class NetClient {
     #expect(RetryPolicy.isTransient(PS3Error.unreachable(host: "10.0.1.35")))
     #expect(RetryPolicy.isTransient(PS3Error.timeout("waiting for an answer from the PS3")))
     #expect(RetryPolicy.isTransient(PS3Error.ftp(code: 426, message: "Connection closed; transfer aborted")))
-    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("the size of /dev_hdd0/PS3ISO/A.iso.part does not match after the upload")))
-    #expect(RetryPolicy.isTransient(PS3Error.ftpProtocol("the connection was closed")))
+    #expect(RetryPolicy.isTransient(PS3Error.transferInterrupted("the size of /dev_hdd0/PS3ISO/A.iso.part does not match after the upload")))
+    #expect(RetryPolicy.isTransient(PS3Error.transferInterrupted("the connection was closed")))
+    // The case decides, not the words: an FTP reply that mentions the connection is no retry.
+    #expect(!RetryPolicy.isTransient(PS3Error.ftpProtocol("the connection was closed")))
     #expect(!RetryPolicy.isTransient(PS3Error.ftpProtocol("not connected")))
     #expect(!RetryPolicy.isTransient(PS3Error.ftpProtocol("webMAN gave no MD5 for /dev_hdd0/PS3ISO/A.iso.")))
     #expect(!RetryPolicy.isTransient(PS3Error.notEnoughSpace(needed: 10, free: 1)))

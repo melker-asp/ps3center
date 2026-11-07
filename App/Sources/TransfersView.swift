@@ -74,7 +74,7 @@ struct TransfersView: View {
         guard pending > 0 else { return "Nothing left to send" }
         var parts = ["\(pending) left", Format.bytes(transfers.remainingBytes)]
         if transfers.isRunning, transfers.rate > 0 { parts.append(Format.rate(transfers.rate)) }
-        if let eta = transfers.eta { parts.append("about \(Format.duration(eta)) left") }
+        if let eta = transfers.eta { parts.append("about \(Format.estimate(eta)) left") }
         return parts.joined(separator: " · ")
     }
 
@@ -203,7 +203,7 @@ struct TransfersView: View {
         guard let speed = transfers.lastSpeed else { return "Not measured yet: measure for a time estimate in the queue." }
         // Format.day is always English; `formatted(date:)` followed the system language.
         let network = speed.network.map { " over \($0)" } ?? ""
-        return "\(Format.rate(speed.upload)) to the PS3\(network) · 10 GB takes about \(Format.duration(10e9 / speed.upload)) · measured \(Format.day(speed.measuredAt))"
+        return "\(Format.rate(speed.upload)) to the PS3\(network) · 10 GB takes about \(Format.estimate(10e9 / speed.upload)) · measured \(Format.day(speed.measuredAt))"
     }
 }
 

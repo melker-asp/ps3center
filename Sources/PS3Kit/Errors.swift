@@ -6,6 +6,9 @@ public enum PS3Error: LocalizedError, Equatable {
     case http(status: Int, command: String)
     case ftp(code: Int, message: String)
     case ftpProtocol(String)
+    /// The connection broke during a transfer, or the file came out the wrong size: worth a
+    /// new try (`RetryPolicy`). Its own case, so retrying never depends on the message's words.
+    case transferInterrupted(String)
     case timeout(String)
     case notEnoughSpace(needed: Int64, free: Int64)
     case unsupportedFile(String)
@@ -29,6 +32,8 @@ public enum PS3Error: LocalizedError, Equatable {
             return "FTP error \(code): \(message)"
         case .ftpProtocol(let message):
             return "Unexpected FTP reply: \(message)"
+        case .transferInterrupted(let message):
+            return "The transfer was interrupted: \(message)"
         case .timeout(let what):
             return "Timed out: \(what)"
         case .notEnoughSpace(let needed, let free):

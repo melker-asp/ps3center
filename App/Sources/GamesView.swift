@@ -62,8 +62,9 @@ struct GamesView: View {
     private var toolbar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
-                sourceButton(.console, title: "PS3")
-                sourceButton(.mac, title: "Mac")
+                // "On PS3", not "PS3": the platform pills beside it have a "PS3" of their own.
+                sourceButton(.console, title: "On PS3")
+                sourceButton(.mac, title: "On Mac")
             }
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
@@ -610,13 +611,16 @@ struct SearchField: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Theme.tertiaryText)
+            // One line, short enough for the narrowest field: the row gives way here first.
             if interactive {
-                TextField("Search games or title ID", text: $text)
+                TextField("Name or title ID", text: $text)
                     .textFieldStyle(.plain)
                     .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
             } else {
-                Text(text.isEmpty ? "Search games or title ID" : text)
+                Text(text.isEmpty ? "Name or title ID" : text)
                     .foregroundStyle(Theme.tertiaryText)
+                    .lineLimit(1)
                 Spacer(minLength: 0)
             }
         }

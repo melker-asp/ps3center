@@ -248,3 +248,134 @@ private func temporaryFolder(_ name: String) throws -> URL {
     #expect(games.map(\.game.path) == ["/dev_usb000/BDISO/Film.iso.0"])
     #expect(games.first?.game.size == 4_294_902_760)
 }
+
+// MARK: Review fixes (Nov 7, 2026)
+
+@Test func refusesToExtractAnISOThatEndsEarly() throws {
+    let root = try temporaryFolder("cutoff")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let game = try makeGameFolder(in: root)
+    let iso = root.appendingPathComponent("TestGame.iso")
+    try PS3ISOBuilder(folder: game).write(to: iso, split: false)
+    // A download that stopped: the last files are cut off.
+    let handle = try FileHandle(forWritingTo: iso)
+    try handle.truncate(atOffset: UInt64(FileRouter.fileSize(iso) - 5000))
+    try handle.close()
+    #expect(throws: PS3Error.self) { try PS3ISO.extract(iso) }
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("TestGame").path))
+}
+
+@Test func refusesToJoinPartsThatCannotMakeTheWholeImage() throws {
+    let root = try temporaryFolder("joincheck")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let first = root.appendingPathComponent("Game.iso.0")
+    func part(_ number: Int, _ data: Data) throws { try data.write(to: root.appendingPathComponent("Game.iso.\(number)")) }
+    func remove(_ number: Int) { try? FileManager.default.removeItem(at: root.appendingPathComponent("Game.iso.\(number)")) }
+
+    // A gap: .2 is missing while .3 is there.
+    try part(0, Data(count: 4096))
+    try part(1, Data(count: 4096))
+    try part(3, Data(count: 100))
+    #expect(throws: PS3Error.self) { try PS3ISO.join(first) }
+    remove(3)
+
+    // A part in the middle that is still being copied.
+    try part(1, Data(count: 1000))
+    try part(2, Data(count: 500))
+    #expect(throws: PS3Error.self) { try PS3ISO.join(first) }
+    remove(2)
+
+    // The descriptor says 30 sectors (61,440 bytes); the parts hold less.
+    var head = Data(count: 40_960)
+    head[32_768] = 1
+    head.replaceSubrange(32_769..<32_774, with: Array("CD001".utf8))
+    head[32_768 + 80] = 30
+    head[32_768 + 128] = 0x00
+    head[32_768 + 129] = 0x08
+    try part(0, head)
+    try part(1, Data(count: 10_000))
+    #expect(throws: PS3Error.self) { try PS3ISO.join(first) }
+
+    // All of it: the join goes through.
+    try part(1, Data(count: 20_480))
+    let joined = try PS3ISO.join(first)
+    #expect(FileRouter.fileSize(joined) == 61_440)
+}
+
+@Test func discardTakesBackPartsThatWereAlreadyNamed() throws {
+    let root = try temporaryFolder("discard")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let writer = PartWriter(base: root.appendingPathComponent("Game.iso"), split: true, partSize: 1000)
+    try writer.write(Data(count: 2500))  // .0, .1 and .2, all still .part
+    // Naming fails at .1, after .0 already has its name.
+    try FileManager.default.removeItem(at: PartWriter.partial(root.appendingPathComponent("Game.iso.1")))
+    #expect(throws: (any Error).self) { try writer.close() }
+    writer.discard()
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+}
+
+@Test func leavesWhatIsOnTheDriveOutOfTheSpaceItNeeds() throws {
+    let root = try temporaryFolder("usbspace")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let drive = root.appendingPathComponent("PS3")
+    try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
+    let small = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Small Game")
+    let iso = root.appendingPathComponent("PS3/Game.iso")
+    try Data(count: 10_000).write(to: iso)
+    let games = [
+        Game(path: small.path, title: "Small Game", titleID: "BLES12345", platform: .ps3, isFolder: true, source: .mac,
+             remotePath: "/dev_hdd0/GAMES/Small Game"),
+        Game(path: iso.path, title: "Game", platform: .ps3, size: 10_000, source: .mac, remotePath: "/dev_hdd0/PS3ISO/Game.iso"),
+    ]
+    let before = USBDrive.plan(games, on: drive)
+    #expect(before.copies.allSatisfy { !$0.isOnDrive })
+
+    // The ISO made it to the drive before a copy stopped.
+    try FileManager.default.createDirectory(at: drive.appendingPathComponent("PS3ISO"), withIntermediateDirectories: true)
+    try Data(count: 10_000).write(to: drive.appendingPathComponent("PS3ISO/Game.iso"))
+    let after = USBDrive.plan(games, on: drive)
+    #expect(after.copies.first { $0.kind == .file }?.isOnDrive == true)
+    #expect(after.total == before.total - 10_000)
+}
+
+@Test func copiesGameFoldersWholeOrNotAtAll() async throws {
+    let root = try temporaryFolder("usbfolder")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let drive = root.appendingPathComponent("PS3")
+    try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
+    let small = try makeGameFolder(in: root.appendingPathComponent("GAMES"), name: "Small Game")
+    let game = Game(path: small.path, title: "Small Game", titleID: "BLES12345", platform: .ps3, isFolder: true,
+                    source: .mac, remotePath: "/dev_hdd0/GAMES/Small Game")
+    let target = drive.appendingPathComponent("GAMES/Small Game")
+    let partial = drive.appendingPathComponent("GAMES/Small Game.part")
+
+    // A copy that stopped earlier left a .part folder: it is not taken for the game.
+    try FileManager.default.createDirectory(at: partial, withIntermediateDirectories: true)
+    try Data("half".utf8).write(to: partial.appendingPathComponent("EBOOT.BIN"))
+    let plan = USBDrive.plan([game], on: drive)
+    #expect(plan.copies.map(\.isOnDrive) == [false])
+
+    // Cancelled before it starts: nothing gets the game's name.
+    let cancelled = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        try await USBDrive.copy(plan.copies) { _ in }
+    }
+    await #expect(throws: CancellationError.self) { try await cancelled.value }
+    #expect(!FileManager.default.fileExists(atPath: target.path))
+
+    try await USBDrive.copy(plan.copies) { _ in }
+    #expect(try md5(target.appendingPathComponent("PS3_GAME/USRDIR/EBOOT.BIN")) == md5(small.appendingPathComponent("PS3_GAME/USRDIR/EBOOT.BIN")))
+    #expect(FileManager.default.fileExists(atPath: target.appendingPathComponent("PS3_GAME/TROPDIR").path))
+    #expect(!FileManager.default.fileExists(atPath: target.appendingPathComponent(".DS_Store").path))
+    #expect(!FileManager.default.fileExists(atPath: partial.path))
+    #expect(USBDrive.plan([game], on: drive).copies.map(\.isOnDrive) == [true])
+}
+
+@Test func findsTheDriveForAFolderThatIsNotMadeYet() throws {
+    let root = try temporaryFolder("volume")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let missing = root.appendingPathComponent("PS3ISO/not yet")
+    #expect(USBDrive.volume(missing) == nil)
+    let volume = try #require(USBDrive.volume(containing: missing))
+    #expect(volume.capacity == USBDrive.volume(root)?.capacity)
+}
