@@ -4,25 +4,25 @@ import PS3Kit
 
 struct Saves: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Sparfilerna på PS3:an och i säkerhetskopian på Macen.",
+        abstract: "Saves on the PS3 and in the backup on the Mac.",
         discussion: """
-        ps3 saves                    Sparfilerna på PS3:an
-        ps3 saves backup             Kopiera det som ändrats till Macen (läser bara konsolen)
-        ps3 saves local              Vad som finns i säkerhetskopian
-        ps3 saves restore gran       Lägg tillbaka en sparfil från säkerhetskopian
-        ps3 saves delete gran        Ta bort en sparfil från PS3:an (kopieras till Macen först)
-        Säkerhetskopian ligger i ~/Library/Application Support/ps3center/Sparfiler.
+        ps3 saves                    Saves on the PS3
+        ps3 saves backup             Copy what changed to the Mac (read-only)
+        ps3 saves local              What is in the backup
+        ps3 saves restore gran       Put a save back from the backup
+        ps3 saves delete gran        Delete a save from the PS3 (copied first)
+        The backup is in ~/Library/Application Support/ps3center/Saves.
         """,
         subcommands: [List.self, Backup.self, Local.self, Restore.self, Delete.self],
         defaultSubcommand: List.self
     )
 
     struct List: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(commandName: "list", abstract: "Sparfilerna på PS3:an (standard).")
+        static let configuration = CommandConfiguration(commandName: "list", abstract: "Saves on the PS3.")
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         func run() async throws {
@@ -30,12 +30,12 @@ struct Saves: AsyncParsableCommand {
             let host = try await Console.host(global, quiet: asJSON)
             let saves = try await SaveBackupService(host: host).list()
             if asJSON { UI.json(saves); return }
-            Saves.render(saves, header: "Sparfiler på PS3:an")
+            Saves.render(saves, header: "Saves on the PS3")
         }
     }
 
     struct Backup: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Kopiera sparfiler som ändrats till Macen. Läser bara konsolen.")
+        static let configuration = CommandConfiguration(abstract: "Copy saves that have changed to the Mac. Only reads the console.")
 
         @OptionGroup var global: GlobalOptions
 
@@ -46,37 +46,37 @@ struct Saves: AsyncParsableCommand {
     }
 
     struct Local: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Sparfilerna i säkerhetskopian på Macen.")
+        static let configuration = CommandConfiguration(abstract: "Saves in the backup on the Mac.")
 
         func run() throws {
             let saves = SaveBackupService.local()
             guard !saves.isEmpty else {
-                UI.skip("Ingen säkerhetskopia än. Kör `ps3 saves backup`.")
+                UI.skip("No backup yet. Run `ps3 saves backup`.")
                 return
             }
-            Saves.render(saves, header: "Sparfiler på Macen")
-            if let last = SaveBackupService.lastBackup() { print("\n  Senast kopierat \(Format.day(last)).") }
+            Saves.render(saves, header: "Saves on the Mac")
+            if let last = SaveBackupService.lastBackup() { print("\n  Last copied \(Format.day(last)).") }
         }
     }
 
     struct Restore: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Lägg tillbaka en sparfil från säkerhetskopian (samma användare). Inte medan ett spel körs."
+            abstract: "Put a save back from the backup (same user). Not while a game is running."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Del av titeln, ett title ID eller mappens namn.")
+        @Argument(help: "Part of the title, a title ID or the folder name.")
         var name: [String] = []
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func validate() throws {
-            guard !name.isEmpty else { throw ValidationError("Ange vilken sparfil, t.ex. `ps3 saves restore gran`.") }
+            guard !name.isEmpty else { throw ValidationError("Say which save, e.g. `ps3 saves restore gran`.") }
         }
 
         func run() async throws {
@@ -85,41 +85,41 @@ struct Saves: AsyncParsableCommand {
                 $0.title.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
                     || $0.folder.range(of: query, options: .caseInsensitive) != nil
             }
-            guard let save = matches.first else { throw PS3Error.refused("Ingen sparfil i säkerhetskopian passar \"\(query)\".") }
+            guard let save = matches.first else { throw PS3Error.refused("No save in the backup matches \"\(query)\".") }
             guard matches.count == 1 else {
-                Saves.render(matches, header: "Flera sparfiler passar")
-                throw PS3Error.refused("Skriv mappens namn för att välja en.")
+                Saves.render(matches, header: "Several saves match")
+                throw PS3Error.refused("Type the folder name to pick one.")
             }
             let host = try await Console.host(global)
             UI.header(save.title, detail: save.subtitle ?? save.folder)
-            UI.row("Mapp", "/dev_hdd0/home/\(save.user)/savedata/\(save.folder)")
-            UI.row("Storlek", Format.bytes(save.size))
-            if let modified = save.modified { UI.row("Sparad", Format.day(modified)) }
-            if dryRun { UI.step("Skulle lägga tillbaka sparfilen på \(host)"); return }
-            guard yes || UI.confirm("Skriva över sparfilen på PS3:an med den här? Den som ligger där nu sparas först.") else { return }
+            UI.row("Folder", "/dev_hdd0/home/\(save.user)/savedata/\(save.folder)")
+            UI.row("Size", Format.bytes(save.size))
+            if let modified = save.modified { UI.row("Saved", Format.day(modified)) }
+            if dryRun { UI.step("Would put the save back on \(host)"); return }
+            guard yes || UI.confirm("Overwrite the save on the PS3 with this one? The one there now is backed up first.") else { return }
             try await SaveBackupService(host: host).restore(save) { UI.step($0) }
-            UI.ok("Sparfilen är tillbaka på PS3:an")
+            UI.ok("The save is back on the PS3")
         }
     }
 
     struct Delete: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Ta bort en sparfil från PS3:an. Den kopieras till Macen först, så den går att lägga tillbaka."
+            abstract: "Delete a save from the PS3. It is copied to the Mac first, so it can be put back."
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Del av titeln, ett title ID eller mappens namn.")
+        @Argument(help: "Part of the title, a title ID or the folder name.")
         var name: [String] = []
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func validate() throws {
-            guard !name.isEmpty else { throw ValidationError("Ange vilken sparfil, t.ex. `ps3 saves delete gran`.") }
+            guard !name.isEmpty else { throw ValidationError("Say which save, e.g. `ps3 saves delete gran`.") }
         }
 
         func run() async throws {
@@ -129,18 +129,18 @@ struct Saves: AsyncParsableCommand {
                 $0.title.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
                     || $0.folder.range(of: query, options: .caseInsensitive) != nil
             }
-            guard let save = matches.first else { throw PS3Error.refused("Ingen sparfil på PS3:an passar \"\(query)\".") }
+            guard let save = matches.first else { throw PS3Error.refused("No save on the PS3 matches \"\(query)\".") }
             guard matches.count == 1 else {
-                Saves.render(matches, header: "Flera sparfiler passar")
-                throw PS3Error.refused("Skriv mappens namn för att välja en.")
+                Saves.render(matches, header: "Several saves match")
+                throw PS3Error.refused("Type the folder name to pick one.")
             }
             UI.header(save.title, detail: save.subtitle ?? save.folder)
-            UI.row("Mapp", "/dev_hdd0/home/\(save.user)/savedata/\(save.folder)")
-            UI.row("Storlek", Format.bytes(save.size))
-            if dryRun { UI.step("Skulle kopiera sparfilen till Macen och ta bort den från PS3:an"); return }
-            guard yes || UI.confirm("Ta bort sparfilen från PS3:an? En kopia sparas på Macen först.") else { return }
+            UI.row("Folder", "/dev_hdd0/home/\(save.user)/savedata/\(save.folder)")
+            UI.row("Size", Format.bytes(save.size))
+            if dryRun { UI.step("Would copy the save to the Mac and delete it from the PS3"); return }
+            guard yes || UI.confirm("Delete the save from the PS3? A copy is saved on the Mac first.") else { return }
             try await SaveBackupService(host: host).delete(save) { UI.step($0) }
-            UI.ok("Sparfilen är borttagen. `ps3 saves restore \(save.folder)` lägger tillbaka den.")
+            UI.ok("The save is deleted. `ps3 saves restore \(save.folder)` puts it back.")
         }
     }
 
@@ -149,11 +149,11 @@ struct Saves: AsyncParsableCommand {
         UI.endProgress()
         for save in report.copied { UI.ok("\(save.title) (\(Format.bytes(save.size)))") }
         for failure in report.failed { UI.fail(failure) }
-        UI.ok("Sparfiler: \(report.copied.count) kopierade, \(report.unchanged) oförändrade")
+        UI.ok("Saves: \(report.copied.count) copied, \(report.unchanged) unchanged")
     }
 
     static func render(_ saves: [SaveGame], header: String) {
-        UI.header(header, detail: "\(saves.count) st · \(Format.bytes(saves.reduce(0) { $0 + $1.size }))")
+        UI.header(header, detail: "\(UI.count(saves.count, "save")) · \(Format.bytes(saves.reduce(0) { $0 + $1.size }))")
         for save in saves {
             let date = save.modified.map { UI.paint(Format.day($0), .gray) } ?? ""
             print("  " + save.title + (save.subtitle.map { UI.paint(" · " + $0, .gray) } ?? "")
@@ -164,21 +164,22 @@ struct Saves: AsyncParsableCommand {
 
 struct Backup: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Säkerhetskopiera sparfiler och systemfiler till Macen. Läser bara konsolen.",
+        abstract: "Back up saves and system files to the Mac. Only reads the console.",
         discussion: """
-        Systemfilerna är systeminställningarna (xRegistry.sys), webMAN:s inställningar och
-        boot_plugins-listorna. De sparas i en mapp per tillfälle i
-        ~/Library/Application Support/ps3center/Systemfiler och visas aldrig.
+        The system files are the system settings (xRegistry.sys), webMAN's
+        settings and the boot_plugins lists. They are saved in one folder per
+        run in ~/Library/Application Support/ps3center/System Files and are
+        never displayed.
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Option(name: .long, help: "Bara saves eller system.")
+    @Option(name: .long, help: "Only saves or system.")
     var only: String?
 
     func validate() throws {
-        if let only, !["saves", "system"].contains(only) { throw ValidationError("--only tar saves eller system.") }
+        if let only, !["saves", "system"].contains(only) { throw ValidationError("--only takes saves or system.") }
     }
 
     func run() async throws {
@@ -186,7 +187,7 @@ struct Backup: AsyncParsableCommand {
         if only != "saves" {
             let result = try await SystemFiles.backup(host: host)
             for path in result.saved { UI.ok(path) }
-            UI.ok("Systemfiler i \(result.folder.path)")
+            UI.ok("System files in \(result.folder.path)")
         }
         if only != "system" { try await Saves.backup(host: host) }
     }
@@ -194,34 +195,35 @@ struct Backup: AsyncParsableCommand {
 
 struct Maintain: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Leta efter sådant som tar plats eller kan ställa till det, och städa.",
+        abstract: "Look for things that take up space or could cause trouble, and clean up.",
         subcommands: [Check.self, BlockUpdates.self],
         defaultSubcommand: Check.self
     )
 
     struct Check: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Leta efter sådant som tar plats eller kan ställa till det, och städa.",
+            abstract: "Look for things that take up space or could cause trouble, and clean up.",
             discussion: """
-            Kontrollerar kvarglömda paket, avbrutna överföringar, spel som finns två gånger,
-            webMAN:s cache, boot_plugins som pekar på filer som saknas, HEN:s inställningar och
-            ledigt utrymme. Med --fix tas paket och avbrutna överföringar bort efter en fråga;
-            resten är råd. boot_plugins.txt ändras aldrig.
+            Checks for leftover packages, interrupted transfers, games that
+            exist twice, webMAN's cache, boot_plugins entries that point to
+            missing files, HEN's settings and free space. With --fix, packages
+            and interrupted transfers are removed after a question; the rest
+            is advice. boot_plugins.txt is never changed.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Ta bort det som kan tas bort.")
+        @Flag(name: .long, help: "Remove what can be removed.")
         var fix = false
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle tas bort.")
+        @Flag(name: .long, help: "Show what would be removed.")
         var dryRun = false
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         func run() async throws {
@@ -230,7 +232,7 @@ struct Maintain: AsyncParsableCommand {
             let report = try await service.check { if !json { UI.progress($0) } }
             if !json { UI.endProgress() }
             if json { UI.json(report); return }
-            UI.header("Underhåll", detail: host)
+            UI.header("Maintenance", detail: host)
             for passed in report.passed { UI.ok(passed) }
             for finding in report.findings {
                 let size = finding.size.map { " · " + Format.bytes($0) } ?? ""
@@ -241,16 +243,16 @@ struct Maintain: AsyncParsableCommand {
             guard !fixable.isEmpty else { return }
             let total = fixable.compactMap(\.size).reduce(0, +)
             guard fix || dryRun else {
-                print("\n  " + UI.paint("ps3 maintain --fix", .bold) + " tar bort \(fixable.count) filer (\(Format.bytes(total))).")
+                print("\n  " + UI.paint("ps3 maintain --fix", .bold) + " removes \(UI.count(fixable.count, "file")) (\(Format.bytes(total))).")
                 return
             }
             if dryRun {
-                for finding in fixable { UI.step("Skulle ta bort \(finding.path ?? finding.title)") }
+                for finding in fixable { UI.step("Would remove \(finding.path ?? finding.title)") }
                 return
             }
-            guard yes || UI.confirm("Ta bort \(fixable.count) filer (\(Format.bytes(total))) från PS3:an?") else { return }
+            guard yes || UI.confirm("Remove \(UI.count(fixable.count, "file")) (\(Format.bytes(total))) from the PS3?") else { return }
             for result in try await service.fix(fixable) {
-                if let skipped = result.skipped { UI.skip("\(result.finding.title): \(skipped)") } else { UI.ok("Borttaget: \(result.finding.title)") }
+                if let skipped = result.skipped { UI.skip("\(result.finding.title): \(skipped)") } else { UI.ok("Removed: \(result.finding.title)") }
             }
         }
     }
@@ -258,27 +260,28 @@ struct Maintain: AsyncParsableCommand {
     struct BlockUpdates: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "block-updates",
-            abstract: "Hindra att PS3:an laddar ner en systemuppdatering av misstag.",
+            abstract: "Keep the PS3 from downloading a system update by mistake.",
             discussion: """
-            Lägger webMAN MOD:s egen /dev_hdd0/ps3-updatelist.txt på PS3:an. webMAN pekar då
-            XMB:ns uppdateringskoll på den vid varje start, och den skickar uppdateringen till
-            127.0.0.1. Inget i dev_flash rörs. Gäller från nästa start; --off tar bort filen.
+            Puts webMAN MOD's own /dev_hdd0/ps3-updatelist.txt on the PS3.
+            webMAN then points the XMB's update check at it on every start,
+            and it sends the update to 127.0.0.1. Nothing in dev_flash is
+            touched. Takes effect from the next start; --off removes the file.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Sluta blockera (ta bort filen).")
+        @Flag(name: .long, help: "Stop blocking (remove the file).")
         var off = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
             let host = try await Console.host(global)
             let installed = try await UpdateBlock.isInstalled(host: host)
             if installed != off {
-                UI.skip(off ? "Systemuppdateringar blockeras inte." : "Systemuppdateringar blockeras redan.")
+                UI.skip(off ? "System updates are not blocked." : "System updates are already blocked.")
                 return
             }
             try await UpdateBlock.set(!off, host: host, dryRun: dryRun) { UI.ok($0) }
@@ -288,27 +291,27 @@ struct Maintain: AsyncParsableCommand {
 
 struct Analyze: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Vad som tar plats på /dev_hdd0, mapp för mapp (räknas på konsolen med webMAN:s /stat.ps3)."
+        abstract: "What takes up space on /dev_hdd0, folder by folder (counted on the console with webMAN's /stat.ps3)."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Skriv ut JSON.")
+    @Flag(name: .long, help: "Print JSON.")
     var json = false
 
     func run() async throws {
         let host = try await Console.host(global, quiet: json)
-        let map = try await StorageAnalyzer(host: host).analyze { if !json { UI.progress("Räknar \($0)") } }
+        let map = try await StorageAnalyzer(host: host).analyze { if !json { UI.progress("Counting \($0)") } }
         if !json { UI.endProgress() }
         if json { UI.json(map); return }
         let total = Double(map.total ?? max(1, map.areas.reduce(0) { $0 + $1.bytes }))
-        UI.header("Lagring", detail: map.free.map { "\(Format.bytes($0)) ledigt" + (map.total.map { " av \(Format.bytes($0))" } ?? "") })
+        UI.header("Storage", detail: map.free.map { "\(Format.bytes($0)) free" + (map.total.map { " of \(Format.bytes($0))" } ?? "") })
         for area in map.areas {
             UI.row(area.name, "\(UI.bar(Double(area.bytes) / total, width: 20, color: .blue)) \(Format.bytes(area.bytes))", width: 30)
         }
-        if let other = map.other, other > 0 { UI.row("Övrigt och systemet", "\(UI.bar(Double(other) / total, width: 20, color: .gray)) \(Format.bytes(other))", width: 30) }
+        if let other = map.other, other > 0 { UI.row("Other and system", "\(UI.bar(Double(other) / total, width: 20, color: .gray)) \(Format.bytes(other))", width: 30) }
         if !map.largest.isEmpty {
-            print("\n  " + UI.paint("Största filerna", .bold))
+            print("\n  " + UI.paint("Largest Files", .bold))
             for file in map.largest { UI.row(Format.bytes(file.bytes), file.path) }
         }
     }
@@ -316,19 +319,19 @@ struct Analyze: AsyncParsableCommand {
 
 struct Rip: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Kopiera PS3-skivan i spelaren till /dev_hdd0/GAMES (webMAN gör jobbet på konsolen).",
-        discussion: "Bara dina egna skivor. Ctrl-C slutar följa förloppet; `ps3 rip --abort` stoppar kopieringen."
+        abstract: "Copy the PS3 disc in the drive to /dev_hdd0/GAMES (webMAN does the work on the console).",
+        discussion: "Your own discs only. Ctrl-C stops following the progress; `ps3 rip --abort` stops the copy."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Stoppa en kopiering som pågår.")
+    @Flag(name: .long, help: "Stop a copy in progress.")
     var abort = false
 
-    @Flag(name: [.short, .long], help: "Fråga inte.")
+    @Flag(name: [.short, .long], help: "Do not ask.")
     var yes = false
 
-    @Flag(name: .long, help: "Visa vad som skulle hända.")
+    @Flag(name: .long, help: "Show what would happen.")
     var dryRun = false
 
     func run() async throws {
@@ -336,23 +339,23 @@ struct Rip: AsyncParsableCommand {
         let ripper = DiscRipper(host: host)
         if abort {
             try await ripper.abort()
-            UI.ok("Kopieringen stoppas")
+            UI.ok("The copy is stopping")
             return
         }
         guard let disc = try await ripper.disc() else {
-            throw PS3Error.refused("Ingen PS3-skiva i spelaren.")
+            throw PS3Error.refused("No PS3 disc in the drive.")
         }
         UI.header(disc.title, detail: disc.titleID)
-        UI.row("Storlek", Format.bytes(disc.bytes))
-        UI.row("Till", disc.destination)
-        if dryRun { UI.step("Skulle kopiera skivan till \(disc.destination)"); return }
-        guard yes || UI.confirm("Kopiera skivan till PS3:ans hårddisk?") else { return }
+        UI.row("Size", Format.bytes(disc.bytes))
+        UI.row("To", disc.destination)
+        if dryRun { UI.step("Would copy the disc to \(disc.destination)"); return }
+        guard yes || UI.confirm("Copy the disc to the PS3's hard drive?") else { return }
         let started = Date()
         try await ripper.rip(disc) { copied in
             let fraction = disc.bytes > 0 ? Double(copied) / Double(disc.bytes) : 0
-            UI.progress("\(UI.bar(fraction, width: 24)) \(Format.bytes(copied)) av \(Format.bytes(disc.bytes))")
+            UI.progress("\(UI.bar(fraction, width: 24)) \(Format.bytes(copied)) of \(Format.bytes(disc.bytes))")
         }
         UI.endProgress()
-        UI.ok("Klart på \(Format.duration(Date().timeIntervalSince(started))). Uppdatera spellistan med `ps3 refresh`.")
+        UI.ok("Done in \(Format.duration(Date().timeIntervalSince(started))). Refresh the game list with `ps3 refresh`.")
     }
 }

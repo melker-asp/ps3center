@@ -3,32 +3,32 @@ import Foundation
 import PS3Kit
 
 struct Popup: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Visa ett meddelande på TV:n.")
+    static let configuration = CommandConfiguration(abstract: "Show a message on the TV.")
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Texten som ska visas.")
+    @Argument(help: "The text to show.")
     var text: [String]
 
     func run() async throws {
         let host = try await Console.host(global)
         try await WebMAN(host: host).popup(text.joined(separator: " "))
-        UI.ok("Visat på PS3:an")
+        UI.ok("Shown on the PS3")
     }
 }
 
 struct Refresh: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Uppdatera webMANs spellista (som SELECT + L3).",
-        discussion: "Med --xmb laddas XMB:n om också, så nya och borttagna ikoner syns direkt. Med en användare och Reload XMB installerat startar webMAN den appen; annars loggar den ut och in."
+        abstract: "Refresh webMAN's game list (like SELECT + L3).",
+        discussion: "With --xmb the XMB is reloaded too, so new and removed icons show right away. With a user signed in and Reload XMB installed, webMAN starts that app; otherwise it signs out and back in."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Kör även om ett spel körs.")
+    @Flag(name: .long, help: "Go ahead even if a game is running.")
     var force = false
 
-    @Flag(name: .long, help: "Ladda om XMB:n också.")
+    @Flag(name: .long, help: "Reload the XMB too.")
     var xmb = false
 
     func run() async throws {
@@ -38,29 +38,29 @@ struct Refresh: AsyncParsableCommand {
         try await service.waitUntilIdle(force: force) { printer.handle($0) }
         if xmb {
             try await service.webman.reloadXMB()
-            UI.ok("Spellistan uppdaterad och XMB:n omladdad")
+            UI.ok("Game list refreshed and XMB reloaded")
             return
         }
         try await service.webman.refreshGames()
         OperationLog.record("refresh", host)
-        UI.ok("Spellistan uppdaterad")
+        UI.ok("Game list refreshed")
     }
 }
 
 struct History: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Visa vad PS3 Center har ändrat på konsolen.")
+    static let configuration = CommandConfiguration(abstract: "Show what PS3 Center has changed on the console.")
 
-    @Option(name: .shortAndLong, help: "Antal rader.")
+    @Option(name: .shortAndLong, help: "Number of rows.")
     var limit = 20
 
-    @Flag(name: .long, help: "Skriv ut JSON.")
+    @Flag(name: .long, help: "Print JSON.")
     var json = false
 
     func run() throws {
         let entries = OperationLog.read(limit: limit)
         if json || !UI.isTTY { UI.json(entries); return }
-        guard !entries.isEmpty else { UI.skip("Ingen historik än."); return }
-        UI.header("Historik", detail: OperationLog.file.path)
+        guard !entries.isEmpty else { UI.skip("No history yet."); return }
+        UI.header("History", detail: OperationLog.file.path)
         // As wide as the longest action ("uninstall", "webman-setup"), so none runs into its detail.
         let width = (entries.map(\.action.count).max() ?? 0) + 2
         for e in entries {
@@ -71,43 +71,43 @@ struct History: ParsableCommand {
 }
 
 struct Discover: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Leta efter PS3:or med webMAN på nätverket och spara adressen.")
+    static let configuration = CommandConfiguration(abstract: "Look for PS3s running webMAN on the network and save the address.")
 
     func run() async throws {
-        UI.step("Söker i \(Discovery.localSubnets().map { "\($0).0/24" }.joined(separator: ", "))…")
+        UI.step("Searching \(Discovery.localSubnets().map { "\($0).0/24" }.joined(separator: ", "))…")
         let found = await Discovery.scan()
         guard let first = found.first else { throw PS3Error.noHost }
-        for host in found { UI.ok("webMAN svarar på \(host)") }
+        for host in found { UI.ok("webMAN answers at \(host)") }
         var config = ConfigStore.load()
         config.host = first
         try ConfigStore.save(config)
-        UI.ok("Sparade \(first) som PS3:ans adress")
+        UI.ok("Saved \(first) as the PS3's address")
     }
 }
 
 struct Config: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Visa eller ändra inställningar (~/.config/ps3center/config.json).",
+        abstract: "Show or change settings (~/.config/ps3center/config.json).",
         subcommands: [Show.self, Set.self, Folder.self],
         defaultSubcommand: Show.self
     )
 
     struct Show: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Visa inställningarna.")
+        static let configuration = CommandConfiguration(abstract: "Show the settings.")
         func run() throws {
             let config = ConfigStore.load()
-            UI.header("Inställningar", detail: ConfigStore.file.path)
-            UI.row("host", config.host ?? UI.paint("(hittas automatiskt)", .gray))
-            UI.row("root", config.root ?? (MirrorRoot.resolve().map { $0.path + UI.paint("  (hittad automatiskt)", .gray) } ?? UI.paint("(saknas)", .gray)))
+            UI.header("Settings", detail: ConfigStore.file.path)
+            UI.row("host", config.host ?? UI.paint("(found automatically)", .gray))
+            UI.row("root", config.root ?? (MirrorRoot.resolve().map { $0.path + UI.paint("  (found automatically)", .gray) } ?? UI.paint("(missing)", .gray)))
             let linked = GameFolders.linked()
             if linked.isEmpty {
-                UI.row("spelmappar", UI.paint("(inga, se ps3 config folder add)", .gray))
+                UI.row("game folders", UI.paint("(none, see ps3 config folder add)", .gray))
             }
             for (kind, url) in linked {
-                UI.row(kind.name, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (inte ansluten)", .yellow)))
+                UI.row(kind.name, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (not connected)", .yellow)))
             }
             for url in PackageFolders.linked(config: config) {
-                UI.row(PackageFolders.kindName, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (inte ansluten)", .yellow)))
+                UI.row(PackageFolders.kindName, url.path + (FileManager.default.fileExists(atPath: url.path) ? "" : UI.paint("  (not connected)", .yellow)))
             }
         }
     }
@@ -115,16 +115,17 @@ struct Config: ParsableCommand {
     struct Folder: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "folder",
-            abstract: "Koppla Macens spelmappar per typ (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) och paketmappar (PKG).",
+            abstract: "Link the Mac's game folders by type (PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO) and package folders (PKG).",
             discussion: """
-            ps3 config folder add PS3ISO ~/Spel/PS3
-            ps3 config folder remove PS3ISO ~/Spel/PS3
-            ps3 config folder watch ~/Spel/PS3      Skicka nya spel i mappen av sig själva
-            ps3 config folder unwatch ~/Spel/PS3
-            ps3 config folder add PKG ~/Paket        En mapp med .pkg-filer
-            Spegelmappens dev_hdd0/<TYP> räknas med automatiskt. Spelen i mapparna visas med
-            `ps3 games mac` och skickas med `ps3 queue add`. Paketen visas med `ps3 apps mac`
-            och installeras med `ps3 apps install`; de ligger kvar i mappen.
+            ps3 config folder add PS3ISO ~/Games/PS3
+            ps3 config folder remove PS3ISO ~/Games/PS3
+            ps3 config folder watch ~/Games/PS3      Send new games in it automatically
+            ps3 config folder unwatch ~/Games/PS3
+            ps3 config folder add PKG ~/Packages     A folder of .pkg files
+            The mirror folder's dev_hdd0/<TYPE> is included automatically. The
+            games in the folders are listed with `ps3 games mac` and sent with
+            `ps3 queue add`. The packages are listed with `ps3 apps mac` and
+            installed with `ps3 apps install`; they stay in the folder.
             """,
             subcommands: [List.self, Add.self, Remove.self, Watch.self, Unwatch.self],
             defaultSubcommand: List.self
@@ -132,39 +133,39 @@ struct Config: ParsableCommand {
 
         static func kind(_ name: String) throws -> GameFolders.Kind {
             guard let kind = GameFolders.kind(named: name) else {
-                throw ValidationError("Okänd typ: \(name). Använd \(GameFolders.kinds.map(\.name).joined(separator: ", ")).")
+                throw ValidationError("Unknown type: \(name). Use \(GameFolders.kinds.map(\.name).joined(separator: ", ")).")
             }
             return kind
         }
 
         struct List: ParsableCommand {
-            static let configuration = CommandConfiguration(commandName: "list", abstract: "Visa de kopplade mapparna (standard).")
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "Show the linked folders.")
 
             func run() throws {
-                UI.header("Spelmappar", detail: ConfigStore.file.path)
+                UI.header("Game Folders", detail: ConfigStore.file.path)
                 let linked = GameFolders.linked()
                 for kind in GameFolders.kinds {
                     let folders = linked.filter { $0.kind == kind }
                     let paths = folders.map {
-                        $0.url.path + (FileManager.default.fileExists(atPath: $0.url.path) ? "" : UI.paint("  (inte ansluten)", .yellow))
-                            + (FolderWatch.isWatched($0.url) ? UI.paint("  bevakas", .green) : "")
+                        $0.url.path + (FileManager.default.fileExists(atPath: $0.url.path) ? "" : UI.paint("  (not connected)", .yellow))
+                            + (FolderWatch.isWatched($0.url) ? UI.paint("  watched", .green) : "")
                     }
                     UI.row(kind.name, paths.isEmpty ? UI.paint("–", .gray) : paths.joined(separator: "\n" + String(repeating: " ", count: 14)))
                 }
                 let packages = PackageFolders.linked().map {
-                    $0.path + (FileManager.default.fileExists(atPath: $0.path) ? "" : UI.paint("  (inte ansluten)", .yellow))
+                    $0.path + (FileManager.default.fileExists(atPath: $0.path) ? "" : UI.paint("  (not connected)", .yellow))
                 }
                 UI.row(PackageFolders.kindName, packages.isEmpty ? UI.paint("–", .gray) : packages.joined(separator: "\n" + String(repeating: " ", count: 14)))
             }
         }
 
         struct Add: ParsableCommand {
-            static let configuration = CommandConfiguration(abstract: "Koppla en mapp, t.ex. ps3 config folder add PS3ISO ~/Spel/PS3.")
+            static let configuration = CommandConfiguration(abstract: "Link a folder, e.g. ps3 config folder add PS3ISO ~/Games/PS3.")
 
-            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO eller PKG (paket).")
+            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO or PKG (packages).")
             var kind: String
 
-            @Argument(help: "Mappen på Macen.", completion: .directory)
+            @Argument(help: "The folder on the Mac.", completion: .directory)
             var path: String
 
             func run() throws {
@@ -173,60 +174,60 @@ struct Config: ParsableCommand {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-                    throw ValidationError("\(url.path) är ingen mapp.")
+                    throw ValidationError("\(url.path) is not a folder.")
                 }
                 if let kind {
                     try GameFolders.add(url, as: kind)
-                    UI.ok("\(url.path) är kopplad som \(kind.label)")
+                    UI.ok("\(url.path) is linked as \(kind.label)")
                 } else {
                     try PackageFolders.add(url)
-                    UI.ok("\(url.path) är kopplad som paketmapp. Paketen visas med `ps3 apps mac`.")
+                    UI.ok("\(url.path) is linked as a package folder. The packages are listed with `ps3 apps mac`.")
                 }
             }
         }
 
         struct Watch: ParsableCommand {
             static let configuration = CommandConfiguration(
-                abstract: "Bevaka en kopplad mapp: nya spel i den läggs i kön när de har slutat växa.",
-                discussion: "Det som redan finns i mappen räknas inte som nytt. Appen bevakar medan den är öppen; utan appen gör `ps3 watch` samma sak."
+                abstract: "Watch a linked folder: new games in it are added to the queue once they stop growing.",
+                discussion: "What is already in the folder does not count as new. The app watches while it is open; without the app, `ps3 watch` does the same."
             )
 
-            @Argument(help: "En kopplad mapp på Macen.", completion: .directory)
+            @Argument(help: "A linked folder on the Mac.", completion: .directory)
             var path: String
 
             func run() throws {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                 if PackageFolders.linked().contains(where: { $0.path == url.path }) {
-                    throw ValidationError("Paketmappar bevakas inte: ett paket installeras bara när du ber om det (`ps3 apps mac`).")
+                    throw ValidationError("Package folders are not watched: a package is only installed when you ask for it (`ps3 apps mac`).")
                 }
                 guard GameFolders.linked().contains(where: { $0.url.path == url.path }) else {
-                    throw ValidationError("\(url.path) är inte kopplad. Koppla den först med `ps3 config folder add <typ> \(path)`.")
+                    throw ValidationError("\(url.path) is not linked. Link it first with `ps3 config folder add <type> \(path)`.")
                 }
                 try FolderWatch.setWatched(url, true)
-                UI.ok("\(url.path) bevakas")
+                UI.ok("\(url.path) is watched")
             }
         }
 
         struct Unwatch: ParsableCommand {
-            static let configuration = CommandConfiguration(abstract: "Sluta bevaka en mapp.")
+            static let configuration = CommandConfiguration(abstract: "Stop watching a folder.")
 
-            @Argument(help: "Mappen på Macen.", completion: .directory)
+            @Argument(help: "The folder on the Mac.", completion: .directory)
             var path: String
 
             func run() throws {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                 try FolderWatch.setWatched(url, false)
-                UI.ok("\(url.path) bevakas inte längre")
+                UI.ok("\(url.path) is no longer watched")
             }
         }
 
         struct Remove: ParsableCommand {
-            static let configuration = CommandConfiguration(abstract: "Koppla bort en mapp (filerna rörs inte).")
+            static let configuration = CommandConfiguration(abstract: "Unlink a folder (the files are not touched).")
 
-            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO eller PKG (paket).")
+            @Argument(help: "PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO, DVDISO or PKG (packages).")
             var kind: String
 
-            @Argument(help: "Mappen på Macen.", completion: .directory)
+            @Argument(help: "The folder on the Mac.", completion: .directory)
             var path: String
 
             func run() throws {
@@ -236,18 +237,18 @@ struct Config: ParsableCommand {
                 } else {
                     try GameFolders.remove(url, from: try Folder.kind(self.kind))
                 }
-                UI.ok("\(url.path) är bortkopplad")
+                UI.ok("\(url.path) is unlinked")
             }
         }
     }
 
     struct Set: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Ändra en inställning: host eller root.")
+        static let configuration = CommandConfiguration(abstract: "Change a setting: host or root.")
 
-        @Argument(help: "host eller root")
+        @Argument(help: "host or root")
         var key: String
 
-        @Argument(help: "Värdet. Tom sträng tar bort inställningen.")
+        @Argument(help: "The value. An empty string removes the setting.")
         var value: String
 
         func run() throws {
@@ -259,16 +260,16 @@ struct Config: ParsableCommand {
                 if let path = cleaned {
                     let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                     guard MirrorRoot.looksLikeMirror(url) else {
-                        throw ValidationError("\(url.path) ser inte ut som PS3-mappen (saknar dev_hdd0/ eller _Installerat/).")
+                        throw ValidationError("\(url.path) does not look like the PS3 folder (missing dev_hdd0/ or _Installed/).")
                     }
                     config.root = url.path
                 } else {
                     config.root = nil
                 }
-            default: throw ValidationError("Okänd inställning: \(key). Använd host eller root.")
+            default: throw ValidationError("Unknown setting: \(key). Use host or root.")
             }
             try ConfigStore.save(config)
-            UI.ok("\(key) = \(cleaned ?? "(borttagen)")")
+            UI.ok("\(key) = \(cleaned ?? "(removed)")")
         }
     }
 }

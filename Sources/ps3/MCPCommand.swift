@@ -5,14 +5,14 @@ import PS3Kit
 struct MCP: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp",
-        abstract: "MCP-server över stdio, så att t.ex. Claude kan läsa och felsöka PS3:an. Ändrar ingenting.",
+        abstract: "MCP server over stdio, so that Claude, for example, can read and troubleshoot the PS3. Changes nothing.",
         discussion: """
         Claude Code:     claude mcp add ps3 -- ~/.local/bin/ps3 mcp
-        Claude Desktop:  lägg till i claude_desktop_config.json under "mcpServers":
-                         "ps3": { "command": "/Users/<du>/.local/bin/ps3", "args": ["mcp"] }
+        Claude Desktop:  add to claude_desktop_config.json under "mcpServers":
+                         "ps3": { "command": "/Users/<you>/.local/bin/ps3", "args": ["mcp"] }
 
-        Verktyg: ps3_status, ps3_apps, ps3_games, ps3_maintenance_report, ps3_history och
-        ps3_explain_error. Alla läser bara; ändringar görs med ps3 eller i appen.
+        Tools: ps3_status, ps3_apps, ps3_games, ps3_maintenance_report, ps3_history and
+        ps3_explain_error. All are read-only; changes are made with ps3 or in the app.
         """
     )
 

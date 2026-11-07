@@ -3,7 +3,7 @@ import Foundation
 import PS3Kit
 
 struct GlobalOptions: ParsableArguments {
-    @Option(name: .long, help: "PS3:ans IP-adress (annars från inställningarna eller PS3_HOST).")
+    @Option(name: .long, help: "The PS3's IP address (otherwise from settings or PS3_HOST).")
     var host: String?
 }
 
@@ -13,9 +13,9 @@ enum Console {
             guard !quiet else { return }
             switch event {
             case .scanning(let previous):
-                UI.step(previous.map { "Ingen kontakt med \($0), letar efter PS3:an på nätverket…" } ?? "Letar efter PS3:an på nätverket…")
+                UI.step(previous.map { "No contact with \($0), looking for the PS3 on the network…" } ?? "Looking for the PS3 on the network…")
             case .found(let host):
-                UI.ok("Hittade PS3:an på \(host) (sparad)")
+                UI.ok("Found the PS3 at \(host) (saved)")
             }
         }
     }

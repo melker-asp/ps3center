@@ -4,35 +4,35 @@ import PS3Kit
 
 struct Queue: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Kön av spel att skicka, delad med appen. Tål avbrott och fortsätter där den slutade.",
+        abstract: "The queue of games to send, shared with the app. Survives interruptions and resumes where it stopped.",
         discussion: """
-        ps3 queue                        Visa kön
-        ps3 queue add Spel.iso           Lägg filer eller spel från Macens spelmappar i kön
-        ps3 queue start                  Skicka allt i kön, ett spel i taget
-        ps3 queue start --when-done shutdown   Stäng av PS3:an när kön är klar (aldrig mitt i ett spel)
-        ps3 queue clear                  Ta bort det som är klart
-        Ctrl-C stoppar rent: filen på PS3:an ligger kvar och nästa start fortsätter där.
-        Macen hålls vaken så länge kön går.
+        ps3 queue                        Show the queue
+        ps3 queue add Game.iso           Add files or games from the Mac to the queue
+        ps3 queue start                  Send the queue, one game at a time
+        ps3 queue start --when-done shutdown   Shut down the PS3 afterwards
+        ps3 queue clear                  Remove what is done
+        Ctrl-C stops cleanly: the file on the PS3 stays and the next start
+        resumes there. The Mac stays awake as long as the queue runs.
         """,
         subcommands: [List.self, Add.self, Start.self, Remove.self, Clear.self],
         defaultSubcommand: List.self
     )
 
     struct List: ParsableCommand {
-        static let configuration = CommandConfiguration(commandName: "list", abstract: "Visa kön (standard).")
+        static let configuration = CommandConfiguration(commandName: "list", abstract: "Show the queue.")
 
-        @Flag(name: .long, help: "Skriv ut JSON.")
+        @Flag(name: .long, help: "Print JSON.")
         var json = false
 
         func run() throws {
             let queue = TransferQueue.load()
             if json || !UI.isTTY { UI.json(queue); return }
             guard !queue.items.isEmpty else {
-                UI.skip("Kön är tom. Lägg till med `ps3 queue add <filer eller spel>`.")
+                UI.skip("The queue is empty. Add with `ps3 queue add <files or games>`.")
                 return
             }
-            UI.header("Kön", detail: "\(queue.pending.count) kvar · \(Format.bytes(queue.remainingBytes))"
-                      + (SpeedTest.estimate(bytes: queue.remainingBytes).map { " · ca \(Format.duration($0))" } ?? ""))
+            UI.header("Queue", detail: "\(queue.pending.count) left · \(Format.bytes(queue.remainingBytes))"
+                      + (SpeedTest.estimate(bytes: queue.remainingBytes).map { " · about \(Format.duration($0))" } ?? ""))
             for (index, item) in queue.items.enumerated() {
                 let number = UI.paint(String(format: "%2d", index + 1), .gray)
                 let marker: String
@@ -46,24 +46,24 @@ struct Queue: AsyncParsableCommand {
                 print("  \(number) \(marker) \(item.title.padding(toLength: 40, withPad: " ", startingAt: 0))\(Format.bytes(item.total))\(progress)")
                 if let message = item.message, item.state == .failed { print("        " + UI.paint(message, .gray)) }
             }
-            print("\n  När kön är klar: " + queue.whenDone.label + (queue.verify ? " · MD5-kontroll" : ""))
+            print("\n  When the queue is done: " + queue.whenDone.label + (queue.verify ? " · MD5 check" : ""))
         }
     }
 
     struct Add: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Lägg filer, mappar eller spel från Macens spelmappar i kön.",
-            discussion: "En sökväg skickas som med `ps3 send`; annars söks namnet bland spelen i `ps3 games mac`."
+            abstract: "Add files, folders or games from the Mac's game folders to the queue.",
+            discussion: "A path is sent as with `ps3 send`; otherwise the name is looked up among the games in `ps3 games mac`."
         )
 
-        @Argument(help: "Filer, mappar eller namn på spel i Macens spelmappar.", completion: .file())
+        @Argument(help: "Files, folders or names of games in the Mac's game folders.", completion: .file())
         var items: [String] = []
 
-        @Option(name: .long, help: "Skicka till en egen mapp på PS3:an, t.ex. /dev_hdd0/PS3ISO.")
+        @Option(name: .long, help: "Send to a custom folder on the PS3, e.g. /dev_hdd0/PS3ISO.")
         var to: String?
 
         func validate() throws {
-            guard !items.isEmpty else { throw ValidationError("Ange filer eller spel att lägga i kön.") }
+            guard !items.isEmpty else { throw ValidationError("Give files or games to add to the queue.") }
         }
 
         func run() throws {
@@ -82,40 +82,40 @@ struct Queue: AsyncParsableCommand {
                 switch Game.lookup(names.joined(separator: " "), in: games) {
                 case .found(let game): routes += try game.routes()
                 case .ambiguous(let matches):
-                    throw PS3Error.invalidFile("\(names.joined(separator: " ")) kan betyda flera: \(matches.prefix(8).map(\.title).joined(separator: ", ")).")
+                    throw PS3Error.invalidFile("\(names.joined(separator: " ")) could mean several: \(matches.prefix(8).map(\.title).joined(separator: ", ")).")
                 case .missing:
-                    throw PS3Error.invalidFile("Hittar varken filen eller spelet \(names.joined(separator: " ")) i Macens spelmappar (se `ps3 games mac`).")
+                    throw PS3Error.invalidFile("Found neither the file nor the game \(names.joined(separator: " ")) in the Mac's game folders (see `ps3 games mac`).")
                 }
             }
             let added = TransferQueue.edit { $0.add(routes) }
             guard !added.isEmpty else {
-                UI.skip("Det ligger redan i kön.")
+                UI.skip("It is already in the queue.")
                 return
             }
-            for item in added { UI.ok("\(item.title) (\(Format.bytes(item.total))) ligger i kön") }
-            print("\n  Skicka med " + UI.paint("ps3 queue start", .bold) + ".")
+            for item in added { UI.ok("\(item.title) (\(Format.bytes(item.total))) is in the queue") }
+            print("\n  Send with " + UI.paint("ps3 queue start", .bold) + ".")
         }
     }
 
     struct Start: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Skicka allt i kön, ett spel i taget.")
+        static let configuration = CommandConfiguration(abstract: "Send everything in the queue, one game at a time.")
 
         @OptionGroup var global: GlobalOptions
 
-        @Option(name: .long, help: "När kön är klar: nothing, popup eller shutdown. Sparas till nästa gång.")
+        @Option(name: .long, help: "When the queue is done: nothing, popup or shutdown. Remembered for next time.")
         var whenDone: String?
 
-        @Flag(name: .long, inversion: .prefixedNo, help: "Jämför MD5 på PS3:an med Macens efter varje stor fil. Sparas till nästa gång.")
+        @Flag(name: .long, inversion: .prefixedNo, help: "Compare the PS3's MD5 with the Mac's after each large file. Remembered for next time.")
         var verify: Bool?
 
         func run() async throws {
             guard let lock = QueueLock() else {
-                throw PS3Error.refused("Kön skickas redan, från appen eller ett annat `ps3 queue start`.")
+                throw PS3Error.refused("The queue is already being sent, from the app or another `ps3 queue start`.")
             }
             var choice: TransferQueue.WhenDone?
             if let whenDone {
                 guard let parsed = TransferQueue.WhenDone(rawValue: whenDone) else {
-                    throw ValidationError("--when-done tar nothing, popup eller shutdown.")
+                    throw ValidationError("--when-done takes nothing, popup or shutdown.")
                 }
                 choice = parsed
             }
@@ -125,13 +125,13 @@ struct Queue: AsyncParsableCommand {
                 return latest
             }
             guard !queue.pending.isEmpty else {
-                UI.skip("Inget i kön att skicka.")
+                UI.skip("Nothing in the queue to send.")
                 return
             }
             let host = try await Console.host(global)
-            let awake = KeepAwake(reason: "Skickar spel till PS3:an")
+            let awake = KeepAwake(reason: "Sending games to the PS3")
             defer { withExtendedLifetime(awake) {} }
-            UI.header("Skickar kön", detail: "\(queue.pending.count) st · \(Format.bytes(queue.remainingBytes))")
+            UI.header("Sending the queue", detail: "\(queue.pending.count) item\(queue.pending.count == 1 ? "" : "s") · \(Format.bytes(queue.remainingBytes))")
             if KeepAwake.isOnBattery { UI.warn(KeepAwake.batteryTip) }
             let runner = QueueRunner(host: host)
             let printer = TransferPrinter(dryRun: false)
@@ -169,36 +169,36 @@ struct Queue: AsyncParsableCommand {
             }
             try await runner.finish(sent: sentTitles, refresh: refreshes, whenDone: queue.whenDone) { printer.handle($0) }
             withExtendedLifetime(lock) {}
-            UI.ok("Kön är klar: \(sentTitles.count) skickade")
+            UI.ok("The queue is done: \(sentTitles.count) sent")
         }
     }
 
     struct Remove: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Ta bort en rad ur kön (numret från `ps3 queue`). Filer på PS3:an rörs inte.")
+        static let configuration = CommandConfiguration(abstract: "Remove a row from the queue (the number from `ps3 queue`). Files on the PS3 are not touched.")
 
-        @Argument(help: "Radens nummer.")
+        @Argument(help: "The row number.")
         var number: Int
 
         func run() throws {
             let item = try TransferQueue.edit { queue -> TransferQueue.Item in
-                guard queue.items.indices.contains(number - 1) else { throw ValidationError("Kön har ingen rad \(number).") }
+                guard queue.items.indices.contains(number - 1) else { throw ValidationError("The queue has no row \(number).") }
                 return queue.items.remove(at: number - 1)
             }
-            UI.ok("\(item.title) är borttaget ur kön")
+            UI.ok("\(item.title) was removed from the queue")
         }
     }
 
     struct Clear: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Ta bort det som är klart ur kön, eller allt med --all.")
+        static let configuration = CommandConfiguration(abstract: "Remove what is done from the queue, or everything with --all.")
 
-        @Flag(name: .long, help: "Töm hela kön.")
+        @Flag(name: .long, help: "Empty the whole queue.")
         var all = false
 
         func run() throws {
             TransferQueue.edit { queue in
                 if all { queue.items.removeAll() } else { queue.removeFinished() }
             }
-            UI.ok(all ? "Kön är tömd" : "Klara rader är borttagna")
+            UI.ok(all ? "The queue is emptied" : "Finished rows are removed")
         }
     }
 }
@@ -206,24 +206,24 @@ struct Queue: AsyncParsableCommand {
 struct Speedtest: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "speedtest",
-        abstract: "Mät hur fort filer går till och från PS3:an. Resultatet ger tidsberäkningar i kön och appen."
+        abstract: "Measure how fast files go to and from the PS3. The result gives time estimates in the queue and the app."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Option(name: .long, help: "Sekunder att skicka.")
+    @Option(name: .long, help: "Seconds to send.")
     var seconds = 5
 
-    @Option(name: .long, help: "Högst så här många megabyte.")
+    @Option(name: .long, help: "At most this many megabytes.")
     var mb = 256
 
     func run() async throws {
         let host = try await Console.host(global)
-        UI.header("Hastighetstest", detail: "\(seconds) sekunder till /dev_hdd0/tmp, sedan tillbaka")
+        UI.header("Speed Test", detail: "\(seconds) seconds to /dev_hdd0/tmp, then back")
         let result = try await SpeedTest.run(host: host, seconds: TimeInterval(seconds), megabytes: mb) { event in
             switch event {
             case .progress(_, let sent, let total, let rate):
-                UI.progress("\(UI.bar(total > 0 ? Double(sent) / Double(total) : 0)) Skickar  \(Format.rate(rate))")
+                UI.progress("\(UI.bar(total > 0 ? Double(sent) / Double(total) : 0)) Sending  \(Format.rate(rate))")
             case .note(let text):
                 UI.endProgress()
                 UI.step(text)
@@ -232,67 +232,67 @@ struct Speedtest: AsyncParsableCommand {
             }
         }
         UI.endProgress()
-        UI.row("Till PS3:an", Format.rate(result.upload))
-        if let down = result.download { UI.row("Från PS3:an", Format.rate(down)) }
-        if let network = result.network { UI.row("Nätverk", network) }
+        UI.row("To the PS3", Format.rate(result.upload))
+        if let down = result.download { UI.row("From the PS3", Format.rate(down)) }
+        if let network = result.network { UI.row("Network", network) }
         let tenGB: Int64 = 10_000_000_000
-        UI.row("10 GB tar", Format.duration(Double(tenGB) / result.upload))
+        UI.row("10 GB takes", Format.duration(Double(tenGB) / result.upload))
         if result.network == "Wi-Fi" {
             print()
-            UI.warn("PS3:an är på Wi-Fi (bara 2,4 GHz). Med nätverkskabel brukar det gå flera gånger fortare.")
+            UI.warn("The PS3 is on Wi-Fi (2.4 GHz only). With a network cable it is usually several times faster.")
         }
     }
 }
 
 struct Power: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Stäng av eller starta om PS3:an.",
-        discussion: "På HEN måste HEN aktiveras igen efter en omstart, och PS3:an kan inte startas från Macen.",
+        abstract: "Shut down or restart the PS3.",
+        discussion: "On HEN, HEN has to be enabled again after a restart, and the PS3 cannot be started from the Mac.",
         subcommands: [Off.self, Restart.self]
     )
 
     struct Off: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Stäng av PS3:an (väntar inte på spel; avsluta först om du vill spara).")
+        static let configuration = CommandConfiguration(abstract: "Shut down the PS3 (does not wait for games; quit first if you want to save).")
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
             let host = try await Console.host(global)
             if let running = try await WebMAN(host: host).snapshot().mountedGameName, try await WebMAN(host: host).isGameRunning() {
-                UI.warn("\(running) körs. Spara först, osparade framsteg försvinner.")
+                UI.warn("\(running) is running. Save first, unsaved progress will be lost.")
             }
-            if dryRun { UI.step("Skulle stänga av PS3:an på \(host)"); return }
-            guard yes || UI.confirm("Stänga av PS3:an?") else { return }
+            if dryRun { UI.step("Would shut down the PS3 at \(host)"); return }
+            guard yes || UI.confirm("Shut down the PS3?") else { return }
             try await WebMAN(host: host).shutdown()
-            UI.ok("PS3:an stängs av")
+            UI.ok("The PS3 is shutting down")
         }
     }
 
     struct Restart: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Starta om PS3:an. På HEN måste HEN aktiveras igen efteråt.")
+        static let configuration = CommandConfiguration(abstract: "Restart the PS3. On HEN, HEN has to be enabled again afterwards.")
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: [.short, .long], help: "Fråga inte.")
+        @Flag(name: [.short, .long], help: "Do not ask.")
         var yes = false
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
             let host = try await Console.host(global)
             let profile = ConsoleProfile(snapshot: try await WebMAN(host: host).snapshot())
-            if profile.exploit == .hen { UI.warn("PS3:an kör HEN: efter omstarten måste HEN aktiveras igen innan PS3 Center når den.") }
-            if dryRun { UI.step("Skulle starta om PS3:an på \(host)"); return }
-            guard yes || UI.confirm("Starta om PS3:an?") else { return }
+            if profile.exploit == .hen { UI.warn("The PS3 runs HEN: after the restart, HEN has to be enabled again before PS3 Center can reach it.") }
+            if dryRun { UI.step("Would restart the PS3 at \(host)"); return }
+            guard yes || UI.confirm("Restart the PS3?") else { return }
             try await WebMAN(host: host).restart()
-            UI.ok("PS3:an startar om")
+            UI.ok("The PS3 is restarting")
         }
     }
 }
@@ -300,45 +300,47 @@ struct Power: AsyncParsableCommand {
 struct USB: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "usb",
-        abstract: "Förbered en USB-disk med spel från Macens spelmappar (snabbast för många spel).",
+        abstract: "Prepare a USB drive with games from the Mac's game folders (fastest for many games).",
         subcommands: [Prepare.self]
     )
 
     struct Prepare: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Kopiera spel till en FAT32-disk i webMAN:s mappar. ISO:er över 4 GB delas i .iso.0, .iso.1 …",
+            abstract: "Copy games to a FAT32 drive in webMAN's folders. ISOs over 4 GB are split into .iso.0, .iso.1 …",
             discussion: """
-            ps3 usb prepare /Volumes/PS3 gran demon     Två spel från Macens spelmappar
-            ps3 usb prepare /Volumes/PS3 --missing      Alla som inte finns på PS3:an
-            En spelmapp med en fil över 4 GB, som FAT32 inte rymmer, blir en PS3-ISO i delar (PS3ISO).
-            Formatera disken som "MS-DOS (FAT)" i Skivverktyg först; macOS kan inte skriva NTFS.
-            Sätt sedan disken i PS3:an: spelen syns under webMAN:s spel efter en uppdatering av spellistan.
+            ps3 usb prepare /Volumes/PS3 gran demon     Two games from the Mac
+            ps3 usb prepare /Volumes/PS3 --missing      All that are not on the PS3
+            A game folder with a file over 4 GB, which FAT32 cannot hold,
+            becomes a PS3 ISO in parts (PS3ISO). Format the drive as "MS-DOS
+            (FAT)" in Disk Utility first; macOS cannot write NTFS. Then plug
+            the drive into the PS3: the games show up under webMAN's games
+            after a game list refresh.
             """
         )
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "Diskens mapp, t.ex. /Volumes/PS3.", completion: .directory)
+        @Argument(help: "The drive's folder, e.g. /Volumes/PS3.", completion: .directory)
         var volume: String
 
-        @Argument(help: "Spel (del av titeln eller title ID) från Macens spelmappar.")
+        @Argument(help: "Games (part of the title or title ID) from the Mac's game folders.")
         var names: [String] = []
 
-        @Flag(name: .long, help: "Alla spel i Macens spelmappar som inte finns på PS3:an.")
+        @Flag(name: .long, help: "All games in the Mac's game folders that are not on the PS3.")
         var missing = false
 
-        @Flag(name: .long, help: "Visa vad som skulle kopieras.")
+        @Flag(name: .long, help: "Show what would be copied.")
         var dryRun = false
 
         func validate() throws {
-            guard missing || !names.isEmpty else { throw ValidationError("Ange spel, eller --missing för alla som inte finns på PS3:an.") }
+            guard missing || !names.isEmpty else { throw ValidationError("Give games, or --missing for all that are not on the PS3.") }
         }
 
         func run() async throws {
             let root = URL(fileURLWithPath: (volume as NSString).expandingTildeInPath)
-            guard let info = USBDrive.volume(root) else { throw ValidationError("Hittar ingen disk på \(root.path).") }
+            guard let info = USBDrive.volume(root) else { throw ValidationError("No drive found at \(root.path).") }
             guard info.isFAT32 else {
-                throw PS3Error.refused("\(root.path) är \(info.format), inte FAT32. Formatera den som \"MS-DOS (FAT)\" i Skivverktyg (det raderar disken).")
+                throw PS3Error.refused("\(root.path) is \(info.format), not FAT32. Format it as \"MS-DOS (FAT)\" in Disk Utility (this erases the drive).")
             }
             let library = LocalLibrary().scan()
             var games: [Game]
@@ -351,24 +353,24 @@ struct USB: AsyncParsableCommand {
                 games = try names.map { name in
                     switch Game.lookup(name, in: library) {
                     case .found(let game): return game
-                    case .ambiguous(let matches): throw PS3Error.invalidFile("\(name) kan betyda flera: \(matches.prefix(8).map(\.title).joined(separator: ", ")).")
-                    case .missing: throw PS3Error.invalidFile("Hittar inget spel som matchar \(name) i Macens spelmappar.")
+                    case .ambiguous(let matches): throw PS3Error.invalidFile("\(name) could mean several: \(matches.prefix(8).map(\.title).joined(separator: ", ")).")
+                    case .missing: throw PS3Error.invalidFile("No game matches \(name) in the Mac's game folders.")
                     }
                 }
             }
             let plan = USBDrive.plan(games, on: root)
             for (game, reason) in plan.skipped { UI.skip("\(game.title): \(reason)") }
             let total = plan.total
-            UI.header(dryRun ? "Förhandsvisning" : "Kopierar", detail: "\(plan.copies.count) filer · \(Format.bytes(total)) · ledigt \(Format.bytes(info.free))")
+            UI.header(dryRun ? "Preview" : "Copying", detail: "\(plan.copies.count) file\(plan.copies.count == 1 ? "" : "s") · \(Format.bytes(total)) · free \(Format.bytes(info.free))")
             guard total < info.free else { throw PS3Error.notEnoughSpace(needed: total, free: info.free) }
             for copy in plan.copies {
-                let notes = [copy.kind == .isoFromFolder ? "görs om till en ISO" : nil, copy.parts > 1 ? "\(copy.parts) delar" : nil].compactMap { $0 }
+                let notes = [copy.kind == .isoFromFolder ? "converted to an ISO" : nil, copy.parts > 1 ? "\(copy.parts) parts" : nil].compactMap { $0 }
                 UI.step("\(copy.game.title) → \(copy.destination.path)" + (notes.isEmpty ? "" : UI.paint("  (\(notes.joined(separator: ", ")))", .gray)))
             }
             guard !dryRun else { return }
-            let printer = TransferPrinter(dryRun: false, done: "kopierad")
+            let printer = TransferPrinter(dryRun: false, done: "copied")
             try await USBDrive.copy(plan.copies) { printer.handle($0) }
-            UI.ok("Klart. Mata ut disken, sätt den i PS3:an och kör `ps3 refresh`.")
+            UI.ok("Done. Eject the drive, plug it into the PS3 and run `ps3 refresh`.")
         }
     }
 }
@@ -376,27 +378,29 @@ struct USB: AsyncParsableCommand {
 struct Serve: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "serve",
-        abstract: "Kör spelservern: PS3:an spelar ISO:er direkt från Macens spelmappar via webMAN (/net0).",
+        abstract: "Run the Game Server: the PS3 plays ISOs straight from the Mac's game folders through webMAN (/net0).",
         discussion: """
-        En egen ps3netsrv som bara läser, på port 38008. Ställ in den en gång i webMAN:
-        Inställningar (http://<ps3>/setup.ps3) → nätverksserver 1 = Macens adress och 38008.
-        Spelen syns sedan under webMAN:s spel och startas som vanligt, eller med
-        `ps3 games play` på /net0-sökvägen. Ctrl-C stoppar servern. Bara PS3:an släpps in, så
-        konsolen måste kunna hittas när servern startar (eller anges med --host).
-        PS3-spel bör gå över kabel. PS2-ISO:er kopieras till hårddisken när de startas, och
-        spelmappar (GAMES) går inte över nätet, bara ISO:er.
+        A ps3netsrv of our own that is read-only, on port 38008. Set it up
+        once in webMAN: Settings (http://<ps3>/setup.ps3) → network server 1 =
+        the Mac's address and 38008. The games then show up under webMAN's
+        games and start as usual, or with `ps3 games play` on the /net0 path.
+        Ctrl-C stops the server. Only the PS3 is let in, so the console must
+        be findable when the server starts (or given with --host). PS3 games
+        should go over a cable. PS2 ISOs are copied to the hard drive when
+        they start, and game folders (GAMES) do not go over the network, only
+        ISOs.
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Släpp in alla på nätverket, inte bara PS3:an.")
+    @Flag(name: .long, help: "Let everyone on the network in, not just the PS3.")
     var anyClient = false
 
     func run() async throws {
         let folders = GameFolders.linked()
         guard !folders.isEmpty else {
-            throw PS3Error.refused("Inga spelmappar är kopplade. Koppla en med `ps3 config folder add PS3ISO ~/Spel/PS3`.")
+            throw PS3Error.refused("No game folders are linked. Link one with `ps3 config folder add PS3ISO ~/Games/PS3`.")
         }
         var console: String?
         if !anyClient {
@@ -404,26 +408,26 @@ struct Serve: AsyncParsableCommand {
                 console = try await Console.host(global, quiet: true)
             } catch {
                 // Only the console is let in, so without its address the server does not start.
-                throw PS3Error.refused("Hittar inte PS3:an, så spelservern vet inte vem den ska släppa in. Slå på PS3:an och aktivera HEN, ange --host <ip>, eller släpp in alla på nätverket med --any-client.")
+                throw PS3Error.refused("Cannot find the PS3, so the Game Server does not know who to let in. Turn the PS3 on and enable HEN, give --host <ip>, or let everyone on the network in with --any-client.")
             }
         }
         let server = NetServer(folders: folders, allowedHost: console) { status in
             if let error = status.error { UI.fail(error) }
         }
         try server.start()
-        let awake = KeepAwake(reason: "Spelservern för PS3:an")
+        let awake = KeepAwake(reason: "Game Server for the PS3")
         defer { withExtendedLifetime(awake) {}; server.stop() }
-        UI.header("Spelservern", detail: "port \(NetServer.defaultPort)" + (console.map { " · bara \($0)" } ?? ""))
-        for address in NetServer.macAddresses() { UI.row("Adress", "\(address):\(NetServer.defaultPort)") }
+        UI.header("Game Server", detail: "port \(NetServer.defaultPort)" + (console.map { " · only \($0)" } ?? ""))
+        for address in NetServer.macAddresses() { UI.row("Address", "\(address):\(NetServer.defaultPort)") }
         for (kind, url) in folders { UI.row(kind.name, url.path) }
-        print("\n  Ctrl-C stoppar. Macen hålls vaken så länge servern går.")
+        print("\n  Ctrl-C stops. The Mac stays awake as long as the server runs.")
         // Polled, so the output stays calm: one line per game file the console opens.
         var last: String?
         while true {
             try await Task.sleep(nanoseconds: 2_000_000_000)
             if let file = server.currentStatus.lastFile, file != last {
                 last = file
-                UI.step("PS3:an läser \(file)")
+                UI.step("The PS3 is reading \(file)")
             }
         }
     }
@@ -432,26 +436,27 @@ struct Serve: AsyncParsableCommand {
 struct WatchFolders: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "watch",
-        abstract: "Bevaka mapparna och lägg nya spel i kön när de har slutat växa. Ctrl-C slutar.",
+        abstract: "Watch the folders and add new games to the queue once they stop growing. Ctrl-C quits.",
         discussion: """
-        Vilka mappar som bevakas väljs med `ps3 config folder watch <mapp>` eller i appens
-        Spelmappar. Appen bevakar själv medan den är öppen. Med --send skickas kön direkt.
+        Which folders are watched is chosen with `ps3 config folder watch
+        <folder>` or in the app's Game Folders. The app watches by itself
+        while it is open. With --send the queue is sent right away.
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Skicka kön när något nytt har lagts till.")
+    @Flag(name: .long, help: "Send the queue when something new has been added.")
     var send = false
 
     func run() async throws {
         let folders = FolderWatch.watched()
         guard !folders.isEmpty else {
-            throw PS3Error.refused("Inga mappar bevakas. Slå på det med `ps3 config folder watch <mapp>`.")
+            throw PS3Error.refused("No folders are watched. Turn it on with `ps3 config folder watch <folder>`.")
         }
-        UI.header("Bevakar", detail: "\(folders.count) mappar")
+        UI.header("Watching", detail: "\(folders.count) folder\(folders.count == 1 ? "" : "s")")
         for (kind, url) in folders { UI.row(kind.name, url.path) }
-        print("\n  Nya spel läggs i kön när de har slutat växa i en minut. Ctrl-C slutar.")
+        print("\n  New games are added to the queue once they have stopped growing for a minute. Ctrl-C quits.")
         var watch = FolderWatch()
         while true {
             let games = FolderWatch.routes(for: watch.poll(FolderWatch.watched()))
@@ -459,7 +464,7 @@ struct WatchFolders: AsyncParsableCommand {
                 TransferQueue.edit { queue in
                     for game in games { queue.add(game.routes) }
                 }
-                for game in games { UI.ok("\(game.title) ligger i kön") }
+                for game in games { UI.ok("\(game.title) is in the queue") }
                 if send {
                     // The app or another `ps3 queue start` may already be sending; keep watching.
                     do {

@@ -27,6 +27,9 @@ enum UI {
     static func warn(_ text: String) { print("  " + paint("!", .yellow) + " " + paint(text, .yellow)) }
     static func fail(_ text: String) { print("  " + paint("✗", .red) + " " + text) }
 
+    /// "1 game", "3 games".
+    static func count(_ n: Int, _ noun: String) -> String { "\(n) \(noun)" + (n == 1 ? "" : "s") }
+
     static func row(_ label: String, _ value: String, width: Int = 12) {
         print("  " + paint(label.padding(toLength: width, withPad: " ", startingAt: 0), .gray) + value)
     }
@@ -51,11 +54,11 @@ enum UI {
     /// Yes/no question; `defaultYes` decides what Enter means. Non-interactive runs get the default.
     static func confirm(_ question: String, defaultYes: Bool = false) -> Bool {
         guard isatty(STDIN_FILENO) == 1 else { return defaultYes }
-        print("  " + paint("?", .cyan) + " " + question + paint(defaultYes ? " [J/n] " : " [j/N] ", .gray), terminator: "")
+        print("  " + paint("?", .cyan) + " " + question + paint(defaultYes ? " [Y/n] " : " [y/N] ", .gray), terminator: "")
         fflush(stdout)
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() else { return defaultYes }
         if answer.isEmpty { return defaultYes }
-        return ["j", "ja", "y", "yes"].contains(answer)
+        return ["y", "yes", "j", "ja"].contains(answer)
     }
 
     static func json<T: Encodable>(_ value: T, pretty: Bool = true) {
@@ -70,8 +73,8 @@ enum UI {
 /// Prints TransferEvents for send/install.
 struct TransferPrinter {
     let dryRun: Bool
-    /// What a finished file is: "uppladdad" to the console, "kopierad" to a USB drive.
-    var done = "uppladdad"
+    /// What a finished file is: "uploaded" to the console, "copied" to a USB drive.
+    var done = "uploaded"
 
     func handle(_ event: TransferEvent) {
         switch event {
@@ -82,26 +85,26 @@ struct TransferPrinter {
         case .started(let route, let offset):
             let target = UI.paint(route.remote, .gray)
             if dryRun {
-                UI.step("\(route.local.lastPathComponent) (\(Format.bytes(route.size - offset))) → \(target)" + (offset > 0 ? UI.paint("  fortsätter", .yellow) : ""))
+                UI.step("\(route.local.lastPathComponent) (\(Format.bytes(route.size - offset))) → \(target)" + (offset > 0 ? UI.paint("  resuming", .yellow) : ""))
             } else {
-                let resume = offset > 0 ? " – fortsätter från \(Format.bytes(offset))" : ""
+                let resume = offset > 0 ? " – resuming from \(Format.bytes(offset))" : ""
                 UI.step("\(route.local.lastPathComponent) → \(target)\(resume)")
             }
         case .progress(let route, let sent, let total, let rate):
             let fraction = total > 0 ? Double(sent) / Double(total) : 1
             let eta = rate > 0 ? Double(total - sent) / rate : .nan
-            UI.progress("\(UI.bar(fraction)) \(Int(fraction * 100))%  \(Format.bytes(sent)) av \(Format.bytes(total))  \(Format.rate(rate))  \(Format.duration(eta)) kvar  \(UI.paint(route.local.lastPathComponent, .gray))")
+            UI.progress("\(UI.bar(fraction)) \(Int(fraction * 100))%  \(Format.bytes(sent)) of \(Format.bytes(total))  \(Format.rate(rate))  \(Format.duration(eta)) left  \(UI.paint(route.local.lastPathComponent, .gray))")
         case .finished(let route, let seconds):
             UI.endProgress()
-            UI.ok("\(route.local.lastPathComponent) \(done) (\(Format.bytes(route.size)) på \(Format.duration(seconds)))")
+            UI.ok("\(route.local.lastPathComponent) \(done) (\(Format.bytes(route.size)) in \(Format.duration(seconds)))")
         case .waitingForGame(let game):
-            UI.warn("\(game) körs. Väntar tills du har avslutat spelet… (Ctrl-C avbryter, --force kör ändå)")
+            UI.warn("\(game) is running. Waiting until you quit the game… (Ctrl-C cancels, --force goes ahead anyway)")
         case .installing(let name):
-            UI.step("Installerar \(name) på PS3:an…")
+            UI.step("Installing \(name) on the PS3…")
         case .installed(let name):
-            UI.ok("\(name) installerat")
+            UI.ok("\(name) installed")
         case .refreshed:
-            UI.ok("Spellistan uppdaterad")
+            UI.ok("Game list refreshed")
         case .note(let text):
             UI.step(text)
         }

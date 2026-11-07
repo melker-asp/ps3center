@@ -4,100 +4,100 @@ import PS3Kit
 
 struct Disc: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Mata ut eller mata in skivan i PS3:ans spelare.",
+        abstract: "Eject or insert the disc in the PS3's drive.",
         subcommands: [Eject.self, Insert.self]
     )
 
     struct Eject: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Mata ut skivan (/eject.ps3).")
+        static let configuration = CommandConfiguration(abstract: "Eject the disc (/eject.ps3).")
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
             let host = try await Console.host(global)
-            if dryRun { UI.step("Skulle mata ut skivan på \(host)"); return }
+            if dryRun { UI.step("Would eject the disc on \(host)"); return }
             try await WebMAN(host: host).ejectDisc()
-            UI.ok("Skivan matas ut")
+            UI.ok("Ejecting the disc")
         }
     }
 
     struct Insert: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Mata in skivan (/insert.ps3).")
+        static let configuration = CommandConfiguration(abstract: "Insert the disc (/insert.ps3).")
 
         @OptionGroup var global: GlobalOptions
 
-        @Flag(name: .long, help: "Visa vad som skulle hända.")
+        @Flag(name: .long, help: "Show what would happen.")
         var dryRun = false
 
         func run() async throws {
             let host = try await Console.host(global)
-            if dryRun { UI.step("Skulle mata in skivan på \(host)"); return }
+            if dryRun { UI.step("Would insert the disc on \(host)"); return }
             try await WebMAN(host: host).insertDisc()
-            UI.ok("Skivan matas in")
+            UI.ok("Inserting the disc")
         }
     }
 }
 
 struct Fan: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Visa fläkten, eller ändra webMAN:s måltemperatur (bara i dynamiskt läge, 60–75 °C).",
+        abstract: "Show the fan, or change webMAN's target temperature (dynamic mode only, 60–75 °C).",
         discussion: """
-        ps3 fan              Fläktens hastighet, läge och mål
-        ps3 fan 70           Håll PS3:an under 70 °C (fläkten varvar upp vid behov)
-        En fast låg hastighet sätts aldrig: den kan låta konsolen bli för varm. Läget
-        (SYSCON, dynamiskt, AUTO) väljs i webMAN:s inställningar.
+        ps3 fan              The fan's speed, mode and target
+        ps3 fan 70           Keep the PS3 under 70 °C (the fan spins up when needed)
+        A fixed low speed is never set: it could let the console get too hot.
+        The mode (SYSCON, dynamic, AUTO) is chosen in webMAN's settings.
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Ny måltemperatur i °C (60–75).")
+    @Argument(help: "New target temperature in °C (60–75).")
     var target: Int?
 
-    @Flag(name: .long, help: "Visa vad som skulle hända.")
+    @Flag(name: .long, help: "Show what would happen.")
     var dryRun = false
 
     func run() async throws {
         let host = try await Console.host(global)
         let snapshot = try await WebMAN(host: host).snapshot()
-        UI.header("Fläkten", detail: host)
-        UI.row("Hastighet", snapshot.fanPercent.map { "\($0) %" } ?? "–")
-        UI.row("Läge", snapshot.fanTargetMax.map { "dynamiskt, håller max \($0) °C" } ?? "inget mål (SYSCON, AUTO eller fast)")
+        UI.header("Fan", detail: host)
+        UI.row("Speed", snapshot.fanPercent.map { "\($0) %" } ?? "–")
+        UI.row("Mode", snapshot.fanTargetMax.map { "dynamic, holding max \($0) °C" } ?? "no target (SYSCON, AUTO or fixed)")
         UI.row("CPU / RSX", "\(snapshot.cpuTemp.map(String.init) ?? "–") / \(snapshot.rsxTemp.map(String.init) ?? "–") °C")
         guard let target else { return }
         if let refusal = FanControl.refusal(target: target, snapshot: snapshot) { throw PS3Error.refused(refusal) }
-        if dryRun { UI.step("Skulle sätta målet till \(target) °C (från \(snapshot.fanTargetMax ?? 0) °C)"); return }
+        if dryRun { UI.step("Would set the target to \(target) °C (from \(snapshot.fanTargetMax ?? 0) °C)"); return }
         try await WebMAN(host: host).setFanTarget(target)
-        UI.ok("Fläkten håller nu max \(target) °C")
+        UI.ok("The fan now holds max \(target) °C")
     }
 }
 
 struct Pad: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Tryck på knappar med webMAN:s virtuella handkontroll.",
+        abstract: "Press buttons with webMAN's virtual controller.",
         discussion: """
-        ps3 pad down down ok         Två steg ner och välj
-        ps3 pad tillbaka             ◯ (eller ✕ på asiatiska konsoler)
-        ps3 pad ps                   PS-knappen
-        ps3 pad off                  Koppla bort den virtuella handkontrollen
-        Knappar: \(PadButton.allCases.map(\.rawValue).joined(separator: ", "))
-        (även upp, ner, vänster, höger, x, o, ok, tillbaka). Ett halvt
-        sekunds mellanrum mellan trycken.
+        ps3 pad down down ok         Two steps down, then select
+        ps3 pad back                 ◯ (or ✕ on Asian consoles)
+        ps3 pad ps                   The PS button
+        ps3 pad off                  Disconnect the virtual controller
+        Buttons: \(PadButton.allCases.map(\.rawValue).joined(separator: ", "))
+        (also x, o, ok, back, and the Swedish names upp, ner, vänster, höger, tillbaka).
+        Half a second between presses.
         """
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Knappar att trycka på, i tur och ordning.")
+    @Argument(help: "Buttons to press, in order.")
     var buttons: [String]
 
     func validate() throws {
-        guard !buttons.isEmpty else { throw ValidationError("Ange minst en knapp, t.ex. `ps3 pad down ok`.") }
+        guard !buttons.isEmpty else { throw ValidationError("Give at least one button, e.g. `ps3 pad down ok`.") }
         for name in buttons where name.lowercased() != "off" && PadButton(name: name) == nil {
-            throw ValidationError("Okänd knapp: \(name)")
+            throw ValidationError("Unknown button: \(name)")
         }
     }
 
@@ -108,7 +108,7 @@ struct Pad: AsyncParsableCommand {
             if index > 0 { try await Task.sleep(nanoseconds: 500_000_000) }
             if name.lowercased() == "off" {
                 try await webMAN.padOff()
-                UI.ok("Den virtuella handkontrollen är bortkopplad")
+                UI.ok("The virtual controller is disconnected")
             } else if let button = PadButton(name: name) {
                 try await webMAN.press(button)
                 UI.ok(button.label)
@@ -119,16 +119,16 @@ struct Pad: AsyncParsableCommand {
 
 struct Screenshot: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Spara en bild av XMB:n (det TV:n visar) på Macen.",
-        discussion: "Fungerar i XMB:n, inte under ett spel."
+        abstract: "Save a picture of the XMB (what the TV shows) on the Mac.",
+        discussion: "Works in the XMB, not during a game."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Fil att spara i (standard: Skrivbordet).")
+    @Argument(help: "File to save to (default: the Desktop).")
     var file: String?
 
-    @Flag(name: .long, help: "Full storlek i stället för den mindre, snabbare bilden.")
+    @Flag(name: .long, help: "Full size instead of the smaller, faster picture.")
     var full = false
 
     func run() async throws {
@@ -140,12 +140,13 @@ struct Screenshot: AsyncParsableCommand {
             url = URL(fileURLWithPath: (file as NSString).expandingTildeInPath)
         } else {
             let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd 'kl.' HH.mm.ss"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
             let stamp = formatter.string(from: Date())
             url = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Desktop/PS3 \(stamp).\(kind.fileExtension)")
         }
         try data.write(to: url)
-        UI.ok("Sparade \(url.path) (\(Format.bytes(Int64(data.count))))")
+        UI.ok("Saved \(url.path) (\(Format.bytes(Int64(data.count))))")
     }
 }

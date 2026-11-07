@@ -4,19 +4,19 @@ import PS3Kit
 
 struct Status: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Visa konsolens status: hälsa, temperaturer, fläkt, utrymme och vad som körs.",
-        discussion: "Skriver JSON automatiskt när utdata skickas vidare till ett annat program, som `mo status`."
+        abstract: "Show the console's status: health, temperatures, fan, free space and what is running.",
+        discussion: "Prints JSON automatically when the output is piped to another program, like `mo status`."
     )
 
     @OptionGroup var global: GlobalOptions
 
-    @Flag(name: .long, help: "Skriv ut JSON.")
+    @Flag(name: .long, help: "Print JSON.")
     var json = false
 
-    @Flag(name: .long, help: "Uppdatera löpande. Med --json blir det en rad JSON per mätning (NDJSON).")
+    @Flag(name: .long, help: "Keep updating. With --json, prints one line of JSON per reading (NDJSON).")
     var watch = false
 
-    @Option(name: .long, help: "Sekunder mellan mätningar med --watch.")
+    @Option(name: .long, help: "Seconds between readings with --watch.")
     var interval: Double = 3
 
     func run() async throws {
@@ -47,7 +47,7 @@ struct Status: AsyncParsableCommand {
                 } else {
                     print("\u{1B}[H\u{1B}[2J", terminator: "")
                     Self.render(snapshot)
-                    print(UI.paint("\n  Uppdateras var \(Int(interval)):e sekund · Ctrl-C avslutar", .gray))
+                    print(UI.paint("\n  Updating every \(Int(interval)) s · Ctrl-C quits", .gray))
                 }
             } catch {
                 if !asJSON { UI.fail(error.localizedDescription) }
@@ -64,7 +64,7 @@ struct Status: AsyncParsableCommand {
 
         let healthColor: UI.Color = s.health >= 85 ? .green : s.health >= 65 ? .cyan : s.health >= 45 ? .yellow : .red
         let notes = s.healthNotes.isEmpty ? "" : UI.paint("  " + s.healthNotes.joined(separator: ", "), .gray)
-        UI.row("Hälsa", UI.paint("\(s.health)", .bold, healthColor) + " " + s.healthLabel + notes)
+        UI.row("Health", UI.paint("\(s.health)", .bold, healthColor) + " " + s.healthLabel + notes)
 
         if let cpu = s.cpuTemp {
             UI.row("CPU", "\(UI.bar(Double(cpu) / 90, width: 16, color: tempColor(cpu, warn: 70))) \(cpu) °C")
@@ -73,22 +73,22 @@ struct Status: AsyncParsableCommand {
             UI.row("RSX", "\(UI.bar(Double(rsx) / 90, width: 16, color: tempColor(rsx, warn: 75))) \(rsx) °C")
         }
         if let fan = s.fanPercent {
-            let target = s.fanTargetMax.map { UI.paint("  håller max \($0) °C", .gray) } ?? ""
-            UI.row("Fläkt", "\(UI.bar(Double(fan) / 100, width: 16, color: .blue)) \(fan) %" + target)
+            let target = s.fanTargetMax.map { UI.paint("  holding max \($0) °C", .gray) } ?? ""
+            UI.row("Fan", "\(UI.bar(Double(fan) / 100, width: 16, color: .blue)) \(fan) %" + target)
         }
         if let free = s.freeBytes {
-            UI.row("Ledigt", Format.bytes(free) + UI.paint("  på /dev_hdd0", .gray))
+            UI.row("Free", Format.bytes(free) + UI.paint("  on /dev_hdd0", .gray))
         }
         if let ip = s.ip {
-            UI.row("Nätverk", "\(s.network ?? "") · \(ip)")
+            UI.row("Network", "\(s.network ?? "") · \(ip)")
         }
         if s.isGameRunning {
-            let name = s.mountedGameName ?? s.runningProcess ?? "Okänt"
-            let time = s.playTime.map { UI.paint("  spelat \($0)", .gray) } ?? ""
-            UI.row("Spelar nu", UI.paint(name, .bold) + time)
+            let name = s.mountedGameName ?? s.runningProcess ?? "Unknown"
+            let time = s.playTime.map { UI.paint("  played \($0)", .gray) } ?? ""
+            UI.row("Now Playing", UI.paint(name, .bold) + time)
         } else {
-            UI.row("Spelar nu", UI.paint("Inget – XMB", .gray))
-            if let mounted = s.mountedGameName { UI.row("Monterat", mounted) }
+            UI.row("Now Playing", UI.paint("Nothing – XMB", .gray))
+            if let mounted = s.mountedGameName { UI.row("Mounted", mounted) }
         }
     }
 
