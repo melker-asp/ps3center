@@ -75,7 +75,13 @@ long you have played a game and when you last played it. Notifications arrive wh
 the console gets hot and when an app has a new version.
 
 The look follows the PlayStation app: blue splash screen, dark base with a color per tab, white buttons and
-the games' own images. The gear at the top right opens Appearance with the PS app's themes.
+the games' own images. The gear at the top right (or ⌘,) opens Settings: the tab the app opens in,
+Launch at Login and the menu bar icon, the PS app's themes, the PS3 folder (Create… makes an empty one
+if you don't have one), Game and Package Folders, how the queue ends, MD5 checks, the weekly save
+backup, the FTP tuning, which notifications you get, which status cards and tabs show, °C or °F and
+the text size. It works before a console is connected. The first launch opens a setup guide, the ?
+next to the gear (or ⌘?) opens Help with a guide for each task, and ⓘ on a card explains it.
+From Terminal, `ps3 config set root ~/Documents --create` makes the same empty PS3 folder.
 
 `make snapshot DIR=/tmp/shots` renders the tabs to PNG without opening any window, and
 `make snapshot-fixtures DIR=/tmp/shots` does the same without a PS3.
@@ -140,6 +146,7 @@ the games' own images. The gear at the top right opens Appearance with the PS ap
 | `ps3 error <code>` | Explains an error code like 80010006, and the most common ones for disc, Blu-ray, video, network and account |
 | `ps3 mcp` | MCP server so that e.g. Claude can read and troubleshoot the PS3 (see Claude and MCP) |
 | `ps3 history` | What the tool has changed (`~/Library/Logs/ps3center/operations.log`) |
+| `ps3 guide [name]` | The how-to guides and the glossary, the same as Help in the app |
 | `ps3 discover` | Finds the PS3 on the network and saves the address |
 | `ps3 config [set host/root …]` | Settings in `~/.config/ps3center/config.json` |
 

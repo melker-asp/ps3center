@@ -98,7 +98,7 @@ final class TransferStore {
         for game in games {
             if host == nil { startWhenOnline = true }
             add(game.routes)
-            Notifier.post(title: "New game in the queue", body: "\(game.title) is being sent to the PS3.")
+            Notifier.post(.gameQueued, title: "New game in the queue", body: "\(game.title) is being sent to the PS3.")
         }
     }
 
@@ -225,7 +225,7 @@ final class TransferStore {
                     Task { @MainActor [weak self] in self?.show(event) }
                 }
                 note = nil
-                Notifier.post(title: titles.count == 1 ? "\(titles[0]) is sent" : "\(titles.count) games are sent",
+                Notifier.post(.gamesSent, title: titles.count == 1 ? "\(titles[0]) is sent" : "\(titles.count) games are sent",
                               body: result.whenDone == .shutdown ? "The PS3 is shutting down." : "The games are under Game on the PS3.")
             } catch {
                 note = error.localizedDescription

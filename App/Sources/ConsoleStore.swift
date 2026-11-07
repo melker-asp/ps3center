@@ -61,6 +61,20 @@ final class ConsoleStore {
         start()
     }
 
+    /// An address typed in the setup guide: used (`use(host:)`) when webMAN answers there. Returns
+    /// why not otherwise (not an address, nothing answers, HEN off).
+    func connect(to address: String) async -> String? {
+        guard let cleaned = ConsoleAddress.clean(address) else {
+            return "That doesn't look like an address. It is four numbers with dots, like 192.168.1.20."
+        }
+        do {
+            use(host: try await ConsoleLocator.resolve(explicit: cleaned))
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Talks to `host` from now on and remembers it, like `ps3 config set host`: a console the
     /// connection sheet found or the user typed. Only the Mac's config changes, so nothing is logged.
     func use(host: String) {
@@ -83,14 +97,19 @@ final class ConsoleStore {
         while !Task.isCancelled {
             if host == nil {
                 do {
-                    host = try await ConsoleLocator.resolve { event in
+                    let found = try await ConsoleLocator.resolve { event in
                         if case .scanning = event { Task { @MainActor [weak self] in self?.connection = .scanning } }
                     }
+                    // retry() or connect(to:) started another round while this one searched.
+                    guard !Task.isCancelled else { return }
+                    host = found
                 } catch PS3Error.henOff(let known) {
+                    guard !Task.isCancelled else { return }
                     connection = .henOff(known)
                     try? await Task.sleep(for: .seconds(8))
                     continue
                 } catch {
+                    guard !Task.isCancelled else { return }
                     connection = .offline(error.localizedDescription)
                     try? await Task.sleep(for: .seconds(8))
                     continue
@@ -100,12 +119,14 @@ final class ConsoleStore {
             let started = Date()
             do {
                 let next = try await WebMAN(host: host).snapshot()
+                guard !Task.isCancelled else { return }
                 latency = Date().timeIntervalSince(started)
                 record(next)
                 missedPolls = 0
                 connection = .online
                 if next.mountedGamePath != artPath { loadArt(for: next.mountedGamePath, host: host) }
             } catch {
+                guard !Task.isCancelled else { return }
                 missedPolls += 1
                 // While a long command runs (an install, counting storage, copying the disc) the
                 // console is slow, not gone; that command's own timeout ends the wait.
@@ -155,6 +176,13 @@ final class ConsoleStore {
         connection = .henOff("10.0.1.35")
     }
 
+    /// The connection screen when nothing answers: Try Again, the address field and a How? link.
+    func loadOfflineFixture() {
+        pollTask?.cancel()
+        pollTask = nil
+        connection = .offline("No PS3 with webMAN MOD answered on the network.")
+    }
+
     private func record(_ next: ConsoleSnapshot) {
         snapshot = next
         if !next.isGameRunning { isRecording = false }
@@ -190,7 +218,8 @@ final class ConsoleStore {
         guard Thermal.cpu.level(cpu) == .hot || Thermal.rsx.level(rsx) == .hot,
               Date().timeIntervalSince(lastHeatWarning) > 1800 else { return }
         lastHeatWarning = Date()
-        Notifier.post(title: "The PS3 is hot", body: "CPU \(cpu) °C, RSX \(rsx) °C. Make sure it has air around it.")
+        let unit = AppPreferences.shared.temperatureUnit
+        Notifier.post(.consoleHot, title: "The PS3 is hot", body: "CPU \(unit.format(cpu)), RSX \(unit.format(rsx)). Make sure it has air around it.")
     }
 
     // MARK: Controls
@@ -223,7 +252,7 @@ final class ConsoleStore {
     }
 
     func setFanTarget(_ celsius: Int) {
-        act("The fan now targets \(celsius) °C") { try await $0.setFanTarget(celsius) }
+        act("The fan now targets \(AppPreferences.shared.temperatureUnit.format(celsius))") { try await $0.setFanTarget(celsius) }
     }
 
     // MARK: Extras (webMAN commands from fas 9)

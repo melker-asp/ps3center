@@ -297,25 +297,33 @@ struct Config: ParsableCommand {
         @Argument(help: "The value. An empty string removes the setting.")
         var value: String
 
+        @Flag(help: "With root: make a new, empty PS3 folder (dev_hdd0/ and _Installed/Packages) inside the given folder and use it.")
+        var create = false
+
         func run() throws {
             let cleaned = value.isEmpty ? nil : value
             var root: String?
             switch key {
-            case "host": break
+            case "host":
+                if create { throw ValidationError("--create only goes with root.") }
             case "root":
                 if let path = cleaned {
                     let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
-                    guard MirrorRoot.looksLikeMirror(url) else {
-                        throw ValidationError("\(url.path) does not look like the PS3 folder (missing dev_hdd0/ or _Installed/).")
+                    if create {
+                        root = try MirrorRoot.create(in: url).path
+                    } else {
+                        guard MirrorRoot.looksLikeMirror(url) else {
+                            throw ValidationError("\(url.path) does not look like the PS3 folder (missing dev_hdd0/ or _Installed/). Add --create to make one inside it.")
+                        }
+                        root = url.path
                     }
-                    root = url.path
                 }
             default: throw ValidationError("Unknown setting: \(key). Use host or root.")
             }
             try ConfigStore.edit { config in
                 if key == "host" { config.host = cleaned } else { config.root = root }
             }
-            UI.ok("\(key) = \(cleaned ?? "(removed)")")
+            UI.ok("\(key) = \((key == "root" ? root : cleaned) ?? "(removed)")")
         }
     }
 }

@@ -97,6 +97,7 @@ struct MaintenanceView: View {
                 Button("Back Up Now") { store.backupSaves() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .fixedSize()
+                    .help("Copies the saves that changed to the Mac; the copy from before is kept")
                 Button("Show…") { showsSaves = true }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .fixedSize()
@@ -117,6 +118,7 @@ struct MaintenanceView: View {
             Button("Back Up Now") { store.backupSystem() }
                 .buttonStyle(PillButtonStyle(prominent: false))
                 .fixedSize()
+                .help("Copies the system settings, webMAN's settings and boot_plugins.txt to the Mac. Nothing on the PS3 changes.")
                 .disabled(store.busy != nil)
         }
     }
@@ -143,6 +145,7 @@ struct MaintenanceView: View {
                     Button("Copy to Hard Drive") { confirmsRip = true }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(store.busy != nil)
+                        .help("Copies the disc to GAMES on the PS3's hard drive, so it starts without the disc")
                 }
             } else {
                 Text(store.discNote ?? "No PS3 disc in the drive.")
@@ -176,6 +179,7 @@ struct MaintenanceView: View {
                 Button("Import to Mac") { store.importMedia() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .fixedSize()
+                    .help("Copies the videos and photos the Mac doesn't have yet")
                     .disabled(items.isEmpty || store.busy != nil)
                 Button { NSWorkspace.shared.open(MediaImport.defaultFolder) } label: { Image(systemName: "folder") }
                     .buttonStyle(CircleIconButtonStyle(size: 30))
@@ -215,6 +219,7 @@ struct MaintenanceView: View {
                     Spacer()
                     Button("Delete \(store.fixable.count) \(store.fixable.count == 1 ? "File" : "Files") · \(Format.bytes(store.fixable.compactMap(\.size).reduce(0, +)))…") { confirmsFix = true }
                         .buttonStyle(PillButtonStyle(destructive: true))
+                        .help("Removes the leftover packages and half-sent files listed here from the PS3, after a question")
                 }
             }
             .disabled(store.busy != nil)
@@ -240,6 +245,7 @@ struct MaintenanceView: View {
                 Button("Block…") { confirmsBlock = true }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .disabled(store.busy != nil)
+                    .help("Points the XMB's update check at webMAN MOD's own file in /dev_hdd0. Nothing in dev_flash changes.")
             }
         }
     }
@@ -419,10 +425,12 @@ struct SavesView: View {
                         Button("Delete…") { deleting = save }
                             .buttonStyle(PillButtonStyle(destructive: true))
                             .disabled(store.busy != nil)
+                            .help("Removes the save from the PS3 after a question; it is copied to the Mac first")
                     } else {
                         Button("Restore…") { restoring = save }
                             .buttonStyle(PillButtonStyle(prominent: false))
                             .disabled(store.busy != nil)
+                            .help("Puts the Mac's copy back on the PS3, for the same user, after a question")
                     }
                 }
                 .padding(.vertical, 10)

@@ -27,7 +27,12 @@ on the connection screen, `ps3 connection`). It lists every PS3 on the Mac's net
 address, shows the cable's link speed and the values to enter on the PS3; the search now also covers
 Internet Sharing and searches cables first (test 19).
 
-Built last (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
+Built last (Nov 7, night): phase 11, easier for new users: Settings in one place, a setup guide on
+the first launch, Help with eleven guides and a glossary (also `ps3 guide`), ⓘ on the status cards and
+tooltips on every button that changes the console, a tour and tips, and more to adjust (the status
+cards, the tabs, the menu bar's buttons, °F, the text size). Test 20.
+
+Before that (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
 packages from GitHub are checked against size and SHA-256, New in Browse and more error codes with advice
 (test 16).
 
@@ -416,6 +421,75 @@ and sources are in DESIGN.md. On HEN only the PS2 Classics Launcher (available i
 - Decided Nov 7: the keys may live on the Mac, and PS3 Center may fetch them (Download Keys in the
   app, `ps3 ps2 keys --fetch`). Import also exists.
 
+### Phase 11 – Easier for new users, and more to adjust
+
+**Status Nov 7, 2026:** built (all six steps), tried from Fixtures on the Mac; test 20 on the console.
+
+**Goal:** someone who has never used PS3 Center gets from opening the app to a connected console without
+reading the README, finds an explanation wherever a word or a button is unclear, and can make the app
+fit how they use it.
+
+What it looked like before: the first launch went straight to "Connecting to the PS3…", searched for up
+to half a minute and ended in "Can't reach the PS3" with only Try Again. The PS3 folder was first asked
+for when an app install had already failed. The settings were in six places (the gear only had the
+themes; the weekly backup in Maintenance, Launch at Login in the menu bar, Verify with MD5 in Transfers,
+watched folders in Game Folders, the FTP tuning only in config.json). Notifications could not be turned
+off one by one, and macOS asked for permission when the first one arrived. There were about 28
+tooltips and no help in the app.
+
+One step per PR:
+
+1. **Settings in one place.** The gear and ⌘, open Settings: General (the tab the app opens in, Launch
+   at Login, the menu bar icon), Appearance (the themes), Folders (the PS3 folder, with Create… for a
+   new user, Game Folders and Package Folders), Notifications (one switch per kind, and whether macOS
+   allows them) and Transfers (when the queue finishes, Verify with MD5, the weekly save backup, and
+   under Advanced the FTP chunk size and window with Reset). The switches stay where they were too and
+   read the same value. A storage rule: what the CLI also reads is in config.json, what only changes
+   how the app looks or behaves is in UserDefaults. The console's address is the connection sheet's
+   (Find PS3…), which Settings → Console opens.
+2. **A setup guide on the first launch,** when no console is saved: Welcome (what is needed: PS3HEN or
+   CFW and webMAN MOD), Prepare the PS3 (enable HEN after every restart), Find your PS3 (the connection
+   sheet's search, with firmware, HEN and webMAN for each console), Folders (optional: Create PS3 Folder,
+   Game Folders), Preferences (theme, Launch at Login, and the notification permission asked here with
+   a reason) and Done (Take the Tour or Start). Skip Setup on every page; a saved console skips it.
+   Optional: Explore with Sample Data, the Fixtures with a banner and every button that changes
+   something turned off.
+3. **A help center with how-to guides.** Markdown in PS3Kit, shown with `ReadmeView` in the app (⌘?
+   and the Help menu) and by `ps3 guide` in the CLI: Getting Started, Send Your First Game, Play from
+   the Mac, Install and Update Homebrew, Install Your Own .pkg, Back Up Saves, Copy to USB, Make a PS2
+   Classic, Game Updates from Sony, Troubleshooting, and The CLI and Claude. Empty views and errors get
+   a How? link to the right guide (`HelpTopic`). The guides follow the rules in CLAUDE.md.
+4. **Tooltips and explanations.** A glossary in PS3Kit (HEN, CFW, XMB, title ID, PS3ISO/GAMES,
+   APP_VER, CEX/DEX, PS2 Classic, LibCrypt, IRD, Game Server, dynamic fan mode), an ⓘ on every status
+   card whose limits are read from `Thermal`, `iconLabel` on every icon button and a `.help` that says
+   what happens on every button that changes the console. Rules for tooltip text in DESIGN.md, and a
+   check in CI for icon buttons without a label.
+5. **A tour and tips at the right moment.** Five or six steps after the setup (or from Help): the tabs,
+   the status cards, PS3/Mac and drag and drop in Games, Updates in Apps, Transfers and the gear. An
+   overlay of our own with `anchorPreference`, so the snapshots can render it. Short tips with TipKit
+   (macOS 14) in the PS style, shown once when they matter. Both can be turned off and reset.
+6. **More to adjust.** Which status cards show and in what order, hiding tabs, the menu bar's quick
+   buttons, °C or °F (only the display; the fan target stays 60–75 °C) and the text size (every size
+   goes through `Font.ui`, so one factor is enough). No colour picker of our own: the PS app's themes
+   keep the look together.
+
+How it turned out, where it differs from the plan above:
+- **Settings** has eight sections: General (open in, Launch at Login, tabs, the menu bar and its
+  buttons), Console (the address, Find PS3…), Appearance (text size, temperatures, theme), Status (the cards), Folders, Transfers,
+  Notifications and Help (Open Help, Show Setup Again, Take the Tour, Show Tips).
+- **The setup guide's Find step** shows the app's own search (`ConsoleLocator`) live, takes a typed
+  address (`ConsoleAddress.clean`, `ConsoleStore.connect(to:)` → `use(host:)`), and opens the
+  connection sheet (Find PS3…) for cables and several networks. The connection screen keeps the
+  sheet's Find PS3… and gets a How? link. Settings → Console shows the address and opens the sheet.
+- **Tips are our own** (`AppTip`, `TipCard`), not TipKit: TipKit only resets its tips before
+  `Tips.configure()`, so Show Them Again would need a restart, and its views don't render in the
+  snapshots. Ours are a set in UserDefaults and draw like the rest of the app.
+- **Explore with Sample Data** (optional) is not built: every store and button would need a demo mode.
+- **Help** opens from ⌘?, the ? beside the gear, Settings → Help, the How? links in empty views and on
+  the connection screen, and the ⓘ popovers. Links between guides are `ps3center://guide/<id>`.
+- **The guides** were written from DESIGN.md, the README and the code, and checked against it; they
+  describe what the app does and claim nothing that hasn't been tried on the console.
+
 ## Order and size
 
 | Phase | Size | Builds on | Why in that order |
@@ -430,6 +504,7 @@ and sources are in DESIGN.md. On HEN only the PS2 Classics Launcher (available i
 | 8 Maintenance | M | – | Can be done at any time |
 | 9 Ideas from aldostools | L | 1–8 | Built once the rest worked |
 | 10 The ISO tools from the PC | M | 5 | You asked for them Nov 7 |
+| 11 New users and settings | L | 1–10 | You asked for it Nov 7; Settings first, since the setup guide reuses its rows |
 
 ## Try on the console
 
@@ -534,6 +609,19 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
     - Put the PS3 back on Wi-Fi in its own menu while the sheet is open, Search Again, and press Use
       on the new address: does the Status tab follow without the splash screen?
     - Type a wrong address in the field and Connect: the error should come and the old address stay.
+20. Phase 11, new users:
+    - The first launch: quit PS3 Center, run `defaults delete local.ps3center.app onboardingVersion`
+      and remove `"host"` from `~/.config/ps3center/config.json` (note the address first). Open the app:
+      does the setup guide come? On Find Your PS3, is the console found by itself, with firmware, HEN
+      and webMAN? Then type the address by hand (Connect): does it connect and save it?
+    - With HEN off (right after a restart): does Find Your PS3 say so, and connect once HEN is on?
+    - Take the Tour: does each step point at the right place, and switch tab?
+    - ⌘? and the ? at the top right: does Help open, and do the links between guides work? The ⓘ on
+      a status card, and its "What is …?" link.
+    - Settings: hide Maintenance, move Health last, choose °F and Larger text. Do the tabs, the cards,
+      the temperatures (cards, menu bar, the fan target) and all text follow at once?
+    - Settings → Folders → Create…: does the PS3 folder appear, and does installing an app work after?
+    - `ps3 guide`, `ps3 guide send`, `ps3 guide glossary` in Terminal.
 
 ## Decisions (Oct 24, 2026)
 

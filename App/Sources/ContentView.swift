@@ -22,13 +22,12 @@ struct ContentView: View {
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
     @Environment(MaintenanceStore.self) private var maintenance
+    @Environment(AppPreferences.self) private var preferences
+    @Environment(AppRouter.self) private var router
     @Environment(\.openWindow) private var openWindow
-    @State private var tab: MainTab = .status
-    @State private var showsAppearance = false
+    /// Settings → General → Open In: a tab, or the one the window was on last time.
+    @State private var tab: MainTab = StartTab.launchTab()
     @State private var showsTransfers = false
-    /// Here, not on the Status tab or the splash screen, so the sheet stays open when the
-    /// console it switched to comes online and the splash screen gives way to the tabs.
-    @State private var showsConnection = false
     @State private var dropped: SendReview?
 
     var body: some View {
@@ -46,7 +45,7 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.5), value: console.connection == .online)
 
             VStack(spacing: 0) {
-                TopBar(selection: $tab, openTransfers: { showsTransfers = true }) { showsAppearance = true }
+                TopBar(selection: $tab, openTransfers: { showsTransfers = true }, openHelp: { router.openHelp() }) { router.openSettings() }
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -54,7 +53,7 @@ struct ContentView: View {
                 case .online:
                     Group {
                         switch tab {
-                        case .status: StatusView { showsConnection = true }
+                        case .status: StatusView { router.openConnection() }
                         case .games: GamesView()
                         case .apps: AppsView()
                         case .maintenance: MaintenanceView()
@@ -62,15 +61,52 @@ struct ContentView: View {
                     }
                     .transition(.opacity)
                 default:
-                    ConnectionView { showsConnection = true }
+                    ConnectionView { router.openConnection() }
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
+
+            // The setup guide covers everything on the first launch.
+            if router.showsOnboarding {
+                ZStack {
+                    SplashBackground().ignoresSafeArea()
+                    OnboardingView()
+                }
+                // Nothing under the guide can be clicked while it shows.
+                .contentShape(Rectangle())
+                .transition(.opacity)
+            }
         }
-        .sheet(isPresented: $showsAppearance) { AppearanceView() }
+        .animation(.easeInOut(duration: 0.35), value: router.showsOnboarding)
+        // The tour dims the window around the part each step is about.
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            if let step = router.tourStep {
+                GeometryReader { proxy in
+                    TourOverlay(step: step, rect: anchors[step.anchor].map { proxy[$0] }, size: proxy.size)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: router.tourStep)
+        .onChange(of: router.tourStep) { _, step in
+            if let next = step?.tab, !preferences.hiddenTabs.contains(next) { tab = next }
+        }
+        // A tab hidden in Settings → General can't stay open.
+        .onChange(of: preferences.hiddenTabs) { _, hidden in
+            if hidden.contains(tab) { tab = .status }
+        }
+        // On the window, not the gear, so ⌘, and the menu bar can open it too.
+        .sheet(isPresented: Binding(get: { router.showsSettings }, set: { router.showsSettings = $0 })) {
+            SettingsView(section: router.settingsSection)
+        }
+        .sheet(isPresented: Binding(get: { router.showsHelp }, set: { router.showsHelp = $0 })) {
+            HelpView(item: router.helpItem).id(router.helpItem)
+        }
+        // How? links, ⓘ buttons and the setup guide open Help through this.
+        .environment(\.openHelp, OpenHelpAction { router.openHelp($0) })
         .sheet(isPresented: $showsTransfers) { TransfersView() }
-        .sheet(isPresented: $showsConnection) { ConnectionSheet() }
+        .sheet(isPresented: Binding(get: { router.showsConnection }, set: { router.showsConnection = $0 })) { ConnectionSheet() }
         .sheet(item: $dropped) { SendReviewView(review: $0) }
         .task(id: console.host) {
             transfers.host = console.host
@@ -84,6 +120,7 @@ struct ContentView: View {
             maintenance.autoBackupIfDue(gameRunning: console.snapshot?.isGameRunning ?? true, transfersRunning: transfers.isRunning)
         }
         .onChange(of: console.snapshot?.mountedGamePath) { _, path in netServer.consoleMounted(path) }
+        .onChange(of: tab) { _, tab in preferences.remember(tab) }
         // Files from Finder's "Send to PS3", the menu bar and Shortcuts.
         // They wait until the console is online.
         .onChange(of: Inbox.shared.revision * 2 + (console.connection == .online ? 1 : 0), initial: true) {
@@ -108,10 +145,12 @@ struct TopBar: View {
     @Environment(TransferStore.self) private var transfers
     @Binding var selection: MainTab
     var openTransfers: () -> Void = {}
-    let openAppearance: () -> Void
+    var openHelp: () -> Void = {}
+    let openSettings: () -> Void
 
     var body: some View {
         TabBar(selection: $selection)
+            .tourAnchor(.tabs)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .trailing) {
                 HStack(spacing: 10) {
@@ -125,9 +164,16 @@ struct TopBar: View {
                         }
                     }
                     .iconLabel("Transfers")
-                    Button(action: openAppearance) { Image(systemName: "gearshape.fill") }
-                        .buttonStyle(CircleIconButtonStyle())
-                        .iconLabel("Appearance")
+                    .tourAnchor(.transfers)
+                    HStack(spacing: 10) {
+                        Button(action: openHelp) { Image(systemName: "questionmark") }
+                            .buttonStyle(CircleIconButtonStyle())
+                            .iconLabel("Help (⌘?)")
+                        Button(action: openSettings) { Image(systemName: "gearshape.fill") }
+                            .buttonStyle(CircleIconButtonStyle())
+                            .iconLabel("Settings (⌘,)")
+                    }
+                    .tourAnchor(.helpAndSettings)
                 }
             }
     }
@@ -139,6 +185,8 @@ struct TopBar: View {
 struct TabBar: View {
     @Environment(ConsoleStore.self) private var console
     @Environment(AppsStore.self) private var apps
+    /// Settings → General → Tabs; every tab without it (a snapshot).
+    @Environment(AppPreferences.self) private var preferences: AppPreferences?
     @Binding var selection: MainTab
     @Namespace private var pill
 
@@ -166,7 +214,7 @@ struct TabBar: View {
             // The tabs only lead somewhere while the console answers; on the splash screen they
             // are dimmed instead of looking clickable.
             let online = console.connection == .online
-            ForEach(MainTab.allCases) { tab in
+            ForEach(preferences?.visibleTabs ?? MainTab.allCases) { tab in
                 Button {
                     withAnimation(.spring(duration: 0.3)) { selection = tab }
                 } label: {
@@ -229,6 +277,8 @@ struct ConnectionView: View {
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .help("Search the Mac's networks, enter the address yourself, or see how to connect a cable")
                 }
+                HelpLink(title: "Why can't it find my PS3?", guide: .troubleshooting, tint: .white)
+                    .padding(.top, 4)
             } else {
                 Spinner(size: 20)
             }

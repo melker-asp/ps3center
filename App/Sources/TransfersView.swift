@@ -15,12 +15,18 @@ struct TransfersView: View {
             if let note = transfers.note {
                 NoteBanner(text: note).padding(.top, 14)
             }
+            if !transfers.queue.items.isEmpty {
+                TipCard(.queueResumes).padding(.top, 14)
+            }
             Group {
                 if transfers.queue.items.isEmpty {
-                    Text("The queue is empty. Pick games under Mac in the Games tab, or drag files onto the window.")
-                        .font(.ui(.body))
-                        .foregroundStyle(Theme.secondaryText)
-                        .frame(maxWidth: .infinity, minHeight: 120)
+                    VStack(spacing: 12) {
+                        Text("The queue is empty. Pick games under Mac in the Games tab, or drag files onto the window.")
+                            .font(.ui(.body))
+                            .foregroundStyle(Theme.secondaryText)
+                        HelpLink(title: "How to send your first game", guide: .sendGames)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 120)
                 } else if scrolls {
                     ScrollView { list }.scrollIndicators(.hidden)
                 } else {

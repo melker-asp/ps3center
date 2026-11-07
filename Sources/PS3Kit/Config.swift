@@ -116,4 +116,40 @@ public enum MirrorRoot {
         migrateNames(in: root)
         return root.appendingPathComponent(installedFolder + "/Packages", isDirectory: true)
     }
+
+    /// Makes a new, empty PS3 folder in `parent` for someone without a copy of the console's
+    /// drive: `<name>/dev_hdd0` and `<name>/_Installed/Packages`. A `<name>` that already is a PS3
+    /// folder is used as it is; any other existing file or folder is never added to, the next free
+    /// name ("PS3 2", "PS3 3" …) is used instead.
+    public static func create(in parent: URL, name: String = "PS3") throws -> URL {
+        let fm = FileManager.default
+        var candidate = parent.appendingPathComponent(name, isDirectory: true)
+        var number = 2
+        while fm.fileExists(atPath: candidate.path) {
+            if looksLikeMirror(candidate) { return migrated(candidate) }
+            candidate = parent.appendingPathComponent("\(name) \(number)", isDirectory: true)
+            number += 1
+        }
+        try fm.createDirectory(at: candidate.appendingPathComponent("dev_hdd0", isDirectory: true), withIntermediateDirectories: true)
+        try fm.createDirectory(at: candidate.appendingPathComponent(installedFolder + "/Packages", isDirectory: true), withIntermediateDirectories: true)
+        return candidate
+    }
+}
+
+/// The limits and defaults of `ftpChunkKB` and `ftpWindow` in config.json, shared by the upload
+/// code (`FTPClient.Tuning`) and the app's Settings, so both clamp the same way.
+public enum FTPTuning {
+    public static let defaultChunkKB = 1024
+    public static let chunkKBRange = 64...8192
+    public static let defaultWindow = 2
+    public static let windowRange = 1...8
+
+    /// What uploads use for a saved value (nil is the default), clamped to the limits.
+    public static func chunkKB(_ saved: Int?) -> Int {
+        min(max(saved ?? defaultChunkKB, chunkKBRange.lowerBound), chunkKBRange.upperBound)
+    }
+
+    public static func window(_ saved: Int?) -> Int {
+        min(max(saved ?? defaultWindow, windowRange.lowerBound), windowRange.upperBound)
+    }
 }

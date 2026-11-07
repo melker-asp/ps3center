@@ -27,9 +27,10 @@ struct PS3: AsyncParsableCommand {
           ps3 iso make GameFolder      Make an ISO from a folder (also split/join/extract)
           ps3 ps2 classic Game.iso     Turn a PS2 game into a PS2 Classic for HEN
           ps3 mcp                      MCP server so Claude can troubleshoot the PS3
+          ps3 guide                    How-to guides and the glossary, as Help in the app
         """,
         version: "0.1.0",
         subcommands: [Status.self, Send.self, Games.self, Queue.self, Apps.self, Speedtest.self, USB.self, ISO.self, PS2.self, Power.self, Disc.self, Fan.self, Pad.self, Screenshot.self, Record.self, Media.self, Beep.self, Music.self, Serve.self,
-                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, MCP.self, Popup.self, Refresh.self, History.self, Discover.self, Connection.self, Config.self]
+                      WatchFolders.self, Saves.self, Backup.self, Maintain.self, Analyze.self, Rip.self, Verify.self, ErrorCode.self, GuideCommand.self, MCP.self, Popup.self, Refresh.self, History.self, Discover.self, Connection.self, Config.self]
     )
 }

@@ -257,9 +257,9 @@ public final class FTPClient {
         static var current: Tuning {
             let config = ConfigStore.load()
             let environment = ProcessInfo.processInfo.environment
-            let chunkKB = environment["PS3_FTP_CHUNK_KB"].flatMap { Int($0) } ?? config.ftpChunkKB ?? 1024
-            let window = environment["PS3_FTP_WINDOW"].flatMap { Int($0) } ?? config.ftpWindow ?? 2
-            return Tuning(chunk: min(max(chunkKB, 64), 8192) << 10, window: min(max(window, 1), 8))
+            let chunkKB = environment["PS3_FTP_CHUNK_KB"].flatMap { Int($0) } ?? config.ftpChunkKB
+            let window = environment["PS3_FTP_WINDOW"].flatMap { Int($0) } ?? config.ftpWindow
+            return Tuning(chunk: FTPTuning.chunkKB(chunkKB) << 10, window: FTPTuning.window(window))
         }
     }
 

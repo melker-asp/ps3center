@@ -32,6 +32,9 @@ struct GamesView: View {
                 if onMac, let failure = library.macFailure {
                     NoteBanner(text: failure)
                 }
+                if onMac, !library.macGames.isEmpty {
+                    TipCard(.dragToSend)
+                }
                 content
                 if onMac, !library.selection.isEmpty {
                     selectionBar
@@ -69,6 +72,7 @@ struct GamesView: View {
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
             .fixedSize()
+            .tourAnchor(.gamesSource)
 
             HStack(spacing: 2) {
                 ForEach(GamesStore.Filter.allCases) { item in
@@ -254,8 +258,13 @@ struct GamesView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if library.games.isEmpty {
-            emptyState(symbol: "opticaldisc", title: "No games on the PS3 yet",
-                       detail: "PS3 Center looks in PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO and DVDISO on the hard drive and USB drives, and among installed games. Choose Mac above to send games.")
+            VStack(spacing: 14) {
+                emptyState(symbol: "opticaldisc", title: "No games on the PS3 yet",
+                           detail: "PS3 Center looks in PS3ISO, GAMES, PS2ISO, PSXISO, PSPISO, BDISO and DVDISO on the hard drive and USB drives, and among installed games. Choose Mac above to send games.")
+                    .frame(maxHeight: 220)
+                HelpLink(title: "How to send your first game", guide: .sendGames)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             scrolling
         }
@@ -271,6 +280,8 @@ struct GamesView: View {
                     .frame(maxHeight: 220)
                 Button("Add Game Folders…") { showsFolders = true }
                     .buttonStyle(PillButtonStyle())
+                HelpLink(title: "How game folders work", guide: .sendGames)
+                    .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -606,6 +617,7 @@ struct GameArtwork: View {
 struct SearchField: View {
     @Binding var text: String
     var interactive = true
+    var placeholder = "Name or title ID"
 
     var body: some View {
         HStack(spacing: 8) {
@@ -613,12 +625,12 @@ struct SearchField: View {
                 .foregroundStyle(Theme.tertiaryText)
             // One line, short enough for the narrowest field: the row gives way here first.
             if interactive {
-                TextField("Name or title ID", text: $text)
+                TextField(placeholder, text: $text)
                     .textFieldStyle(.plain)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
             } else {
-                Text(text.isEmpty ? "Name or title ID" : text)
+                Text(text.isEmpty ? placeholder : text)
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
                 Spacer(minLength: 0)

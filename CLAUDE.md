@@ -89,7 +89,8 @@ xcodebuild won't find it.
   picks the advice (no cable, no address on the Mac, a router, Internet Sharing, or a direct cable with
   the values to type on the PS3). The PS3's network settings are only shown, never written (they are in
   xRegistry.sys). CLI: `ps3 discover`, `ps3 connection`. The app: `ConnectionSheet` from the Network
-  card and Find PS3… on the connection screen; `ConsoleStore.use(host:)` switches without the splash.
+  card, Find PS3… on the connection screen, Settings → Console and the setup guide (all through
+  `AppRouter.openConnection`); `ConsoleStore.use(host:)` switches without the splash.
 - **webMAN's quirks** are handled in `WebMAN.swift` and `FTPClient.swift`:
   - every HTTP request sends `Connection: close` and runs one at a time, except commands that can take minutes
     (`/install.ps3`, `/stat.ps3`): they go through `WebMAN.long` on a connection of their own and
@@ -215,6 +216,24 @@ xcodebuild won't find it.
   to `<name> [ID].BIN.ENC` as ps2classic does, for the placeholder `PS2U10000` (PS3HEN makes its
   license itself). `PS2ClassicKeys` downloads, imports and checks the keys. CLI: `ps3 ps2`.
   The app: Convert to PS2 Classic… in the right-click menu on a PS2 game under Mac (`PS2ClassicView`).
+- **Settings** (`SettingsView.swift`, `Preferences.swift`): the gear, ⌘, (`CommandGroup(replacing:
+  .appSettings)`) and the menu bar open one sheet through `AppRouter`, which sits on the window so it
+  survives the window being reopened. `AppPreferences` holds what only the app uses (UserDefaults:
+  `startTab`/`lastTab`, `showsMenuBarIcon` bound to `MenuBarExtra(isInserted:)`, the muted
+  `NotificationKind`s that `Notifier.post` checks); what the CLI reads stays in config.json
+  (`FTPTuning` has the limits both use, `MirrorRoot.create(in:)` makes an empty PS3 folder, also
+  `ps3 config set root <folder> --create`). `PS3FolderPicker` is shared by Settings and the banner in
+  Apps. `AppPreferences.shared` also holds the status cards' order, hidden tabs and menu bar buttons,
+  `TemperatureUnit` and `TextScale`, which `Font.ui` reads (it is `@MainActor` for that).
+- **New users** (phase 11): `Onboarding.isNeeded` (no host saved, `onboardingVersion` in UserDefaults)
+  shows `OnboardingView` over the window; its Find step uses `AddressEntry` → `ConsoleStore.connect(to:)`
+  → `ConsoleLocator.resolve(explicit:)` with `ConsoleAddress.clean`. Help is `HelpView` on `Guides` and
+  `Glossary` in PS3Kit (one Swift file per guide in `Sources/PS3Kit/Guides/`, Markdown that
+  `ReadmeView` draws, links `ps3center://guide/<id>`), also `ps3 guide`. Views open Help through the
+  `openHelp` environment action (a no-op in snapshots); `AppRouter` holds the sheets, the setup guide
+  and `tourStep`. The tour is `TourOverlay` over `.tourAnchor(_:)` preferences; tips are `AppTip` +
+  `TipCard` with an optional `AppPreferences` in the environment. `HelpTests` checks the guides' links
+  and words and that every icon button has a label. Guides must follow the Rules below like code.
 - **Progress:** `TransferEvent` goes via `@Sendable` callbacks. The CLI prints them (`TransferPrinter`),
   the app puts them in `AppsStore.operations` on the MainActor.
 - **The app:** `ConsoleStore` fetches status every 3 seconds, `AppsStore` has an installation queue that takes

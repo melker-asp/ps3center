@@ -36,7 +36,7 @@ struct AppsView: View {
                 WaitingBanner(game: game) { apps.forceWaiting() }
             }
             if apps.archiveMissing {
-                MissingFolderBanner { apps.chooseMirrorFolder() }
+                MissingFolderBanner(choose: { apps.chooseMirrorFolder() }, create: { apps.createMirrorFolder() })
             }
             if let selected = apps.selected {
                 AppDetailView(status: selected, scrolls: scrolls)
@@ -86,6 +86,7 @@ struct AppsView: View {
             }
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
+            .tourAnchor(.appsSections)
 
             Button {
                 if section == .mac {
@@ -146,6 +147,8 @@ struct AppsView: View {
                 Button("Add Package Folders…") { showsFolders = true }
                     .buttonStyle(PillButtonStyle())
                     .padding(.top, 4)
+                HelpLink(title: "How to install your own .pkg files", guide: .ownPackages)
+                    .padding(.top, 6)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if scrolls {
@@ -223,6 +226,9 @@ struct AppsView: View {
             SectionHeader(title: "Updates", count: apps.updates.count,
                           action: installable == 0 || apps.isUpdatingAll ? nil
                               : (installable == apps.updates.count ? "Update All…" : "Update \(installable)…", { plan = apps.updatePlan() }))
+            TipCard(.ignoreUpdate)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
             ForEach(apps.updates, id: \.id) { AppRow(status: $0, mode: .update) }
         }
         SectionHeader(title: "Up to Date", count: apps.current.count)
@@ -662,13 +668,18 @@ struct WaitingBanner: View {
 
 struct MissingFolderBanner: View {
     let choose: () -> Void
+    let create: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "folder.badge.questionmark").foregroundStyle(Theme.hot)
-            Text("The app can't find the PS3 folder where packages are archived (_Installed/Packages).")
+            Text("Installing apps needs a PS3 folder on the Mac to archive the packages in (_Installed/Packages).")
                 .font(.ui(.body)).foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
+            Button("Create Folder…", action: create)
+                .buttonStyle(PillButtonStyle(tint: Theme.hot))
+                .help("Makes an empty PS3 folder with dev_hdd0 and _Installed in a place you choose")
             Button("Choose Folder…", action: choose).buttonStyle(PillButtonStyle(tint: Theme.hot))
         }
         .padding(12)

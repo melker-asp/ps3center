@@ -35,11 +35,28 @@ enum Snapshot {
         render(.status, name: "connecting", console: ConsoleStore(), apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
             ConnectionView().frame(height: 640)
         }
+        let offline = ConsoleStore()
+        offline.loadOfflineFixture()
+        render(.status, name: "connecting-offline", console: offline, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
+            ConnectionView().frame(height: 700)
+        }
 
         let henOff = ConsoleStore()
         henOff.loadHenOffFixture()
         render(.status, name: "connecting-hen", console: henOff, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, splash: true) {
             ConnectionView().frame(height: 640)
+        }
+
+        // The setup guide, one picture per page, on the fixtures' console.
+        for page in OnboardingPage.allCases {
+            write(ZStack {
+                SplashBackground()
+                OnboardingView(page: page, live: false)
+            }
+            .frame(width: 1180, height: 860)
+            .environment(console).environment(apps).environment(games).environment(netServer)
+            .environment(AppRouter()).environment(AppPreferences(previewing: true)).environment(AppearanceStore(previewing: .perTab)),
+                  name: "onboarding-\(page.rawValue + 1)", into: directory)
         }
 
         render(.status, name: "status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { StatusView(scrolls: false) }
@@ -79,6 +96,8 @@ enum Snapshot {
         games.source = .mac
         games.selection = Set(games.macGames.filter { games.macStates[$0.id] == .notOnConsole }.prefix(2).map(\.id))
         render(.games, name: "games-mac", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) { GamesView(scrolls: false) }
+        // The tour at its Games step, pointing at On PS3 | On Mac.
+        render(.games, name: "tour-games", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, tour: .games) { GamesView(scrolls: false) }
         games.source = .console
         games.selection = []
         write(FoldersView(live: false), name: "folders", into: directory)
@@ -96,7 +115,7 @@ enum Snapshot {
         write(ConnectionSheet(live: false).environment(console), name: "connection", into: directory)
         write(RemoteView(live: false).environment(console), name: "remote", into: directory)
         write(SavesView(live: false).environment(maintenance), name: "saves", into: directory)
-        write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer),
+        write(MenuBarView(background: Theme.base).environment(console).environment(apps).environment(transfers).environment(netServer).environment(AppRouter()),
               name: "menubar", into: directory)
         render(.maintenance, name: "maintenance", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory) {
             MaintenanceView(scrolls: false)
@@ -133,13 +152,29 @@ enum Snapshot {
         render(.status, name: "status-nova-pink", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, theme: .novaPink) {
             StatusView(scrolls: false)
         }
-        write(AppearanceView().environment(AppearanceStore(previewing: .perTab)), name: "appearance", into: directory)
+        // Help: a guide, and the glossary at the term an ⓘ asked for.
+        write(HelpView(item: .guide(.sendGames), live: false), name: "help-guide", into: directory)
+        write(HelpView(item: .term(.hen), live: false), name: "help-glossary", into: directory)
+        render(.status, name: "tour-status", console: console, apps: apps, games: games, transfers: transfers, netServer: netServer, maintenance: maintenance, into: directory, tour: .statusCards) {
+            StatusView(scrolls: false)
+        }
+        // Settings, one picture per section, with the defaults instead of the viewer's own choices.
+        let preferences = AppPreferences(previewing: true)
+        for section in SettingsSection.allCases {
+            write(SettingsView(section: section, live: false, scrolls: false)
+                    .environment(AppearanceStore(previewing: .perTab)).environment(preferences).environment(AppRouter())
+                    .environment(console).environment(apps).environment(games).environment(transfers)
+                    .environment(netServer).environment(maintenance),
+                  name: "settings-\(section.rawValue)", into: directory)
+        }
         NSApp.terminate(nil)
     }
 
     private static func render<Content: View>(_ tab: MainTab, name: String, console: ConsoleStore, apps: AppsStore,
                                               games: GamesStore, transfers: TransferStore, netServer: NetServerStore, maintenance: MaintenanceStore, into directory: URL, splash: Bool = false, theme: AppTheme = .perTab,
-                                              @ViewBuilder content: () -> Content) {
+                                              tour: TourStep? = nil, @ViewBuilder content: () -> Content) {
+        let router = AppRouter()
+        router.tourStep = tour
         let view = ZStack(alignment: .top) {
             if splash { SplashBackground() } else { Theme.background(for: tab, theme: theme) }
             VStack(spacing: 0) {
@@ -152,6 +187,16 @@ enum Snapshot {
             .padding(.bottom, 20)
         }
         .frame(width: 1180)
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            if let tour {
+                GeometryReader { proxy in
+                    TourOverlay(step: tour, rect: anchors[tour.anchor].map { proxy[$0] }, size: proxy.size)
+                }
+            }
+        }
+        // The tips show, as on a first launch; the cards, tabs and units are the defaults.
+        .environment(AppPreferences(previewing: true))
+        .environment(router)
         .environment(console)
         .environment(apps)
         .environment(games)
