@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Network
 
 /// Another try when the network fails during a transfer: the queue waits a little longer each
@@ -50,19 +51,14 @@ public enum RetryPolicy {
 }
 
 /// How far each file got, so a new try can tell when the console threw away a half-sent file.
-final class SentMemory: @unchecked Sendable {
-    private let lock = NSLock()
-    private var sent: [String: Int64] = [:]
+final class SentMemory: Sendable {
+    private let sent = OSAllocatedUnfairLock(initialState: [String: Int64]())
 
     func note(_ remote: String, _ bytes: Int64) {
-        lock.lock()
-        sent[remote] = max(sent[remote] ?? 0, bytes)
-        lock.unlock()
+        sent.withLock { $0[remote] = max($0[remote] ?? 0, bytes) }
     }
 
     func bytes(_ remote: String) -> Int64 {
-        lock.lock()
-        defer { lock.unlock() }
-        return sent[remote] ?? 0
+        sent.withLock { $0[remote] ?? 0 }
     }
 }

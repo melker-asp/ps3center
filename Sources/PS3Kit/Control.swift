@@ -65,12 +65,12 @@ extension WebMAN {
     }
 
     public func ejectDisc() async throws {
-        OperationLog.record("eject", host)
+        OperationLog.record(.eject, host)
         try await get("/eject.ps3")
     }
 
     public func insertDisc() async throws {
-        OperationLog.record("insert", host)
+        OperationLog.record(.insert, host)
         try await get("/insert.ps3")
     }
 
@@ -134,7 +134,7 @@ extension WebMAN {
     public func setFanTarget(_ celsius: Int) async throws {
         let current = try await snapshot()
         if let refusal = FanControl.refusal(target: celsius, snapshot: current) { throw PS3Error.refused(refusal) }
-        OperationLog.record("fan", "\(host) max \(celsius) °C (was \(current.fanTargetMax ?? 0) °C)")
+        OperationLog.record(.fan, "\(host) max \(celsius) °C (was \(current.fanTargetMax ?? 0) °C)")
         // The answer is the status page, which shows PSID/IDPS: it is not kept.
         _ = try await get("/cpursx.ps3?max=\(celsius)")
     }
@@ -244,19 +244,6 @@ public enum Reachability {
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { finish(false) }
         }
     }
-
-    final class Once: @unchecked Sendable {
-        private let lock = NSLock()
-        private var done = false
-
-        func claim() -> Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            if done { return false }
-            done = true
-            return true
-        }
-    }
 }
 
 // MARK: Play time
@@ -269,6 +256,13 @@ public struct PlayLog: Codable, Equatable, Sendable {
         public var seconds: TimeInterval
         public var sessions: Int
         public var lastPlayed: Date
+
+        package init(title: String, seconds: TimeInterval, sessions: Int, lastPlayed: Date) {
+            self.title = title
+            self.seconds = seconds
+            self.sessions = sessions
+            self.lastPlayed = lastPlayed
+        }
     }
 
     /// Keyed on the mounted path as webMAN shows it ("/dev_hdd0/PS3ISO/Game.iso", "/net0/PS3ISO/…").
@@ -276,31 +270,23 @@ public struct PlayLog: Codable, Equatable, Sendable {
 
     public init() {}
 
-    public static var file: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ps3center/playtime.json")
-    }
+    public static var file: URL { StatePaths.support.appendingPathComponent("playtime.json") }
+    static var store: JSONFile<PlayLog> { JSONFile(file, empty: PlayLog()) }
 
-    public static func load() -> PlayLog {
-        guard let data = try? Data(contentsOf: file) else { return PlayLog() }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode(PlayLog.self, from: data)) ?? PlayLog()
-    }
+    public static func load() -> PlayLog { store.load() }
 
+    /// Writes the whole log. The app's `PlayTracker` is the only writer, so its copy is the truth.
     public func save() throws {
-        try FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(self).write(to: Self.file, options: .atomic)
+        let log = self
+        try Self.store.edit { $0 = log }
     }
 
     /// A game's record, on the console or (played through the game server) on the Mac.
     public func record(for game: Game) -> Record? {
         if let record = games[game.path] { return record }
-        if let netPath = game.netPath { return games["/net0" + netPath] }
-        return nil
+        // Played through the game server: under whichever network server webMAN used.
+        guard let netPath = game.netPath else { return nil }
+        return (0...4).lazy.compactMap { games[NetServer.mountPath(slot: $0, netPath: netPath)] }.first
     }
 }
 

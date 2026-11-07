@@ -7,6 +7,8 @@ import Foundation
 ///
 /// The transport is JSON-RPC 2.0, one message per line on stdin and stdout. Nothing else may be
 /// written to stdout while the server runs (FTP debugging goes to stderr).
+/// Unchecked: every stored property is a `let` set in `init`; only `[String: Any]` in the tools
+/// keeps the compiler from proving it.
 public final class MCPServer: @unchecked Sendable {
     public struct Tool {
         public let name: String
@@ -262,16 +264,8 @@ extension MCPServer {
     }
 
     /// The console's address as the CLI finds it. When webMAN does not answer but the console does,
-    /// the error says that HEN is off, which is the usual reason after a restart.
+    /// the error says that HEN is off (`PS3Error.henOff`), the usual reason after a restart.
     static func consoleHost(_ explicit: String?) async throws -> String {
-        do {
-            return try await ConsoleLocator.resolve(explicit: explicit)
-        } catch {
-            let saved = explicit ?? ProcessInfo.processInfo.environment["PS3_HOST"] ?? ConfigStore.load().host
-            if let saved, await Reachability.probe(saved) == .henOff {
-                throw PS3Error.refused(Reachability.henOffAdvice(host: saved))
-            }
-            throw error
-        }
+        try await ConsoleLocator.resolve(explicit: explicit)
     }
 }

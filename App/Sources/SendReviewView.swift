@@ -26,15 +26,9 @@ struct SendReviewView: View {
         var size: Int64 { routes.reduce(0) { $0 + $1.size } }
     }
 
+    /// One row per game, grouped as the queue groups them.
     private var groups: [Entry] {
-        var order: [String] = []
-        var byTitle: [String: [Route]] = [:]
-        for route in review.routes {
-            let title = route.title ?? GameName.clean(route.local.lastPathComponent)
-            if byTitle[title] == nil { order.append(title) }
-            byTitle[title, default: []].append(route)
-        }
-        return order.map { Entry(title: $0, routes: byTitle[$0] ?? []) }
+        TransferQueue.games(in: review.routes).map { Entry(title: $0.title, routes: $0.routes) }
     }
 
     private var chosen: [Entry] { groups.filter { !excluded.contains($0.id) } }
@@ -73,7 +67,7 @@ struct SendReviewView: View {
                         .foregroundStyle(Theme.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if console.snapshot?.network == "Wi-Fi", total > 2_000_000_000 {
+                if console.snapshot?.network == .wifi, total > 2_000_000_000 {
                     Text("The PS3 is on Wi-Fi (2.4 GHz only). With a cable it takes \(SpeedTest.cableEstimate(bytes: total))\(cableSource).")
                         .font(.ui(.footnote))
                         .foregroundStyle(Theme.warm)
@@ -118,8 +112,7 @@ struct SendReviewView: View {
 
     /// A plain PS2 ISO among the chosen games while the console runs HEN, where it will not start.
     private var sendsPS2ISOToHEN: Bool {
-        guard let snapshot = console.snapshot, ConsoleProfile(snapshot: snapshot).exploit == .hen else { return false }
-        return chosen.flatMap(\.routes).contains { $0.kind == .ps2ISO && !PS2Classic.isClassic($0.remote) }
+        PlayCheck.sendsPS2ISOToHEN(chosen.flatMap(\.routes), console: console.snapshot.map(ConsoleProfile.init))
     }
 
     private func row(_ group: Entry) -> some View {
@@ -170,13 +163,13 @@ struct SendReviewView: View {
         guard let speed = transfers.lastSpeed, speed.upload > 0 else {
             return "measure the speed under Transfers"
         }
-        let network = speed.network.map { ", \($0)" } ?? ""
+        let network = speed.network.map { ", \($0.label)" } ?? ""
         return "about \(Format.estimate(Double(total) / speed.upload)) (\(Format.rate(speed.upload))\(network))"
     }
 
     /// Where the cable time comes from: a measurement over LAN, or what others report.
     private var cableSource: String {
-        SpeedTest.byNetwork()["LAN"] == nil ? ", based on the 10–40 MB/s others have measured" : " from your measurement with a cable"
+        SpeedTest.measurement(over: .lan) == nil ? ", based on the 10–40 MB/s others have measured" : " from your measurement with a cable"
     }
 }
 

@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import PS3Kit
+import PS3KitFixtures
 
 /// Backs the Apps tab: catalog status, icons, and a one-at-a-time install queue
 /// (webMAN's FTP server handles a single transfer well).
@@ -28,41 +29,11 @@ final class AppsStore {
         }
     }
 
-    /// What "Update All" is about to do, shown for review before anything happens: the
-    /// updates it can install, and the ones it leaves alone and why.
-    struct UpdatePlan: Identifiable {
-        struct Skip: Identifiable {
-            let status: AppStatus
-            /// Short enough for one line; the catalog's full advice is in `status.note`.
-            let reason: String
-            var id: String { status.id }
-        }
-
-        let id = UUID()
-        let installs: [AppStatus]
-        let skipped: [Skip]
-    }
-
-    /// The outcome of "Update All" once the queue is empty: Done, Failed and
-    /// Skipped, each with its reason. Shown above the list until it is closed.
-    struct UpdateReport: Equatable {
-        struct Line: Equatable, Identifiable {
-            let id: String
-            let name: String
-            let detail: String
-        }
-
-        var done: [Line]
-        var failed: [Line]
-        var skipped: [Line]
-        let finished: Date
-    }
-
-    /// A running "Update All": what it queued, and what it left out and why.
-    private struct UpdateBatch {
-        let installs: [UpdateReport.Line]
-        let skipped: [UpdateReport.Line]
-    }
+    /// What "Update All" is about to do, shown for review before anything happens. The rules are
+    /// PS3Kit's, shared with `ps3 apps update`.
+    typealias UpdatePlan = PS3Kit.UpdatePlan
+    /// The outcome of "Update All", shown above the list until it is closed.
+    typealias UpdateReport = PS3Kit.UpdateReport
 
     private(set) var phase: Phase = .idle
     private(set) var statuses: [AppStatus] = []
@@ -101,15 +72,17 @@ final class AppsStore {
     private var forceNext = false
     private var host: String?
 
+    /// The Updates list's groups (`AppGroups`, the same as `ps3 apps`).
+    var groups: AppGroups { AppGroups(statuses) }
     /// Updates the user has not ignored: what the badges count and "Update All" offers.
-    var updates: [AppStatus] { statuses.filter(\.isPendingUpdate) }
-    var ignoredUpdates: [AppStatus] { statuses.filter { $0.state == .updateAvailable && $0.ignored } }
-    var current: [AppStatus] { statuses.filter { $0.state == .upToDate } }
-    var manual: [AppStatus] { statuses.filter { $0.state == .manual || $0.state == .error } }
+    var updates: [AppStatus] { groups.updates }
+    var ignoredUpdates: [AppStatus] { groups.ignored }
+    var current: [AppStatus] { groups.current }
+    var manual: [AppStatus] { groups.manual }
     var available: [AppStatus] { statuses.filter { $0.installed == nil && $0.installable } }
     var installableUpdates: [AppStatus] { updates.filter(\.canInstall) }
     /// Browse's "New": apps whose latest release is less than 30 days old.
-    var newReleases: [AppStatus] { statuses.filter { $0.isNewRelease() && ($0.installable || $0.installed != nil || $0.blocked) } }
+    var newReleases: [AppStatus] { statuses.filter { $0.isNewRelease() && $0.isListed } }
 
     var waitingGame: String? {
         for op in operations.values { if case .waitingForGame(let game) = op.stage { return game } }
@@ -269,7 +242,7 @@ final class AppsStore {
 
     // MARK: Ignore
 
-    /// "Ignorera": skips this release. It moves to Ignorerade and comes back when a newer one is out.
+    /// "Ignore": skips this release. It moves to Ignored and comes back when a newer one is out.
     func ignore(_ status: AppStatus) {
         guard let latest = status.latest, (try? IgnoredUpdates.ignore(status.id, version: latest)) != nil else { return }
         setIgnored(true, for: status.id)
@@ -289,16 +262,7 @@ final class AppsStore {
 
     /// What the review before "Update All" shows.
     func updatePlan() -> UpdatePlan {
-        let notAutomatic = updates.filter { !$0.canInstall }.map { UpdatePlan.Skip(status: $0, reason: Self.skipReason(for: $0)) }
-        let ignored = ignoredUpdates.map { UpdatePlan.Skip(status: $0, reason: "Ignored") }
-        return UpdatePlan(installs: installableUpdates, skipped: notAutomatic + ignored)
-    }
-
-    /// Why an update is not part of "Update All", in a few words.
-    static func skipReason(for status: AppStatus) -> String {
-        if status.compatibility.blocksInstall { return status.compatibility.summary }
-        if let action = entry(for: status)?.action, case .notifyOnly = action { return "Never installed automatically" }
-        return status.note ?? "The release has no package"
+        UpdatePlan(statuses)
     }
 
     /// "02.40 → 02.41", in the same APP_VER form as the Updates list (`AppStatus.versionChange`).
@@ -309,24 +273,15 @@ final class AppsStore {
     /// Runs the reviewed plan: queues the chosen updates and keeps the rest for the report.
     func updateAll(_ chosen: [AppStatus], from plan: UpdatePlan) {
         guard batch == nil, !chosen.isEmpty else { return }
-        let chosenIDs = Set(chosen.map(\.id))
-        let unchecked = plan.installs.filter { !chosenIDs.contains($0.id) }
-            .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Unchecked in the review") }
-        let skipped = plan.skipped.map { UpdateReport.Line(id: $0.id, name: $0.status.name, detail: $0.reason) }
-        // The plan is what the sheet showed when it opened. An app that finished updating while
-        // it was open (its own Update button) would otherwise be downloaded and installed again.
-        let stillPending = Set(installableUpdates.map(\.id))
-        let current = chosen.filter { stillPending.contains($0.id) && operations[$0.id]?.stage != .done }
-        let outdated = chosen.filter { status in !current.contains { $0.id == status.id } }
-            .map { UpdateReport.Line(id: $0.id, name: $0.name, detail: "Already updated") }
-        guard !current.isEmpty else {
-            report = UpdateReport(done: [], failed: [], skipped: outdated + unchecked + skipped, finished: Date())
+        let pending = Set(installableUpdates.map(\.id).filter { operations[$0]?.stage != .done })
+        let started = UpdateBatch(plan: plan, chosen: chosen, pending: pending)
+        guard !started.queued.isEmpty else {
+            report = started.report([:])
             return
         }
-        batch = UpdateBatch(installs: current.map { UpdateReport.Line(id: $0.id, name: $0.name, detail: Self.versionChange($0)) },
-                            skipped: outdated + unchecked + skipped)
+        batch = started
         report = nil
-        current.forEach(install)
+        started.queued.forEach(install)
     }
 
     func dismissReport() {
@@ -337,17 +292,17 @@ final class AppsStore {
     private func finishBatch() {
         guard let batch else { return }
         self.batch = nil
-        var done: [UpdateReport.Line] = []
-        var failed: [UpdateReport.Line] = []
-        var skipped = batch.skipped
+        var outcomes: [String: UpdateBatch.Outcome] = [:]
         for line in batch.installs {
             switch operations[line.id]?.stage {
-            case .done: done.append(line)
-            case .failed(let message): failed.append(UpdateReport.Line(id: line.id, name: line.name, detail: message))
-            default: skipped.append(UpdateReport.Line(id: line.id, name: line.name, detail: "Didn't run"))
+            case .done: outcomes[line.id] = .done
+            case .failed(let message): outcomes[line.id] = .failed(message)
+            default: break
             }
         }
-        report = UpdateReport(done: done, failed: failed, skipped: skipped, finished: Date())
+        let report = batch.report(outcomes)
+        self.report = report
+        let done = report.done, failed = report.failed
         let title = failed.isEmpty && done.count == 1 ? "\(done[0].name) is updated"
             : "\(done.count) of \(batch.installs.count) updates done"
         Notifier.post(title: title, body: failed.isEmpty ? "Everything went fine." : "Failed: " + failed.map(\.name).joined(separator: ", "))
@@ -363,7 +318,7 @@ final class AppsStore {
         report = UpdateReport(
             done: line("apollo", Self.versionChange),
             failed: line("webman") { _ in "The connection to the PS3 dropped during the upload" },
-            skipped: line("hen", Self.skipReason) + line("artemis") { _ in "Ignorerad" },
+            skipped: line("hen", \.skipReason) + line("artemis") { _ in "Ignored" },
             finished: Date())
     }
 
@@ -470,9 +425,7 @@ final class AppsStore {
         panel.prompt = "Choose"
         panel.message = "Choose the PS3 folder (the one with dev_hdd0/ and _Installed/)."
         guard panel.runModal() == .OK, let url = panel.url, MirrorRoot.looksLikeMirror(url) else { return }
-        var config = ConfigStore.load()
-        config.root = url.path
-        try? ConfigStore.save(config)
+        guard (try? ConfigStore.edit({ $0.root = url.path })) != nil else { return }
         archiveMissing = false
         for (id, op) in operations { if case .failed = op.stage { operations[id] = nil } }
     }

@@ -1,5 +1,6 @@
 import AppKit
 import PS3Kit
+import PS3KitFixtures
 import SwiftUI
 
 /// `PS3CENTER_SNAPSHOT_DIR=/some/dir open "PS3 Center.app"` renders each tab to PNG and quits.

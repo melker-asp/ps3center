@@ -26,21 +26,21 @@ public enum PackageFolders {
     }
 
     public static func add(_ folder: URL) throws {
-        var config = ConfigStore.load()
         let path = folder.standardizedFileURL.path
-        var folders = config.packageFolders ?? []
-        if !folders.contains(where: { standardized($0).path == path }) { folders.append(path) }
-        config.packageFolders = folders
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            var folders = config.packageFolders ?? []
+            if !folders.contains(where: { standardized($0).path == path }) { folders.append(path) }
+            config.packageFolders = folders
+        }
     }
 
     /// Unlinks `folder`; the files in it are not touched.
     public static func remove(_ folder: URL) throws {
-        var config = ConfigStore.load()
         let path = folder.standardizedFileURL.path
-        config.packageFolders?.removeAll { standardized($0).path == path }
-        if config.packageFolders?.isEmpty == true { config.packageFolders = nil }
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            config.packageFolders?.removeAll { standardized($0).path == path }
+            if config.packageFolders?.isEmpty == true { config.packageFolders = nil }
+        }
     }
 
     static func standardized(_ path: String) -> URL {

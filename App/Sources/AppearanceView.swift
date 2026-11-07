@@ -32,9 +32,9 @@ final class AppearanceStore {
     var theme: AppTheme {
         didSet {
             guard persists else { return }
-            var config = ConfigStore.load()
-            config.theme = theme == .perTab ? nil : theme.rawValue
-            try? ConfigStore.save(config)
+            let saved = theme == .perTab ? nil : theme.rawValue
+            // A preference: if config.json can't be written the theme still applies until quit.
+            try? ConfigStore.edit { $0.theme = saved }
         }
     }
 

@@ -39,7 +39,7 @@ public struct ParamSFO: Equatable, Sendable {
     }
 
     /// A minimal PARAM.SFO with string values (fixtures and tests).
-    static func encode(_ values: [String: String]) -> Data {
+    package static func encode(_ values: [String: String]) -> Data {
         let keys = values.keys.sorted()
         var keyTable = Data()
         var dataTable = Data()

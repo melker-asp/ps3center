@@ -13,17 +13,23 @@ The inspiration is Mole (a CLI with a separate Mac app). Here the CLI and the ap
 code builds on. `PLAN.md` has the roadmap phase by phase and what to try on the console.
 
 ```
-Sources/PS3Kit/   library with all logic (webMAN HTTP, FTP, ISO/SFO/PKG, catalog, updates)
-Sources/ps3/      the CLI (swift-argument-parser), a thin layer on top of PS3Kit
-App/              the SwiftUI app; App/project.yml → xcodegen → App/PS3Center.xcodeproj (not checked in)
-Tests/            swift-testing, fixtures from real responses from the console
+Sources/PS3Kit/          library with all logic (webMAN HTTP, FTP, ISO/SFO/PKG, catalog, updates)
+Sources/PS3KitFixtures/  canned console data for the app's screenshots and the tests (not in the CLI)
+Sources/ps3/             the CLI (swift-argument-parser), a thin layer on top of PS3Kit
+App/                     the SwiftUI app; App/project.yml → xcodegen → App/PS3Center.xcodeproj (not checked in)
+Tests/PS3KitTests/       swift-testing, fixtures from real responses from the console
+Tests/ps3Tests/          parses every CLI subcommand (ArgumentParser only checks options when one runs)
 ```
+
+Everything is Swift 6 language mode (strict concurrency). Shared mutable state goes behind
+`OSAllocatedUnfairLock` (see `Once` in `Sync.swift`) so the compiler checks it; the few
+`@unchecked Sendable` classes say in a comment why they are safe.
 
 ## Commands
 
 ```bash
 swift build                     # PS3Kit + CLI
-swift test                      # all tests
+swift test                      # all tests (PS3KitTests and ps3Tests)
 swift test --filter parsesSysInfoAndStatusPage   # one test
 make install                    # release CLI → ~/.local/bin/ps3
 make app                        # xcodegen + xcodebuild (requires `brew install xcodegen`)
@@ -50,7 +56,8 @@ xcodebuild won't find it.
   passwords. Keep it that way.
 - **Screenshots:** CI renders every screen from `Fixtures` (`PS3CENTER_FIXTURES=1`) and uploads
   them as the artifact `screenshots`. Review design changes there. New screens are added to
-  `Snapshot.run`, and the data they need to `Fixtures.swift`.
+  `Snapshot.run`, and the data they need to `Sources/PS3KitFixtures/Fixtures.swift`. Fixtures
+  may use PS3Kit's `package` initializers; add one there rather than making an init public.
 - **Report with screenshots.** When a phase or a change that shows in the app is done, fetch the
   artifact `screenshots` from the CI run for that commit. Then send the screens that are new
   or have changed together with the report (the user's request, Oct 24, 2026). If CI can't be
@@ -59,12 +66,21 @@ xcodebuild won't find it.
   installations, `ps3 status`) the user has to run on their Mac. Describe what to try.
 - **CI may have an older Xcode** than the user's (Xcode 27 / Swift 6.4). Avoid brand-new APIs without
   `if #available`.
+- **CI is pinned:** the actions by commit SHA and XcodeGen by version and SHA-256 (`XCODEGEN_VERSION`
+  in ci.yml, the same as `xcodegen --version` on the Mac). Bump them on purpose, together.
 
 ## Architecture that takes several files to understand
 
 - **Finding the console:** `ConsoleLocator` tries `--host`, then `PS3_HOST`, then the saved config and
   finally a network search (`Discovery`). A new address is saved in `~/.config/ps3center/config.json`,
-  the same file the app reads.
+  the same file the app reads. When nothing is found but that address answers on the network,
+  `resolve` throws `PS3Error.henOff` (HEN not enabled), so the CLI, the app and `ps3 mcp` all say so.
+- **Files on the Mac** (`Storage.swift`): every path comes from `StatePaths` (`config`, `support`,
+  `caches`, `logs`). A file more than one process changes is a `JSONFile`: `edit` rereads it under an
+  flock on `<file>.lock`, applies the change and writes atomically, and throws when it can't write.
+  `load()` is for reading only. A file that can't be decoded is moved aside to
+  `<name>.unreadable-<date>`, never overwritten. config.json (`ConfigStore.edit`, there is no `save`),
+  installed.json, queue.json, watch.json, playtime.json, imported.json and speeds.json all work so.
 - **webMAN's quirks** are handled in `WebMAN.swift` and `FTPClient.swift`:
   - every HTTP request sends `Connection: close` and runs one at a time, except commands that can take minutes
     (`/install.ps3`, `/stat.ps3`): they go through `WebMAN.long` on a connection of their own and
@@ -77,7 +93,9 @@ xcodebuild won't find it.
   Don't change any of this without reading the section on facts in DESIGN.md.
 - **A running game** is detected via PS3MAPI `PROCESS GETCURRENTPID` + `GETNAME`. It drives
   "warn and wait" (`TransferService.waitUntilIdle`): installation and refreshing the game list
-  wait until no game is running.
+  wait until no game is running. Every refresh goes through `TransferService.refreshGameList(whenGameRuns:)`
+  (`.wait`, `.refuse` for a button, `.skip` for a step of a setup), which also logs it.
+  `GameLibraryService.unmount()` refuses while a game runs, whatever the front end showed.
 - **The installation is done** when `PARAM.SFO` in `/dev_hdd0/game/<titleID>` has a new `MDTM` and the folder
   has stopped changing. webMAN does *not* delete the package, despite what the wiki says. If nothing starts to happen,
   `/install.ps3` is sent once more, then an error with advice. `ConsoleStore` goes offline only after three
@@ -100,10 +118,11 @@ xcodebuild won't find it.
   when the catalog knows the mapping ("v2.4.1" → "02.41"), and `versionChange` is "02.40 → 02.41". The
   Updates list, the detail page, the review, its report and the CLI all use it; never print `latest` next
   to `installed`.
-- **Update All** in the app: `AppsStore.updatePlan()` → `UpdateReviewView` → `updateAll(_:from:)`, which
-  queues what was chosen (leaving out what finished updating while the sheet was open) and keeps an
-  `UpdateBatch`. When the queue is empty `finishBatch()` makes an `UpdateReport` (Done / Failed / Skipped)
-  that `UpdateReportCard` shows at the top of Updates.
+- **Update All** (`AppPlans.swift`, shared with `ps3 apps update`): `UpdatePlan` (installs, and skips
+  with an `UpdateSkip` case and its words), `AppGroups` (the Updates list and `ps3 apps`), `isListed`
+  (Browse). In the app `AppsStore.updatePlan()` → `UpdateReviewView` → `updateAll(_:from:)` makes an
+  `UpdateBatch` (leaving out what finished updating while the sheet was open); when the queue is empty
+  `finishBatch()` turns the outcomes into an `UpdateReport` that `UpdateReportCard` shows.
 - **GitHub:** API answers go through `GitHub.api`, which sends the last ETag (`APICache`,
   `~/Library/Caches/ps3center/github`, shared by the app, the CLI and `ps3 mcp`). A 304 doesn't count
   against the 60-an-hour limit, and when GitHub rate-limits the last answer is used. Packages are checked
@@ -133,8 +152,11 @@ xcodebuild won't find it.
 - **The Mac's games and the queue:** `GameFolders` (folders per type in config.json plus the mirror folder),
   `LocalLibrary` (the same `GameListing` rules as the console, metadata from the images) and
   `LibraryMatch`. `TransferQueue` (queue.json) is shared by `ps3 queue` and the app's `TransferStore`:
-  all changes go through `TransferQueue.edit`, which rereads the file under a lock, and
-  `QueueLock` makes sure only one process sends. Everything is sent via `TransferService.send`, which
+  all changes go through `TransferQueue.edit` (a `JSONFile`), and `QueueLock` makes sure only one
+  process sends. The loop itself is `QueueRunner.run`, the same for `ps3 queue start` and the app's
+  `TransferStore`: it rereads the queue before each item, tries each item once per run (even when
+  queue.json can't be written), saves progress every five seconds and on failure or pause, and
+  reports `QueueRunEvent`s. Everything is sent via `TransferService.send`, which
   uploads to `.part` and renames. `QueueRunner.send` and `ps3 send` retry after network errors
   (`RetryPolicy`), decided by the error's case (`PS3Error.transferInterrupted`, FTP codes), never by its text. `FolderWatch` (watch.json) finds new games in watched folders;
   the app's `TransferStore` and `ps3 watch` put them in the queue. `FTPClient.Tuning` controls chunk size and
@@ -150,10 +172,11 @@ xcodebuild won't find it.
   off) and `PlayLog`/`PlayTracker` (play time from the status, `playtime.json`). The app: `ConsoleStore`
   has the buttons, `RemoteView` the remote, `MenuBarView` the menu bar. Files from outside (the Finder
   service, the menu bar, Shortcuts in `Intents.swift`) go via `Inbox` to the review view.
-- **Maintenance** (`Maintenance.swift`): `SaveBackupService` (saves to `Saves/<user>/
-  <folder>` with a manifest per folder, the previous copy in `.previous`), `SystemFiles`, `MaintenanceService`
-  (report + `fix` which only removes packages and `.part`), `StorageAnalyzer` (`/stat.ps3`) and
-  `DiscRipper` (`/copy.ps3`, progress over FTP). The app: `MaintenanceStore` and `MaintenanceView`.
+- **Maintenance**, one file each: `SaveBackup.swift` (`SaveBackupService`, saves to `Saves/<user>/
+  <folder>` with a manifest per folder, the previous copy in `.previous`), `SystemFiles.swift`,
+  `Maintenance.swift` (`MaintenanceService`: report + `fix` which only removes packages and `.part`),
+  `StorageAnalyzer.swift` (`/stat.ps3`), `DiscRipper.swift` (`/copy.ps3`, progress over FTP) and
+  `FolderMigration.swift`. The app: `MaintenanceStore` and `MaintenanceView`.
 - **Folder names on the Mac** are English since Nov 7, 2026 (Saves, System Files, `.previous`,
   Videos/Photos, `_Installed/Packages`, `_Backups`, `_Emergency`). `BackupFolder.migrate` renames a
   Swedish one once, only when the English one doesn't exist. When both exist (an older app or `ps3`
@@ -191,7 +214,10 @@ xcodebuild won't find it.
   `destructive` for removals, `DoneButton` on sheets, `.font(.ui(…))` sizes, English dates via
   `Format`, whose `Format.locale` `Theme.locale` also uses, and `Format.estimate` for time still to go)
   are under Appearance in DESIGN.md. Never compare a display string in
-  code (a status text, a label): keep a flag or an enum, so text can change freely.
+  code (a status text, a label): keep a flag or an enum, so text can change freely. The ones that
+  exist: `OperationKind` (the log's actions; the history table's switch is exhaustive), `Network`
+  (`.wifi`/`.lan`, also the key in speeds.json), `HealthLevel`, `Thermal` (warm/hot limits for
+  the health score, `ps3 status`, the cards and the heat notice), `UpdateSkip`, `Route.isDownload`.
 
 ## Rules
 
@@ -207,8 +233,11 @@ xcodebuild won't find it.
   or put in tests or Fixtures.
 - **Game updates** may be fetched from Sony's official update server, as RPCS3 does: only game
   patches, never firmware (PUP), without PSN sign-in, and a patch that requires newer
-  system software than the console's is blocked. Nothing may be able to update the console or lead to a ban
-  (the user's decision Oct 24, 2026).
+  system software than the console's is blocked (`GameUpdateService.checkSystemSoftware`). Nothing may
+  be able to update the console or lead to a ban (the user's decision Oct 24, 2026). The update list
+  comes over TLS that `SonyTrust` accepts only when the server's certificate chains to the built-in
+  "SCEI DNAS Root 05" (anchor-only X.509: Apple's TLS policy refuses Sony's SHA-1 certificates),
+  and each package must match the list's SHA-1. Never trust a chain because it merely contains that root.
 - **Brewology** is behind a Cloudflare protection and must not be circumvented. Apps that are only found there
   get a link.
 - **From the saves' PARAM.SFO only TITLE and SUB_TITLE are shown,** never the account fields.
@@ -227,5 +256,6 @@ xcodebuild won't find it.
   in `/dev_hdd0`, never anything in dev_flash.
 - **Nothing is fetched from ps3.aldostools.org** (self-signed certificate, HTTP only) or psdevwiki
   (Cloudflare). Use the copies on GitHub.
-- **Everything that changes the console is logged** with `OperationLog.record`, which is shown with `ps3 history` and in
-  the app's history table, and has `--dry-run` in the CLI.
+- **Everything that changes the console is logged** with `OperationLog.record(_: OperationKind, _:)`,
+  which is shown with `ps3 history` and in the app's history table, and has `--dry-run` in the CLI.
+  A new kind of change gets a new `OperationKind` case; its raw value is the word in the log.

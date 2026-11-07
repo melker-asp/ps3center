@@ -246,7 +246,7 @@ struct AppsView: View {
             .padding(.horizontal, 14)
         }
         ForEach(CatalogEntry.Category.allCases, id: \.self) { category in
-            let rows = apps.statuses.filter { $0.category == category && ($0.installable || $0.installed != nil || $0.blocked) }
+            let rows = apps.statuses.filter { $0.category == category && $0.isListed }
             if !rows.isEmpty {
                 SectionHeader(title: category.label, count: rows.count)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 16)], alignment: .leading, spacing: 16) {

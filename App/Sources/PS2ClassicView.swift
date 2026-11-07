@@ -58,10 +58,7 @@ final class PS2ClassicModel {
 
     func importKeys(_ urls: [URL]) {
         do {
-            let read = try PS2ClassicKeys.read(urls)
-            let merged = PS2ClassicKeys(values: (keys?.values ?? [:]).merging(read.values) { $1 })
-            if !merged.wrong.isEmpty { throw PS3Error.invalidFile(merged.problem ?? "Wrong keys.") }
-            try merged.save()
+            let merged = try PS2ClassicKeys.importFiles(urls).keys
             keys = merged
             keyMessage = merged.problem
         } catch {

@@ -12,11 +12,7 @@ import WebKit
 /// other setting came back the same.
 @MainActor
 final class WebMANSetup: NSObject, WKNavigationDelegate {
-    struct Slot: Decodable, Equatable {
-        let enabled: Bool
-        let host: String
-        let port: Int
-    }
+    typealias Slot = WebMANSettings.NetServerSlot
 
     private struct Form: Decodable {
         var slots: [Slot]?
@@ -49,8 +45,8 @@ final class WebMANSetup: NSObject, WKNavigationDelegate {
         guard !slots.isEmpty else {
             throw PS3Error.refused("webMAN's settings have no network servers. This version of webMAN can't play from a ps3netsrv.")
         }
-        if let ready = slots.firstIndex(where: { $0.enabled && $0.host == address && $0.port == port }) { return ready }
-        guard let slot = slots.firstIndex(where: { $0.host == address }) ?? slots.firstIndex(where: { $0.host.isEmpty }) else {
+        if let ready = WebMANSettings.readySlot(slots, address: address, port: port) { return ready }
+        guard let slot = WebMANSettings.slotToFill(slots, address: address) else {
             throw PS3Error.refused("All \(slots.count) network servers in webMAN are already in use. Change one of them yourself in webMAN's settings.")
         }
 
@@ -58,7 +54,7 @@ final class WebMANSetup: NSObject, WKNavigationDelegate {
         guard let query = changed.query, query.contains("ic=") else {
             throw PS3Error.refused("webMAN's settings page didn't look as expected, so nothing was sent.")
         }
-        OperationLog.record("webman-setup", "network server \(slot + 1) = \(address):\(port)")
+        OperationLog.record(.webmanSetup, "network server \(slot + 1) = \(address):\(port)")
         try await WebMAN(host: host).get(encoded: "/setup.ps3?" + query, timeout: 20)
 
         // Every field should come back as it was sent.

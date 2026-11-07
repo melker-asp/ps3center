@@ -54,8 +54,8 @@ struct Send: AsyncParsableCommand {
 
         let host = try await Console.host(global)
         // A plain PS2 ISO does not start on HEN; say so before sending gigabytes.
-        if routes.contains(where: { $0.kind == .ps2ISO && !PS2Classic.isClassic($0.remote) }),
-           let snapshot = try? await WebMAN(host: host).snapshot(), ConsoleProfile(snapshot: snapshot).exploit == .hen {
+        if routes.contains(where: { $0.kind == .ps2ISO }), let snapshot = try? await WebMAN(host: host).snapshot(),
+           PlayCheck.sendsPS2ISOToHEN(routes, console: ConsoleProfile(snapshot: snapshot)) {
             UI.warn(PlayCheck.Finding.ps2NeedsClassic.message)
         }
         var options = TransferOptions()

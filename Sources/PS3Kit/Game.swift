@@ -58,7 +58,7 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     /// the console, the date it was added to the folder on the Mac.
     public var added: Date?
 
-    init(path: String, title: String, titleID: String? = nil, platform: Platform, size: Int64? = nil,
+    package init(path: String, title: String, titleID: String? = nil, platform: Platform, size: Int64? = nil,
          isFolder: Bool = false, version: String? = nil, iconPath: String? = nil, backgroundPath: String? = nil,
          companions: [String] = [], source: Source = .console, remotePath: String? = nil, added: Date? = nil) {
         self.path = path
@@ -83,6 +83,10 @@ public struct Game: Codable, Equatable, Sendable, Identifiable {
     /// Installed in the XMB (PSN games, PS1/PS2 Classics, minis): started from its icon by title
     /// ID and removed in the XMB, never mounted or deleted by PS3 Center.
     public var isInstalled: Bool { source == .console && path.hasPrefix("/dev_hdd0/game/") }
+
+    /// A copied PS3 disc in a game folder on the console (from `ps3 rip`, say), which its IRD
+    /// can check. Not an installed game: that is no disc copy. The CLI and the app both ask this.
+    public var canVerifyWithIRD: Bool { source == .console && platform == .ps3 && isFolder && !isInstalled }
 
     public var isOnUSB: Bool { source == .console && path.hasPrefix("/dev_usb") }
 

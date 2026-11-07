@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import PS3Kit
+import PS3KitFixtures
 
 /// Finds the console and polls its status, like `ps3 status --watch`.
 @MainActor
@@ -67,13 +68,12 @@ final class ConsoleStore {
                     host = try await ConsoleLocator.resolve { event in
                         if case .scanning = event { Task { @MainActor [weak self] in self?.connection = .scanning } }
                     }
+                } catch PS3Error.henOff(let known) {
+                    connection = .henOff(known)
+                    try? await Task.sleep(for: .seconds(8))
+                    continue
                 } catch {
-                    // Off, or on with HEN not enabled? Only the second answers on the network.
-                    if let known = ConfigStore.load().host, await Reachability.probe(known) == .henOff {
-                        connection = .henOff(known)
-                    } else {
-                        connection = .offline(error.localizedDescription)
-                    }
+                    connection = .offline(error.localizedDescription)
                     try? await Task.sleep(for: .seconds(8))
                     continue
                 }
@@ -165,11 +165,12 @@ final class ConsoleStore {
         }
     }
 
-    /// The same limits as "Het" on the temperature cards; at most one notice per half hour.
+    /// The same limits as "Hot" on the temperature cards (`Thermal`); at most one notice per half hour.
     private func warnIfHot(_ next: ConsoleSnapshot) {
         let cpu = next.cpuTemp ?? 0
         let rsx = next.rsxTemp ?? 0
-        guard cpu >= 80 || rsx >= 85, Date().timeIntervalSince(lastHeatWarning) > 1800 else { return }
+        guard Thermal.cpu.level(cpu) == .hot || Thermal.rsx.level(rsx) == .hot,
+              Date().timeIntervalSince(lastHeatWarning) > 1800 else { return }
         lastHeatWarning = Date()
         Notifier.post(title: "The PS3 is hot", body: "CPU \(cpu) °C, RSX \(rsx) °C. Make sure it has air around it.")
     }
@@ -191,10 +192,7 @@ final class ConsoleStore {
     /// Like SELECT + L3; not while a game runs, as `ps3 refresh` waits for.
     func refreshGames() {
         act("The game list is refreshed") { webMAN in
-            let running = try await webMAN.isGameRunning()
-            guard !running else { throw PS3Error.gameRunning }
-            try await webMAN.refreshGames()
-            OperationLog.record("refresh", webMAN.host)
+            try await TransferService(host: webMAN.host).refreshGameList(whenGameRuns: .refuse)
         }
     }
 

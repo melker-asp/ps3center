@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Testing
 @testable import PS3Kit
+import PS3KitFixtures
 
 // MARK: ps3 mcp
 

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import os
 import Security
 
 /// One official update package for a game, from Sony's update list
@@ -14,6 +15,15 @@ public struct GamePatch: Codable, Equatable, Sendable {
     public let url: URL
 
     public var fileName: String { url.lastPathComponent }
+
+    package init(titleID: String, version: String, size: Int64, sha1: String, systemVersion: String?, url: URL) {
+        self.titleID = titleID
+        self.version = version
+        self.size = size
+        self.sha1 = sha1
+        self.systemVersion = systemVersion
+        self.url = url
+    }
 }
 
 /// Official game updates (patches) from Sony's update server. Only game packages: never system
@@ -105,16 +115,7 @@ public struct GameUpdateService: Sendable {
     public func install(_ patches: [GamePatch], for game: Game, options: TransferOptions, events: TransferHandler) async throws {
         guard !patches.isEmpty else { return }
         let snapshot = try await WebMAN(host: host).snapshot()
-        let needed = patches.compactMap { Self.firmware(fromSystemVersion: $0.systemVersion) }
-            .compactMap { Version($0, style: .dotted) }.max()
-        if let needed {
-            guard let firmware = snapshot.firmware, let console = Version(firmware, style: .dotted) else {
-                throw PS3Error.incompatible("The console's system software version cannot be read, so the update for \(game.title) will not be installed.")
-            }
-            if console < needed {
-                throw PS3Error.incompatible("The update for \(game.title) requires system software \(needed.raw); the console has \(firmware). It will not be installed.")
-            }
-        }
+        try Self.checkSystemSoftware(patches, console: snapshot.firmware, title: game.title)
         let folder = GameLibraryService.cacheDirectory("updates")
         for patch in patches {
             let file = folder.appendingPathComponent(patch.fileName)
@@ -131,8 +132,24 @@ public struct GameUpdateService: Sendable {
                 }
             }
             try await TransferService(host: host).installPackage(file, options: options, events: events)
-            OperationLog.record("update", "\(game.title) \(patch.version) (\(patch.titleID))")
+            OperationLog.record(.update, "\(game.title) \(patch.version) (\(patch.titleID))")
             try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    /// Refuses when one of `patches` needs newer system software than the console's `firmware`,
+    /// or when a patch names a version and the console's cannot be read. Patches that name none
+    /// pass. Never anything else: the rule is "a patch that requires newer system software than
+    /// the console's is blocked" (CLAUDE.md), and the console itself is never updated.
+    static func checkSystemSoftware(_ patches: [GamePatch], console firmware: String?, title: String) throws {
+        let needed = patches.compactMap { Self.firmware(fromSystemVersion: $0.systemVersion) }
+            .compactMap { Version($0, style: .dotted) }.max()
+        guard let needed else { return }
+        guard let firmware, let console = Version(firmware, style: .dotted) else {
+            throw PS3Error.incompatible("The console's system software version cannot be read, so the update for \(title) will not be installed.")
+        }
+        if console < needed {
+            throw PS3Error.incompatible("The update for \(title) requires system software \(needed.raw); the console has \(firmware). It will not be installed.")
         }
     }
 
@@ -208,9 +225,7 @@ enum UpdateCache {
         var isFresh: Bool { Date().timeIntervalSince(checkedAt) < 24 * 3600 }
     }
 
-    static var file: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/ps3center/updates.json")
-    }
+    static var file: URL { StatePaths.caches.appendingPathComponent("updates.json") }
 
     static func load() -> [String: Entry] {
         guard let data = try? Data(contentsOf: file) else { return [:] }
@@ -227,15 +242,39 @@ enum UpdateCache {
     }
 }
 
-/// Sony's update servers (a0 and b0.ww.np.dl.playstation.net) present certificates from Sony's
-/// own CA ("SCEI"), which macOS does not trust. For those hosts only, a chain that the system
-/// rejects is accepted when it comes from Sony's CA, and that CA's fingerprint is remembered on
-/// first use (~/.config/ps3center/sony-ca.sha256): a different one later is refused.
+/// Trust for Sony's update servers (*.np.dl.playstation.net). They are signed by Sony's own
+/// root, "SCEI DNAS Root 05", which macOS does not know. A chain the system rejects is accepted
+/// only when the server's certificate is signed by that root: checked as an X.509 chain
+/// (signatures and dates) with the root built in below as the only anchor. Apple's TLS policy
+/// can't be used for that check, since it refuses Sony's SHA-1 certificates.
+///
+/// Before November 2026 this remembered a CA by name on first use and then only compared
+/// fingerprints, which let a chain through that merely *contained* Sony's (public) root.
 /// Every package is also checked against the SHA-1 in the update list.
-final class SonyTrust: NSObject, URLSessionDelegate, @unchecked Sendable {
+final class SonyTrust: NSObject, URLSessionDelegate, Sendable {
     static let session = URLSession(configuration: .ephemeral, delegate: SonyTrust(), delegateQueue: nil)
 
-    static var pinFile: URL { ConfigStore.directory.appendingPathComponent("sony-ca.sha256") }
+    /// SCEI DNAS Root 05 (DER, valid 2004–2037, SHA-256 51d5a783…827c), as
+    /// a0.ww.np.dl.playstation.net served it. A public certificate: no key.
+    static let sonyRoot: SecCertificate = {
+        let base64 = [
+        "MIID0jCCArqgAwIBAgIBADANBgkqhkiG9w0BAQUFADBUMQswCQYDVQQGEwJKUDEpMCcGA1UEChMgU29ueSBDb21wdXRlciBF",
+        "bnRlcnRhaW5tZW50IEluYy4xGjAYBgNVBAMTEVNDRUkgRE5BUyBSb290IDA1MB4XDTA0MDcxMjA5MDExOVoXDTM3MTIwNjA5",
+        "MDExOVowVDELMAkGA1UEBhMCSlAxKTAnBgNVBAoTIFNvbnkgQ29tcHV0ZXIgRW50ZXJ0YWlubWVudCBJbmMuMRowGAYDVQQD",
+        "ExFTQ0VJIEROQVMgUm9vdCAwNTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANmPeza8PwCqlI7esOGIkoSESnIN",
+        "g72ZD3Ut63jy7SdothPIvGBqVZWYkIpqJYJd1I4Nh//IpXQCQL0PnJLrh9BBeowqMuf5NNq3Us80Ihiu9CvNEAEO18g3OFV1",
+        "TYdSwQ5zUsk33OUeI7h4aBPDVcZXYeHtdbPLqe4K8igian5prrAD5S6h28t8aAm+qMWRo+bW25B/841XwDGBP7/IxZv8Yoio",
+        "rCo80CVYe6lGoU08eeqQiaHI5zAF281DWZSoVfLjJUEWmEnxqr8aOhszRGePi+Ei7UQjHDuZX9rLhDI1zAND+BA259tn/iwO",
+        "qVXe20OccJllHJcG4Ecmd98f5qMCAwEAAaOBrjCBqzAdBgNVHQ4EFgQUxlahM1tPzoN3YgVEhm0gV7Wv2twwfAYDVR0jBHUw",
+        "c4AUxlahM1tPzoN3YgVEhm0gV7Wv2tyhWKRWMFQxCzAJBgNVBAYTAkpQMSkwJwYDVQQKEyBTb255IENvbXB1dGVyIEVudGVy",
+        "dGFpbm1lbnQgSW5jLjEaMBgGA1UEAxMRU0NFSSBETkFTIFJvb3QgMDWCAQAwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQUF",
+        "AAOCAQEACZPihjwXA27wJ03tEKcHAeFLi8aBw2ysH4GwuH1dWb3UpuznWOB0iQT1wQocnEFYCJx5XFEnj4aLWpSHLEq/sSO+",
+        "my+aPoTEsy20ajF+YLYZm0bZxH50CJYhrkET4C2aC0XvhGp9k1JQ1o0W6+cFT5LTlXapsq8Btt31t+XDPX7RqGV4WGekt3hM",
+        "T7xRc7JWXdAQijIrbYi8mtbM07KEGnPU6IT8C47+0mSurpwLOoWL1tPgo6ePpLNic4quUMgh9RXVjeTyXOMmyYdeUm2gt7qE",
+        "rvQONli+6Epmhm0A2khpIMHSpQjTE8gVrZp42a6+zg1iYy2vFBOmiQ17GRUl0A==",
+        ].joined()
+        return SecCertificateCreateWithData(nil, Data(base64Encoded: base64)! as CFData)!
+    }()
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -245,46 +284,46 @@ final class SonyTrust: NSObject, URLSessionDelegate, @unchecked Sendable {
             completionHandler(.performDefaultHandling, nil)
             return
         }
-        if SecTrustEvaluateWithError(trust, nil) {
+        if SecTrustEvaluateWithError(trust, nil) || Self.chainsToSony(trust) {
             completionHandler(.useCredential, URLCredential(trust: trust))
-            return
-        }
-        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
-              let authority = chain.dropFirst().last(where: Self.isSony) else {
+        } else {
             completionHandler(.cancelAuthenticationChallenge, nil)
-            return
         }
-        let fingerprint = SHA256.hash(data: SecCertificateCopyData(authority) as Data).map { String(format: "%02x", $0) }.joined()
-        if let pinned = try? String(contentsOf: Self.pinFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
-           !pinned.isEmpty {
-            completionHandler(pinned == fingerprint ? .useCredential : .cancelAuthenticationChallenge,
-                              pinned == fingerprint ? URLCredential(trust: trust) : nil)
-            return
-        }
-        try? FileManager.default.createDirectory(at: ConfigStore.directory, withIntermediateDirectories: true)
-        try? fingerprint.write(to: Self.pinFile, atomically: true, encoding: .utf8)
-        completionHandler(.useCredential, URLCredential(trust: trust))
     }
 
-    static func isSony(_ certificate: SecCertificate) -> Bool {
-        let subject = (SecCertificateCopySubjectSummary(certificate) as String?) ?? ""
-        return subject.contains("SCEI") || subject.contains("Sony")
+    static func chainsToSony(_ trust: SecTrust) -> Bool {
+        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate], !chain.isEmpty else { return false }
+        return chainsToSony(chain)
+    }
+
+    /// Whether `chain[0]`, the server's certificate, is signed (through the rest of `chain`) by
+    /// Sony's root and valid at `date`. Nothing but `sonyRoot` counts as an anchor.
+    static func chainsToSony(_ chain: [SecCertificate], at date: Date? = nil) -> Bool {
+        var trust: SecTrust?
+        guard !chain.isEmpty,
+              SecTrustCreateWithCertificates(chain as CFArray, SecPolicyCreateBasicX509(), &trust) == errSecSuccess,
+              let trust else { return false }
+        SecTrustSetAnchorCertificates(trust, [sonyRoot] as CFArray)
+        SecTrustSetAnchorCertificatesOnly(trust, true)
+        SecTrustSetNetworkFetchAllowed(trust, false)
+        if let date { SecTrustSetVerifyDate(trust, date as CFDate) }
+        return SecTrustEvaluateWithError(trust, nil)
     }
 }
 
 /// A download whose progress can be read while it runs, trusting Sony's servers like `SonyTrust`.
-final class PatchDownload: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<URL, Error>?
-    private var written: Int64 = 0
-    private var expected: Int64 = 0
-    private var done = false
+final class PatchDownload: NSObject, URLSessionDownloadDelegate, Sendable {
+    private struct Progress {
+        var continuation: CheckedContinuation<URL, Error>?
+        var written: Int64 = 0
+        var expected: Int64 = 0
+        var done = false
+    }
+    private let progress = OSAllocatedUnfairLock(initialState: Progress())
 
     /// Bytes so far, bytes expected (0 when unknown) and whether the download has ended.
     var state: (written: Int64, expected: Int64, done: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        return (written, expected, done)
+        progress.withLock { ($0.written, $0.expected, $0.done) }
     }
 
     /// Downloads `url` to a temporary file and returns it.
@@ -292,19 +331,17 @@ final class PatchDownload: NSObject, URLSessionDownloadDelegate, @unchecked Send
         let session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
         return try await withCheckedThrowingContinuation { continuation in
-            lock.lock()
-            self.continuation = continuation
-            lock.unlock()
+            progress.withLock { $0.continuation = continuation }
             session.downloadTask(with: url).resume()
         }
     }
 
     private func resume(_ result: Result<URL, Error>) {
-        lock.lock()
-        let continuation = self.continuation
-        self.continuation = nil
-        done = true
-        lock.unlock()
+        let continuation = progress.withLock { progress in
+            defer { progress.continuation = nil }
+            progress.done = true
+            return progress.continuation
+        }
         continuation?.resume(with: result)
     }
 
@@ -315,10 +352,10 @@ final class PatchDownload: NSObject, URLSessionDownloadDelegate, @unchecked Send
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
                     totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        lock.lock()
-        written = totalBytesWritten
-        expected = max(totalBytesExpectedToWrite, 0)
-        lock.unlock()
+        progress.withLock {
+            $0.written = totalBytesWritten
+            $0.expected = max(totalBytesExpectedToWrite, 0)
+        }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {

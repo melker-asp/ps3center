@@ -35,14 +35,16 @@ struct Refresh: AsyncParsableCommand {
         let host = try await Console.host(global)
         let service = TransferService(host: host)
         let printer = TransferPrinter(dryRun: false)
-        try await service.waitUntilIdle(force: force) { printer.handle($0) }
         if xmb {
+            try await service.waitUntilIdle(force: force) { printer.handle($0) }
             try await service.webman.reloadXMB()
             UI.ok("Game list refreshed and XMB reloaded")
             return
         }
-        try await service.webman.refreshGames()
-        OperationLog.record("refresh", host)
+        try await service.refreshGameList(whenGameRuns: .wait, force: force) { event in
+            if case .refreshed = event { return }  // said once below
+            printer.handle(event)
+        }
         UI.ok("Game list refreshed")
     }
 }
@@ -78,9 +80,7 @@ struct Discover: AsyncParsableCommand {
         let found = await Discovery.scan()
         guard let first = found.first else { throw PS3Error.noHost }
         for host in found { UI.ok("webMAN answers at \(host)") }
-        var config = ConfigStore.load()
-        config.host = first
-        try ConfigStore.save(config)
+        try ConfigStore.edit { $0.host = first }
         UI.ok("Saved \(first) as the PS3's address")
     }
 }
@@ -252,23 +252,23 @@ struct Config: ParsableCommand {
         var value: String
 
         func run() throws {
-            var config = ConfigStore.load()
             let cleaned = value.isEmpty ? nil : value
+            var root: String?
             switch key {
-            case "host": config.host = cleaned
+            case "host": break
             case "root":
                 if let path = cleaned {
                     let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                     guard MirrorRoot.looksLikeMirror(url) else {
                         throw ValidationError("\(url.path) does not look like the PS3 folder (missing dev_hdd0/ or _Installed/).")
                     }
-                    config.root = url.path
-                } else {
-                    config.root = nil
+                    root = url.path
                 }
             default: throw ValidationError("Unknown setting: \(key). Use host or root.")
             }
-            try ConfigStore.save(config)
+            try ConfigStore.edit { config in
+                if key == "host" { config.host = cleaned } else { config.root = root }
+            }
             UI.ok("\(key) = \(cleaned ?? "(removed)")")
         }
     }

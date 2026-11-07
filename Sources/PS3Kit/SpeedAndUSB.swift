@@ -6,9 +6,16 @@ public struct SpeedResult: Codable, Equatable, Sendable {
     /// Bytes per second.
     public let upload: Double
     public let download: Double?
-    /// "Wi-Fi" or "LAN", as the console reported it.
-    public let network: String?
+    /// How the console was connected when it was measured.
+    public let network: Network?
     public let measuredAt: Date
+
+    package init(upload: Double, download: Double?, network: Network?, measuredAt: Date) {
+        self.upload = upload
+        self.download = download
+        self.network = network
+        self.measuredAt = measuredAt
+    }
 }
 
 public enum SpeedTest {
@@ -16,33 +23,27 @@ public enum SpeedTest {
     static let remote = "/dev_hdd0/tmp/ps3center-speedtest.bin"
 
     public static func last() -> SpeedResult? {
-        guard let data = try? Data(contentsOf: file) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(SpeedResult.self, from: data)
+        try? JSONFile<SpeedResult?>.decoder.decode(SpeedResult.self, from: Data(contentsOf: file))
     }
 
-    static func save(_ result: SpeedResult) {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        try? FileManager.default.createDirectory(at: ConfigStore.directory, withIntermediateDirectories: true)
-        try? encoder.encode(result).write(to: file, options: .atomic)
+    static func save(_ result: SpeedResult) throws {
+        try FileManager.default.createDirectory(at: ConfigStore.directory, withIntermediateDirectories: true)
+        try JSONFile<SpeedResult?>.encoder.encode(result).write(to: file, options: .atomic)
         if let network = result.network {
-            var all = byNetwork()
-            all[network] = result
-            try? encoder.encode(all).write(to: networksFile, options: .atomic)
+            try networks.edit { $0[network.rawValue] = result }
         }
     }
 
     static var networksFile: URL { ConfigStore.directory.appendingPathComponent("speeds.json") }
+    static var networks: JSONFile<[String: SpeedResult]> { JSONFile(networksFile, empty: [:]) }
 
     /// The latest measurement per network ("Wi-Fi", "LAN"), so a measurement with a cable still
     /// counts while the console is back on Wi-Fi.
-    public static func byNetwork() -> [String: SpeedResult] {
-        guard let data = try? Data(contentsOf: networksFile) else { return [:] }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([String: SpeedResult].self, from: data)) ?? [:]
+    public static func byNetwork() -> [String: SpeedResult] { networks.load() }
+
+    /// The latest measurement over `network`.
+    public static func measurement(over network: Network, in measured: [String: SpeedResult] = byNetwork()) -> SpeedResult? {
+        measured[network.rawValue]
     }
 
     /// What forum reports give for a PS3 on a cable, 10–40 MB/s (PLAN.md); used until there is
@@ -51,7 +52,7 @@ public enum SpeedTest {
 
     /// "about 7 min" from a measurement over LAN, else "about 4–16 min" from typical cable speeds.
     public static func cableEstimate(bytes: Int64, measured: [String: SpeedResult] = byNetwork()) -> String {
-        if let lan = measured["LAN"], lan.upload > 0 {
+        if let lan = measurement(over: .lan, in: measured), lan.upload > 0 {
             let seconds = Double(bytes) / lan.upload
             return seconds < 60 ? Format.playTime(seconds) : "about \(Format.playTime(seconds))"
         }
@@ -66,9 +67,11 @@ public enum SpeedTest {
     }
 
     /// Seconds to send `bytes` at the last measured upload speed, or nil before a measurement.
-    public static func estimate(bytes: Int64) -> TimeInterval? {
-        guard let speed = last()?.upload, speed > 0 else { return nil }
-        return Double(bytes) / speed
+    /// Seconds for `bytes` at `rate` (the speed right now, while sending), else at the last
+    /// measured speed. Nil when there is neither.
+    public static func estimate(bytes: Int64, rate: Double = 0, measured: SpeedResult? = last()) -> TimeInterval? {
+        let speed = rate > 0 ? rate : (measured?.upload ?? 0)
+        return speed > 0 ? Double(bytes) / speed : nil
     }
 
     /// Sends data to /dev_hdd0/tmp for `seconds` (at most `megabytes`), reads back what arrived
@@ -105,7 +108,7 @@ public enum SpeedTest {
         }
         let network = try? await WebMAN(host: host).snapshot().network
         let result = SpeedResult(upload: up, download: down > 0 ? down : nil, network: network, measuredAt: Date())
-        save(result)
+        try save(result)
         return result
     }
 }
@@ -127,7 +130,7 @@ public enum USBDrive {
         public var id: String { url.path }
         public var isFAT32: Bool { format.localizedCaseInsensitiveContains("FAT32") || format.localizedCaseInsensitiveContains("MS-DOS") }
 
-        init(url: URL, name: String, format: String, free: Int64, capacity: Int64) {
+        package init(url: URL, name: String, format: String, free: Int64, capacity: Int64) {
             self.url = url
             self.name = name
             self.format = format
@@ -190,6 +193,18 @@ public enum USBDrive {
         public internal(set) var isOnDrive = false
 
         public var id: String { destination.path }
+
+        package init(game: Game, source: URL, destination: URL, parts: Int, size: Int64, kind: Kind = .file,
+                     iso: PS3ISOBuilder? = nil, isOnDrive: Bool = false) {
+            self.game = game
+            self.source = source
+            self.destination = destination
+            self.parts = parts
+            self.size = size
+            self.kind = kind
+            self.iso = iso
+            self.isOnDrive = isOnDrive
+        }
     }
 
     public struct Plan: Sendable {

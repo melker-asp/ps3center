@@ -114,8 +114,7 @@ public struct GameLibraryService: Sendable {
     }
 
     static func cacheDirectory(_ name: String) -> URL {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches/ps3center/\(name)", isDirectory: true)
+        let url = StatePaths.caches.appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
@@ -132,7 +131,7 @@ public struct GameLibraryService: Sendable {
         } else {
             try await webman.get("/play.ps3" + game.path, timeout: 30)
         }
-        OperationLog.record("play", game.path)
+        OperationLog.record(.play, game.path)
     }
 
     /// Mounts a game as /dev_bdvd without starting it, so it can be started from the XMB.
@@ -142,12 +141,18 @@ public struct GameLibraryService: Sendable {
         }
         try await quitRunningGame(allowed: exitingRunning)
         try await webman.get("/mount.ps3" + game.path, timeout: 30)
-        OperationLog.record("mount", game.path)
+        OperationLog.record(.mount, game.path)
     }
 
+    /// Unmounts the disc (/dev_bdvd). Refused while a game runs: it runs from that disc. The app
+    /// only hides its button from a status up to 3 seconds old, so the check is made here.
     public func unmount() async throws {
+        if let process = try await webman.runningProcess() {
+            let name = (try? await webman.snapshot().mountedGameName) ?? nil
+            throw PS3Error.refused("\(name ?? process) is running. Quit the game first.")
+        }
         try await webman.get("/mount.ps3/unmount", timeout: 30)
-        OperationLog.record("unmount", "/dev_bdvd")
+        OperationLog.record(.unmount, "/dev_bdvd")
     }
 
     /// Quits the running game or app to the XMB and waits until it is gone.
@@ -158,7 +163,7 @@ public struct GameLibraryService: Sendable {
         let name = (try? await webman.snapshot().mountedGameName) ?? process
         try await webman.get("/xmb.ps3$exit", timeout: 30)
         try await waitForXMB()
-        OperationLog.record("exit", name)
+        OperationLog.record(.exit, name)
         return name
     }
 
@@ -209,7 +214,7 @@ public struct GameLibraryService: Sendable {
                 for file in files { try await ftp.delete(file) }
             }
         }
-        OperationLog.record(game.isInstalled ? "uninstall" : "delete", game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
+        OperationLog.record(game.isInstalled ? .uninstall : .delete, game.path + (game.size.map { " (\(Format.bytes($0)))" } ?? ""))
         if game.isInstalled {
             let reload = await XMBReload.afterRemoval(host: host)
             events(.note("\(game.title) is uninstalled. Its saves are kept. \(reload)"))
@@ -217,9 +222,7 @@ public struct GameLibraryService: Sendable {
             events(.note("\(game.title) is deleted from the PS3"))
         }
         guard options.refresh else { return }
-        try await TransferService(host: host).waitUntilIdle(force: options.force, events: events)
-        try await webman.refreshGames()
-        events(.refreshed)
+        try await TransferService(host: host).refreshGameList(whenGameRuns: .wait, force: options.force, events: events)
     }
 }
 
@@ -241,7 +244,7 @@ public enum UninstallGuard {
 }
 
 /// Turns listings of webMAN's game folders into games. No network, so tests can feed it listings.
-enum GameListing {
+package enum GameListing {
     struct Folder {
         let name: String
         let platform: Game.Platform
@@ -401,7 +404,7 @@ enum GameListing {
     }
 
     /// Disc games get the version of their installed update; then everything is sorted.
-    static func attach(_ updates: [String: String], to games: [Game]) -> [Game] {
+    package static func attach(_ updates: [String: String], to games: [Game]) -> [Game] {
         games.map { game in
             var game = game
             if !game.isInstalled, let titleID = game.titleID { game.updateVersion = updates[titleID] }
@@ -464,9 +467,7 @@ enum GameCache {
         }
     }
 
-    static var file: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/ps3center/games.json")
-    }
+    static var file: URL { StatePaths.caches.appendingPathComponent("games.json") }
 
     static func load() -> [String: Info] {
         guard let data = try? Data(contentsOf: file) else { return [:] }

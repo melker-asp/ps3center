@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Network
 
 /// Minimal passive-mode FTP client for webMAN's FTP server.
@@ -315,11 +316,6 @@ public final class FTPClient {
     }
 }
 
-/// Set from the connection queue when a receive times out.
-private final class TimeoutFlag: @unchecked Sendable {
-    var value = false
-}
-
 /// NWConnection wrapped in async/await, with line reading for the control channel.
 final class LineConnection {
     private let connection: NWConnection
@@ -335,10 +331,9 @@ final class LineConnection {
         let connection = self.connection
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             // Every caller runs on `queue`, so the flag needs no lock.
-            let state = TimeoutFlag()
+            let once = Once()
             @Sendable func finish(_ error: Error?) {
-                guard !state.value else { return }
-                state.value = true
+                guard once.claim() else { return }
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
             connection.stateUpdateHandler = { state in
@@ -351,7 +346,7 @@ final class LineConnection {
             }
             connection.start(queue: queue)
             queue.asyncAfter(deadline: .now() + timeout) {
-                if !state.value { connection.cancel(); finish(PS3Error.timeout("connection")) }
+                if !once.isClaimed { connection.cancel(); finish(PS3Error.timeout("connection")) }
             }
         }
     }
@@ -367,34 +362,34 @@ final class LineConnection {
     }
 
     /// A piece handed to the network; `wait()` returns once the connection has taken it.
-    final class Pending: @unchecked Sendable {
-        private let lock = NSLock()
-        private var result: Result<Void, Error>?
-        private var waiter: CheckedContinuation<Void, Error>?
+    final class Pending: Sendable {
+        private struct State {
+            var result: Result<Void, Error>?
+            var waiter: CheckedContinuation<Void, Error>?
+        }
+        private let state = OSAllocatedUnfairLock(initialState: State())
 
         func complete(_ error: Error?) {
             let outcome: Result<Void, Error> = error.map { .failure($0) } ?? .success(())
-            lock.lock()
-            if let waiter {
-                self.waiter = nil
-                lock.unlock()
-                waiter.resume(with: outcome)
-            } else {
-                result = outcome
-                lock.unlock()
+            let waiter = state.withLock { state -> CheckedContinuation<Void, Error>? in
+                if let waiter = state.waiter {
+                    state.waiter = nil
+                    return waiter
+                }
+                state.result = outcome
+                return nil
             }
+            waiter?.resume(with: outcome)
         }
 
         func wait() async throws {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                lock.lock()
-                if let result {
-                    lock.unlock()
-                    continuation.resume(with: result)
-                } else {
-                    waiter = continuation
-                    lock.unlock()
+                let ready = state.withLock { state -> Result<Void, Error>? in
+                    if let result = state.result { return result }
+                    state.waiter = continuation
+                    return nil
                 }
+                if let ready { continuation.resume(with: ready) }
             }
         }
     }
@@ -420,8 +415,8 @@ final class LineConnection {
     private func receive(timeout: TimeInterval) async throws -> Data? {
         let queue = self.queue
         let connection = self.connection
-        let fired = TimeoutFlag()
-        let watchdog = DispatchWorkItem { fired.value = true; connection.cancel() }
+        let fired = Once()
+        let watchdog = DispatchWorkItem { _ = fired.claim(); connection.cancel() }
         queue.asyncAfter(deadline: .now() + timeout, execute: watchdog)
         defer { watchdog.cancel() }
         do {
@@ -436,7 +431,7 @@ final class LineConnection {
                 }
             }
         } catch {
-            if fired.value { throw PS3Error.timeout("waiting for an answer from the PS3") }
+            if fired.isClaimed { throw PS3Error.timeout("waiting for an answer from the PS3") }
             throw error
         }
     }
