@@ -22,7 +22,12 @@ Left outside the code:
   the Mac before every commit.
 - Tests 1–16 under Try on the console.
 
-Built last (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
+Built last (Nov 7, night): phase 11, easier for new users: Settings in one place, a setup guide on
+the first launch, Help with eleven guides and a glossary (also `ps3 guide`), ⓘ on the status cards and
+tooltips on every button that changes the console, a tour and tips, and more to adjust (the status
+cards, the tabs, the menu bar's buttons, °F, the text size). Test 20.
+
+Before that (Nov 7, evening): `ps3 mcp`, a read-only MCP server, and three ideas from ps3.world:
 packages from GitHub are checked against size and SHA-256, New in Browse and more error codes with advice
 (test 16).
 
@@ -412,7 +417,7 @@ and sources are in DESIGN.md. On HEN only the PS2 Classics Launcher (available i
 
 ### Phase 11 – Easier for new users, and more to adjust
 
-**Status Nov 7, 2026:** planned; step 1 is being built.
+**Status Nov 7, 2026:** built (all six steps), tried from Fixtures on the Mac; test 20 on the console.
 
 **Goal:** someone who has never used PS3 Center gets from opening the app to a connected console without
 reading the README, finds an explanation wherever a word or a button is unclear, and can make the app
@@ -462,6 +467,23 @@ One step per PR:
    buttons, °C or °F (only the display; the fan target stays 60–75 °C) and the text size (every size
    goes through `Font.ui`, so one factor is enough). No colour picker of our own: the PS app's themes
    keep the look together.
+
+How it turned out, where it differs from the plan above:
+- **Settings** has seven sections: General (open in, Launch at Login, tabs, the menu bar and its
+  buttons), Appearance (text size, temperatures, theme), Status (the cards), Folders, Transfers,
+  Notifications and Help (Open Help, Show Setup Again, Take the Tour, Show Tips).
+- **The setup guide's Find step** uses the app's own search (`ConsoleLocator`) and a typed address
+  (`ConsoleAddress.clean`, `ConsoleStore.connect(to:)`), the same `AddressEntry` that the connection
+  screen got. The connection sheet's list of consoles and cable advice can replace it once that branch
+  is merged; until then Settings has no Console section.
+- **Tips are our own** (`AppTip`, `TipCard`), not TipKit: TipKit only resets its tips before
+  `Tips.configure()`, so Show Them Again would need a restart, and its views don't render in the
+  snapshots. Ours are a set in UserDefaults and draw like the rest of the app.
+- **Explore with Sample Data** (optional) is not built: every store and button would need a demo mode.
+- **Help** opens from ⌘?, the ? beside the gear, Settings → Help, the How? links in empty views and on
+  the connection screen, and the ⓘ popovers. Links between guides are `ps3center://guide/<id>`.
+- **The guides** were written from DESIGN.md, the README and the code, and checked against it; they
+  describe what the app does and claim nothing that hasn't been tried on the console.
 
 ## Order and size
 
@@ -576,6 +598,19 @@ open "http://$PS3/xmb.ps3\$screenshot?show?fast"
       Send to PS3. Does the game show up in webMAN's list under PS2, and does it start? If not: what
       is on the TV (an error code, or a black screen)?
     - Preferably both a DVD game (.iso) and a CD game (.cue/.bin).
+20. Phase 11, new users (19 is the connection sheet's test, on its own branch):
+    - The first launch: quit PS3 Center, run `defaults delete local.ps3center.app onboardingVersion`
+      and remove `"host"` from `~/.config/ps3center/config.json` (note the address first). Open the app:
+      does the setup guide come? On Find Your PS3, is the console found by itself, with firmware, HEN
+      and webMAN? Then type the address by hand (Connect): does it connect and save it?
+    - With HEN off (right after a restart): does Find Your PS3 say so, and connect once HEN is on?
+    - Take the Tour: does each step point at the right place, and switch tab?
+    - ⌘? and the ? at the top right: does Help open, and do the links between guides work? The ⓘ on
+      a status card, and its "What is …?" link.
+    - Settings: hide Maintenance, move Health last, choose °F and Larger text. Do the tabs, the cards,
+      the temperatures (cards, menu bar, the fan target) and all text follow at once?
+    - Settings → Folders → Create…: does the PS3 folder appear, and does installing an app work after?
+    - `ps3 guide`, `ps3 guide send`, `ps3 guide glossary` in Terminal.
 
 ## Decisions (Oct 24, 2026)
 

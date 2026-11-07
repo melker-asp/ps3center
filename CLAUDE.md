@@ -213,7 +213,17 @@ xcodebuild won't find it.
   `NotificationKind`s that `Notifier.post` checks); what the CLI reads stays in config.json
   (`FTPTuning` has the limits both use, `MirrorRoot.create(in:)` makes an empty PS3 folder, also
   `ps3 config set root <folder> --create`). `PS3FolderPicker` is shared by Settings and the banner in
-  Apps. Phase 11 in PLAN.md has the next steps (setup guide, help, tooltips, tour).
+  Apps. `AppPreferences.shared` also holds the status cards' order, hidden tabs and menu bar buttons,
+  `TemperatureUnit` and `TextScale`, which `Font.ui` reads (it is `@MainActor` for that).
+- **New users** (phase 11): `Onboarding.isNeeded` (no host saved, `onboardingVersion` in UserDefaults)
+  shows `OnboardingView` over the window; its Find step uses `AddressEntry` → `ConsoleStore.connect(to:)`
+  → `ConsoleLocator.resolve(explicit:)` with `ConsoleAddress.clean`. Help is `HelpView` on `Guides` and
+  `Glossary` in PS3Kit (one Swift file per guide in `Sources/PS3Kit/Guides/`, Markdown that
+  `ReadmeView` draws, links `ps3center://guide/<id>`), also `ps3 guide`. Views open Help through the
+  `openHelp` environment action (a no-op in snapshots); `AppRouter` holds the sheets, the setup guide
+  and `tourStep`. The tour is `TourOverlay` over `.tourAnchor(_:)` preferences; tips are `AppTip` +
+  `TipCard` with an optional `AppPreferences` in the environment. `HelpTests` checks the guides' links
+  and words and that every icon button has a label. Guides must follow the Rules below like code.
 - **Progress:** `TransferEvent` goes via `@Sendable` callbacks. The CLI prints them (`TransferPrinter`),
   the app puts them in `AppsStore.operations` on the MainActor.
 - **The app:** `ConsoleStore` fetches status every 3 seconds, `AppsStore` has an installation queue that takes

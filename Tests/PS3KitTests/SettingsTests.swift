@@ -70,3 +70,25 @@ private func isDirectory(_ url: URL) -> Bool {
     #expect(FTPTuning.window(4) == 4)
     #expect(FTPTuning.window(20) == 8)
 }
+
+// The address field in the setup guide.
+
+@Test func cleansTypedAddresses() {
+    #expect(ConsoleAddress.clean("192.168.1.20") == "192.168.1.20")
+    #expect(ConsoleAddress.clean("  192.168.2.2\n") == "192.168.2.2")
+    #expect(ConsoleAddress.clean("http://192.168.1.20/setup.ps3") == "192.168.1.20")
+    #expect(ConsoleAddress.clean("HTTP://10.0.1.35/") == "10.0.1.35")
+    #expect(ConsoleAddress.clean("PS3.local") == "ps3.local")
+    #expect(ConsoleAddress.clean("my-ps3") == "my-ps3")
+}
+
+@Test func refusesWhatCannotBeAnAddress() {
+    #expect(ConsoleAddress.clean("") == nil)
+    #expect(ConsoleAddress.clean("192.168.1") == nil)
+    #expect(ConsoleAddress.clean("300.1.1.1") == nil)
+    #expect(ConsoleAddress.clean("1.2.3.4.5") == nil)
+    #expect(ConsoleAddress.clean("my ps3") == nil)
+    #expect(ConsoleAddress.clean("-ps3.local") == nil)
+    #expect(ConsoleAddress.clean("ps3..local") == nil)
+    #expect(ConsoleAddress.clean("spelkonsol.lokal\u{00E5}") == nil)
+}

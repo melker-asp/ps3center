@@ -86,9 +86,12 @@ enum Theme {
 }
 
 extension Font {
-    /// A size from `Theme.TextSize`: `.font(.ui(.body, weight: .semibold))`.
+    /// A size from `Theme.TextSize`: `.font(.ui(.body, weight: .semibold))`, times Settings →
+    /// Appearance → Text Size. Reading the observable preference here makes every view that uses a
+    /// size redraw when it changes.
+    @MainActor
     static func ui(_ size: Theme.TextSize, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
-        .system(size: size.rawValue, weight: weight, design: design)
+        .system(size: (size.rawValue * AppPreferences.shared.textScale.factor).rounded(), weight: weight, design: design)
     }
 }
 
@@ -104,6 +107,8 @@ struct Card<Content: View>: View {
     let title: String
     var chip: String?
     var chipColor: Color = Theme.secondaryText
+    /// An ⓘ after the title that explains the card.
+    var info: InfoText?
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -116,6 +121,11 @@ struct Card<Content: View>: View {
                     .font(.ui(.caption, weight: .bold))
                     .tracking(1.3)
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
+                if let info {
+                    // 28 pt to click, without making the heading taller than a chip.
+                    InfoButton(info: info)
+                        .padding(.vertical, -6)
+                }
                 Spacer()
                 if let chip { Chip(text: chip, color: chipColor) }
             }
@@ -403,6 +413,8 @@ struct CircleIconButtonStyle: ButtonStyle {
     var size: CGFloat = 34
     /// The white disc with a black icon, like the PS app's back button.
     var filled = false
+    /// Faded when disabled, like `PillButtonStyle` (the fan's − at its lowest target, a card's ↑ at the top).
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -416,6 +428,7 @@ struct CircleIconButtonStyle: ButtonStyle {
                     Circle().strokeBorder(Color.white.opacity(configuration.isPressed ? 0.7 : 0.4), lineWidth: 1.5)
                 }
             }
+            .opacity(isEnabled ? 1 : 0.35)
             .contentShape(Circle())
     }
 }

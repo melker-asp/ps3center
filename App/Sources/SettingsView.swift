@@ -4,7 +4,7 @@ import PS3KitFixtures
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, folders, transfers, notifications
+    case general, appearance, status, folders, transfers, notifications, help
 
     var id: String { rawValue }
 
@@ -12,9 +12,11 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "General"
         case .appearance: return "Appearance"
+        case .status: return "Status"
         case .folders: return "Folders"
         case .transfers: return "Transfers"
         case .notifications: return "Notifications"
+        case .help: return "Help"
         }
     }
 
@@ -22,19 +24,23 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .appearance: return "paintpalette"
+        case .status: return "square.grid.2x2"
         case .folders: return "folder"
         case .transfers: return "arrow.up.arrow.down"
         case .notifications: return "bell"
+        case .help: return "questionmark.circle"
         }
     }
 
     var summary: String {
         switch self {
         case .general: return "How PS3 Center starts, and whether it sits in the menu bar."
-        case .appearance: return "Choose how PS3 Center looks."
+        case .appearance: return "Choose how PS3 Center looks: the colors, the text size and how temperatures are shown."
+        case .status: return "Which cards the Status tab shows, and in what order."
         case .folders: return "Where PS3 Center finds your games and packages on the Mac. ps3 in Terminal uses the same folders."
         case .transfers: return "How games are sent to the PS3, and the weekly backup of your saves."
         case .notifications: return "What PS3 Center tells you about while it is in the background."
+        case .help: return "A guide for each task, the setup guide from the first launch, the tour and the tips."
         }
     }
 }
@@ -120,10 +126,12 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             switch section {
             case .general: GeneralSettings(live: live)
-            case .appearance: ThemePicker()
+            case .appearance: AppearanceSettings()
+            case .status: StatusSettings()
             case .folders: FolderSettings(live: live)
             case .transfers: TransferSettings(live: live)
             case .notifications: NotificationSettings(live: live)
+            case .help: HelpSettings()
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -147,7 +155,8 @@ private struct GeneralSettings: View {
         VStack(alignment: .leading, spacing: 22) {
             SettingsGroup(title: "Startup") {
                 SettingsStackedRow(title: "Open In", detail: "The tab PS3 Center shows when it opens.") {
-                    PillPicker(options: StartTab.allCases, selection: preferences.startTab, label: \.label) { preferences.startTab = $0 }
+                    PillPicker(options: StartTab.allCases.filter { MainTab(rawValue: $0.rawValue).map(preferences.visibleTabs.contains) ?? true },
+                               selection: preferences.startTab, label: \.label) { preferences.startTab = $0 }
                 }
                 SettingsDivider()
                 SettingsRow(title: "Launch at Login", detail: "Opens PS3 Center when you log in to the Mac.", note: loginNote) {
@@ -158,15 +167,110 @@ private struct GeneralSettings: View {
                     }
                 }
             }
+            SettingsGroup(title: "Tabs", footer: "Status always shows. A hidden tab's work still happens: the queue, the weekly backup and the update check go on.") {
+                ForEach(Array(MainTab.allCases.filter { $0 != .status }.enumerated()), id: \.element) { index, tab in
+                    if index > 0 { SettingsDivider() }
+                    SettingsRow(title: tab.title) {
+                        PillToggle(isOn: !preferences.hiddenTabs.contains(tab), label: "Show \(tab.title)") { preferences.setShows(tab, $0) }
+                    }
+                }
+            }
             SettingsGroup(title: "Menu Bar") {
                 SettingsRow(title: "Show in Menu Bar",
                             detail: "The console's status, the queue and quick buttons, also with the window closed. Without it, PS3 Center keeps running in the Dock when you close the window.") {
                     PillToggle(isOn: preferences.showsMenuBarIcon, label: "Show in Menu Bar") { preferences.showsMenuBarIcon = $0 }
                 }
+                if preferences.showsMenuBarIcon {
+                    ForEach(MenuBarAction.allCases) { action in
+                        SettingsDivider()
+                        SettingsRow(title: action.title, detail: action == .quitGame ? "Only while a game is running." : nil) {
+                            PillToggle(isOn: !preferences.hiddenMenuBarActions.contains(action), label: action.title) { preferences.setShows(action, $0) }
+                        }
+                    }
+                }
             }
         }
         // The menu bar has the same switch; it may have changed since.
         .onAppear { if live { startsAtLogin = LoginItem.isEnabled } }
+    }
+}
+
+private struct AppearanceSettings: View {
+    @Environment(AppPreferences.self) private var preferences
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsGroup(title: "Text") {
+                SettingsStackedRow(title: "Text Size", detail: "Every text in the window grows; the layout stays the same.") {
+                    PillPicker(options: TextScale.allCases, selection: preferences.textScale, label: \.label) { preferences.textScale = $0 }
+                }
+                SettingsDivider()
+                SettingsStackedRow(title: "Temperatures", detail: "Only how they are shown. Terminal and Claude keep Celsius.") {
+                    PillPicker(options: TemperatureUnit.allCases, selection: preferences.temperatureUnit, label: { $0 == .celsius ? "Celsius (°C)" : "Fahrenheit (°F)" }) {
+                        preferences.temperatureUnit = $0
+                    }
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("THEME")
+                    .font(.ui(.caption, weight: .bold))
+                    .tracking(1.3)
+                    .foregroundStyle(Theme.primaryText.opacity(0.85))
+                ThemePicker()
+            }
+        }
+    }
+}
+
+private struct StatusSettings: View {
+    @Environment(AppPreferences.self) private var preferences
+
+    var body: some View {
+        let order = preferences.statusCardOrder
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsGroup(title: "Cards", footer: "The arrows move a card one place; the Status tab fills four cards to a row.") {
+                ForEach(Array(order.enumerated()), id: \.element) { index, card in
+                    if index > 0 { SettingsDivider() }
+                    HStack(spacing: 12) {
+                        Image(systemName: card.symbol)
+                            .font(.ui(.callout, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 22)
+                        Text(card.title)
+                            .font(.ui(.body))
+                            .foregroundStyle(preferences.hiddenStatusCards.contains(card) ? Theme.tertiaryText : Theme.primaryText)
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { preferences.moveStatusCard(card, by: -1) } } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .disabled(index == 0)
+                            .iconLabel("Move \(card.title) up")
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { preferences.moveStatusCard(card, by: 1) } } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .disabled(index == order.count - 1)
+                            .iconLabel("Move \(card.title) down")
+                        }
+                        .buttonStyle(CircleIconButtonStyle(size: 28))
+                        PillToggle(isOn: !preferences.hiddenStatusCards.contains(card), label: "Show \(card.title)") { preferences.setShows(card, $0) }
+                            .padding(.leading, 6)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Reset Cards") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        preferences.statusCardOrder = StatusCard.allCases
+                        preferences.hiddenStatusCards = []
+                    }
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+                .disabled(order == StatusCard.allCases && preferences.hiddenStatusCards.isEmpty)
+            }
+        }
     }
 }
 
@@ -421,6 +525,44 @@ private struct NotificationSettings: View {
 
     private func refresh() async {
         permission = live ? await Notifier.permission() : .allowed
+    }
+}
+
+private struct HelpSettings: View {
+    @Environment(AppRouter.self) private var router
+    @Environment(AppPreferences.self) private var preferences
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsGroup(title: "Guides") {
+                SettingsRow(title: "Guides and Glossary", detail: "How to send games, install homebrew, back up saves and more, and what words like HEN mean. Also ps3 guide in Terminal.") {
+                    Button("Open Help") { router.openHelp() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                }
+            }
+            SettingsGroup(title: "Getting Started") {
+                SettingsRow(title: "Setup Guide", detail: "The steps from the first launch: getting the PS3 ready, finding it, the folders.") {
+                    Button("Show Again") { router.showOnboarding() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                }
+                SettingsDivider()
+                SettingsRow(title: "Tour", detail: "Where everything is, in \(TourStep.allCases.count) steps.") {
+                    Button("Take the Tour") { router.startTour() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                }
+            }
+            SettingsGroup(title: "Tips") {
+                SettingsRow(title: "Show Tips", detail: "Short tips in the tabs, each shown until you press Got It.") {
+                    PillToggle(isOn: preferences.showsTips, label: "Show Tips") { preferences.showsTips = $0 }
+                }
+                SettingsDivider()
+                SettingsRow(title: "Tips You Have Closed", detail: preferences.dismissedTips.isEmpty ? "None yet." : "\(preferences.dismissedTips.count) of \(AppTip.allCases.count).") {
+                    Button("Show Them Again") { preferences.dismissedTips = [] }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .disabled(preferences.dismissedTips.isEmpty)
+                }
+            }
+        }
     }
 }
 

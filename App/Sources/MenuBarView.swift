@@ -9,6 +9,7 @@ struct MenuBarView: View {
     @Environment(TransferStore.self) private var transfers
     @Environment(NetServerStore.self) private var netServer
     @Environment(AppRouter.self) private var router
+    @Environment(AppPreferences.self) private var preferences: AppPreferences?
     @Environment(\.openWindow) private var openWindow
     @State private var startsAtLogin = LoginItem.isEnabled
     /// The panel's own background; the menu bar draws one, a snapshot needs it.
@@ -20,7 +21,7 @@ struct MenuBarView: View {
             header
             if let s = console.snapshot, console.connection == .online {
                 VStack(alignment: .leading, spacing: 6) {
-                    line("thermometer.medium", "CPU \(s.cpuTemp.map(String.init) ?? "–") °C · RSX \(s.rsxTemp.map(String.init) ?? "–") °C · fan \(s.fanPercent.map(String.init) ?? "–") %")
+                    line("thermometer.medium", "CPU \(s.cpuTemp.map(unit.format) ?? "–") · RSX \(s.rsxTemp.map(unit.format) ?? "–") · fan \(s.fanPercent.map(String.init) ?? "–") %")
                     line("gamecontroller", s.isGameRunning ? (s.mountedGameName ?? s.runningProcess ?? "A game") : "XMB")
                     if let item = transfers.queue.items.first(where: { $0.state == .sending }) {
                         line("arrow.up.circle", "\(item.title) · \(Int(item.fraction * 100)) %")
@@ -38,13 +39,19 @@ struct MenuBarView: View {
             Divider()
             VStack(alignment: .leading, spacing: 2) {
                 row("macwindow", "Open PS3 Center") { open() }
-                row("square.and.arrow.up", "Send Files…") { chooseFiles() }
+                if shows(.sendFiles) {
+                    row("square.and.arrow.up", MenuBarAction.sendFiles.title) { chooseFiles() }
+                }
                 if console.connection == .online {
-                    row("arrow.triangle.2.circlepath", "Refresh Game List") { console.refreshGames() }
-                    if console.snapshot?.isGameRunning == true {
-                        row("xmark.circle", "Quit Game") { console.exitGame() }
+                    if shows(.refreshGames) {
+                        row("arrow.triangle.2.circlepath", MenuBarAction.refreshGames.title) { console.refreshGames() }
                     }
-                    row("power", "Shut Down PS3…") { confirmShutdown() }
+                    if console.snapshot?.isGameRunning == true, shows(.quitGame) {
+                        row("xmark.circle", MenuBarAction.quitGame.title) { console.exitGame() }
+                    }
+                    if shows(.shutDown) {
+                        row("power", MenuBarAction.shutDown.title) { confirmShutdown() }
+                    }
                 }
             }
             .disabled(console.isActing)
@@ -71,6 +78,13 @@ struct MenuBarView: View {
         .frame(width: 300)
         .background(background)
         .onAppear { WindowOpener.shared.openWindow = openWindow }
+    }
+
+    private var unit: TemperatureUnit { preferences?.temperatureUnit ?? .celsius }
+
+    /// Settings → General → Menu Bar; every button without preferences (a snapshot).
+    private func shows(_ action: MenuBarAction) -> Bool {
+        !(preferences?.hiddenMenuBarActions.contains(action) ?? false)
     }
 
     private var header: some View {

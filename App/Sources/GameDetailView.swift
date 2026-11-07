@@ -163,17 +163,21 @@ struct GameDetailView: View {
             if state == .playing {
                 Button("Quit Game") { library.exitGame(game) }
                     .buttonStyle(PillButtonStyle())
+                    .help("Goes back to the XMB. Progress the game hasn't saved is lost.")
             } else {
                 Button("Play") { start(.play) }
                     .buttonStyle(PillButtonStyle())
                     .disabled(library.busy != nil)
+                    .help("Starts the game on the PS3")
                 if !game.isInstalled {
                     if state == .mounted {
                         Button("Unmount") { library.unmount(game) }
                             .buttonStyle(PillButtonStyle(prominent: false))
+                            .help("Takes the game out of the PS3's disc drive again")
                     } else {
                         Button("Mount") { start(.mount) }
                             .buttonStyle(PillButtonStyle(prominent: false))
+                            .help("Puts the game in the PS3's disc drive without starting it; start it from the XMB")
                     }
                 }
             }
@@ -353,6 +357,7 @@ struct UpdateBanner: View {
                 Button("Install") { library.installUpdates(for: game) }
                     .buttonStyle(PillButtonStyle(tint: Theme.accent))
                     .disabled(library.busy != nil)
+                    .help("Downloads the patches from Sony's update server, checks each against Sony's checksum and installs them on the PS3")
             }
         }
         .padding(14)

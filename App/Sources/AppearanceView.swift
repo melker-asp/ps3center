@@ -93,8 +93,18 @@ struct ThemePicker: View {
         .contentShape(Rectangle())
     }
 
-    /// A colour square; "Match Tab" is split between the tab colours.
     private func swatch(_ theme: AppTheme) -> some View {
+        ThemeSwatch(theme: theme)
+    }
+}
+
+/// A theme's colour square; "Match Tab" is split between the tab colours. Also the setup guide's
+/// row of themes.
+struct ThemeSwatch: View {
+    let theme: AppTheme
+    var size: CGFloat = 30
+
+    var body: some View {
         Group {
             switch theme {
             case .perTab:
@@ -110,8 +120,8 @@ struct ThemePicker: View {
                 Theme.hue(for: .status, theme: theme)
             }
         }
-        .frame(width: 30, height: 30)
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Color.white.opacity(0.6), lineWidth: 1))
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: size * 0.14, style: .continuous).strokeBorder(Color.white.opacity(0.6), lineWidth: 1))
     }
 }

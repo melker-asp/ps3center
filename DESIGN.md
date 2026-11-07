@@ -47,7 +47,8 @@ waits until no game is running. Uploads start right away. `--force` runs anyway.
 | **Apps** | `ps3 apps`, `apps available`, `apps info`, `apps update`, `apps install` | Like Mole's Apps → Updates: "02.40 → 02.41", Update / Ignore / Update All. Ignore skips just that version (`apps ignore`); a newer one shows up again. Update All first shows a review and afterwards a report. The Browse tab shows `apps available`, grouped as System, Programs and webMAN add-ons, with New (released in the last 30 days) on top. From Mac (`apps mac`) shows the .pkg files in the package folders, per folder, like the Mac's games in the Games tab; they are installed where they are, with the same compatibility check when the title ID is in the catalog. Clicking a row opens the detail page (`apps info`): version, compatibility with the console and the README with images |
 | **Maintenance** | `ps3 saves`, `ps3 backup`, `ps3 maintain`, `ps3 analyze`, `ps3 rip` | Saves and system files to the Mac, Cleanup like Mole's Optimize (a report with Done and what remains, with the reason), Storage like Mole's Analyze (one bar over /dev_hdd0) and Disc |
 | **Menu bar** | `ps3 status --watch` | Compact status + quick buttons (Send Files…, Refresh Game List, Quit Game, Shut Down), Launch at Login, Settings… |
-| **Settings** (the gear, ⌘,) | `ps3 config` | General, Appearance, Folders, Transfers and Notifications in one sheet (below) |
+| **Settings** (the gear, ⌘,) | `ps3 config` | General, Appearance, Status, Folders, Transfers, Notifications and Help in one sheet (below) |
+| **Help** (?, ⌘?) | `ps3 guide` | Eleven how-to guides and a glossary, the same texts in the app and the terminal |
 
 ## Appearance (Mole's structure, the PS app's colors)
 
@@ -96,9 +97,16 @@ From Mole: the layout. From the PlayStation app: colors, buttons and feel. All v
   `SettingsStackedRow`). One choice out of a few is a `PillPicker`, on/off is a `PillToggle`; both are
   drawn by SwiftUI so snapshots render them. The sheet's white button is Done; everything else in it
   is outlined. It works while the console is offline, since a new user needs it before there is one.
-  - General: the tab the app opens in (or the last one), Launch at Login, Show in Menu Bar.
-  - Appearance: the PS app's themes. "Match Tab" (default) gives each tab its own color; Starlight
-    Blue, Nova Pink, Cosmic Red, Galactic Purple and Midnight Black color all tabs the same.
+  - General: the tab the app opens in (or the last one), Launch at Login, which tabs show (Status
+    always), Show in Menu Bar and which of its quick buttons show.
+  - Appearance: the text size (Default, Large, Larger: one factor in `Font.ui`, so every text grows
+    and the layout stays), temperatures in °C or °F (only the display: the fan target is still moved
+    in °C within 60–75, and the CLI and `ps3 mcp` keep Celsius), and the PS app's themes. "Match Tab"
+    (default) gives each tab its own color; Starlight Blue, Nova Pink, Cosmic Red, Galactic Purple
+    and Midnight Black color all tabs the same.
+  - Status: which cards show and in what order. A row of cards is as tall as its tallest card, so a
+    reordered grid still lines up.
+  - Help: Open Help, Show Setup Again, Take the Tour, Show Tips and Show Them Again.
   - Folders: the PS3 folder (Create… makes an empty one for someone without a copy of the console's
     drive, Choose… offers one inside a folder that isn't one), Game Folders and Package Folders.
   - Transfers: when the queue finishes, Verify with MD5, the weekly save backup, and under Advanced
@@ -113,6 +121,25 @@ From Mole: the layout. From the PlayStation app: colors, buttons and feel. All v
     (the start tab, the menu bar icon, notifications, the weekly backup, the Games view) is in
     UserDefaults. A value equal to the default is saved as nothing, so config.json only holds what
     someone changed.
+- **For new users** (phase 11):
+  - **The setup guide** covers the window on a launch with no console saved: Welcome (what is
+    needed), Get the PS3 Ready, Find Your PS3 (the search live, or a typed address), Your Folders,
+    Make It Yours and You're All Set. It is on the blue splash, with Skip Setup on every page and one
+    white button (Continue, or Take the Tour at the end).
+  - **Help** is a sheet like Settings: the guides on the left with a search field and the glossary
+    last, the text drawn by `ReadmeView`, and Next at the bottom of each guide.
+  - **How?** links (`HelpLink`) sit under empty views and on the connection screen, and lead to the
+    guide that explains. They are blue on the base and white on the splash.
+  - **ⓘ** (`InfoButton`) after a card's title shows two or three sentences in a popover, with
+    "What is …?" (the glossary) or "Read …" (a guide). The numbers in them come from the code
+    (`Thermal`, `FanControl`), never typed twice.
+  - **The tour** dims the window around one part at a time, with a bubble beside it: "2 of 6", a
+    title, two sentences, Skip Tour, Back and Next. It switches tab itself.
+  - **Tips** (`TipCard`) are a tinted strip at the top of a tab with Got It, one at a time per place.
+- **Tooltips** (`.help`, `iconLabel`): every icon-only button has one (a test reads the sources), and
+  every button that changes the console says what happens and what follows from it ("Restarts the
+  PS3 after a question. On HEN, enable HEN again afterwards."), not its own label again. One or two
+  short sentences, in English, no period after a single one. A tooltip never decides anything in code.
 - A hero image that mirrors health. Mole uses a planet; here it could be the console or a
   disc that glows in the health color.
 - **Review view before changes:** groups with checkboxes and size, and a white main button that

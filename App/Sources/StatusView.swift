@@ -4,6 +4,9 @@ import SwiftUI
 /// Mole's Status tab, for a PS3: eight cards and a history table underneath.
 struct StatusView: View {
     @Environment(ConsoleStore.self) private var console
+    /// Settings → Status (the cards and their order) and Appearance (°C or °F). Optional, so a
+    /// view rendered without it shows the defaults.
+    @Environment(AppPreferences.self) private var preferences: AppPreferences?
     /// False when rendered for a snapshot: ImageRenderer cannot draw scroll views.
     var scrolls = true
     @State private var showsRemote = false
@@ -33,18 +36,15 @@ struct StatusView: View {
     @ViewBuilder private var grid: some View {
         if let s = console.snapshot {
                 VStack(spacing: 14) {
+                    TipCard(.cardInfo, .remote)
+                    let cards = preferences?.visibleStatusCards ?? StatusCard.allCases
                     LazyVGrid(columns: columns, spacing: 14) {
-                        healthCard(s)
-                        temperatureCard(icon: "cpu", title: "CPU", value: s.cpuTemp, sensor: .cpu,
-                                        history: console.cpuHistory)
-                        temperatureCard(icon: "square.stack.3d.up", title: "RSX", value: s.rsxTemp, sensor: .rsx,
-                                        history: console.rsxHistory)
-                        fanCard(s)
-                        spaceCard(s)
-                        networkCard(s)
-                        nowPlayingCard(s)
-                        systemCard(s)
+                        ForEach(Array(cards.enumerated()), id: \.element) { index, card in
+                            self.card(card, s)
+                                .frame(height: rowHeight(of: index, in: cards))
+                        }
                     }
+                    .tourAnchor(.statusCards)
                     controls(s)
                     HistoryTable(entries: console.history)
                 }
@@ -54,9 +54,68 @@ struct StatusView: View {
 
     // MARK: Cards
 
+    private var unit: TemperatureUnit { preferences?.temperatureUnit ?? .celsius }
+
+    @ViewBuilder private func card(_ card: StatusCard, _ s: ConsoleSnapshot) -> some View {
+        switch card {
+        case .health: healthCard(s)
+        case .cpu: temperatureCard(icon: card.symbol, title: card.title, value: s.cpuTemp, sensor: .cpu, history: console.cpuHistory)
+        case .rsx: temperatureCard(icon: card.symbol, title: card.title, value: s.rsxTemp, sensor: .rsx, history: console.rsxHistory)
+        case .fan: fanCard(s)
+        case .free: spaceCard(s)
+        case .network: networkCard(s)
+        case .nowPlaying: nowPlayingCard(s)
+        case .system: systemCard(s)
+        }
+    }
+
+    /// The cards with a sparkline or the health orb are taller; a row is as tall as its tallest
+    /// card, so reordered cards still line up.
+    private func rowHeight(of index: Int, in cards: [StatusCard]) -> CGFloat {
+        let start = index / columns.count * columns.count
+        let row = cards[start..<min(start + columns.count, cards.count)]
+        return row.contains { [.health, .cpu, .rsx, .fan].contains($0) } ? 210 : 170
+    }
+
+    /// What the ⓘ on each card says. The limits come from `Thermal`, as for the chips and the
+    /// health score, so the numbers are never written twice.
+    static func info(_ card: StatusCard, unit: TemperatureUnit = .celsius) -> InfoText {
+        switch card {
+        case .health:
+            return InfoText(title: "Health",
+                            text: "A score from 0 to 100, the same as ps3 status. It drops when the CPU passes \(unit.format(Thermal.cpu.warnAt)) or the RSX \(unit.format(Thermal.rsx.warnAt)), and when less than 50 GB is free.")
+        case .cpu:
+            return InfoText(title: "CPU",
+                            text: "The temperature of the PS3's processor, the Cell. Warm from \(unit.format(Thermal.cpu.warnAt)), Hot from \(unit.format(Thermal.cpu.hotAt)), when PS3 Center also sends a notification.")
+        case .rsx:
+            return InfoText(title: "RSX",
+                            text: "The temperature of the PS3's graphics chip. Warm from \(unit.format(Thermal.rsx.warnAt)), Hot from \(unit.format(Thermal.rsx.hotAt)).",
+                            term: .rsx)
+        case .fan:
+            return InfoText(title: "Fan",
+                            text: "How fast the fan spins. In webMAN's dynamic mode − and + move the temperature it aims for, between \(unit.format(FanControl.targets.lowerBound)) and \(unit.format(FanControl.targets.upperBound)). PS3 Center never sets a fixed speed.",
+                            term: .dynamicFan)
+        case .free:
+            return InfoText(title: "Free",
+                            text: "Free space on the PS3's internal hard drive (/dev_hdd0). Maintenance → Storage shows what uses it.")
+        case .network:
+            return InfoText(title: "Network",
+                            text: "The PS3's address, whether it is on Wi-Fi or a cable, and how fast webMAN answers. A cable is much faster for sending games.",
+                            guide: .troubleshooting)
+        case .nowPlaying:
+            return InfoText(title: "Now Playing",
+                            text: "The game that is mounted or running, read from the PS3 every few seconds, and the time you have played it.",
+                            term: .titleID)
+        case .system:
+            return InfoText(title: "System",
+                            text: "The PS3's firmware and whether it runs HEN or custom firmware, with the versions of HEN and webMAN MOD. Apps are checked against this before they install.",
+                            term: .hen)
+        }
+    }
+
     private func healthCard(_ s: ConsoleSnapshot) -> some View {
         // No chip: the network type is on the Network card.
-        Card(icon: "sun.max", title: "Health") {
+        Card(icon: "sun.max", title: "Health", info: Self.info(.health, unit: unit)) {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -83,7 +142,6 @@ struct StatusView: View {
                     .offset(y: 6)
             }
         }
-        .frame(height: 210)
     }
 
     private func temperatureCard(icon: String, title: String, value: Int?, sensor: Thermal,
@@ -92,26 +150,25 @@ struct StatusView: View {
         let color = level.map(Theme.temperatureColor) ?? Theme.good
         let label = level?.label
         let warnAt = sensor.warnAt
-        return Card(icon: icon, title: title, chip: label, chipColor: color) {
-            BigValue(value: value.map(String.init) ?? "–", unit: "°C")
+        return Card(icon: icon, title: title, chip: label, chipColor: color, info: Self.info(sensor == .cpu ? .cpu : .rsx, unit: unit)) {
+            BigValue(value: value.map { String(unit.value($0)) } ?? "–", unit: unit.symbol)
             Sparkline(values: history, range: Self.range(for: history, padding: 3), color: color)
                 .frame(height: 34)
             Spacer(minLength: 0)
             Footnote(text: peakNote(history, warnAt: warnAt))
         }
-        .frame(height: 210)
     }
 
     /// "Peak 64 °C in 5 min · warns at 70 °C": what the sparkline shows, in numbers.
     private func peakNote(_ history: [Double], warnAt: Int) -> String {
-        guard let peak = history.max(), history.count > 1 else { return "Warns at \(warnAt) °C" }
+        guard let peak = history.max(), history.count > 1 else { return "Warns at \(unit.format(warnAt))" }
         let minutes = max(1, Int((Double(history.count) * console.interval / 60).rounded()))
-        return "Peak \(Int(peak)) °C in \(minutes) min · warns at \(warnAt) °C"
+        return "Peak \(unit.format(Int(peak))) in \(minutes) min · warns at \(unit.format(warnAt))"
     }
 
     private func fanCard(_ s: ConsoleSnapshot) -> some View {
         // The chip says the mode; the target itself is in the footnote, next to − and +.
-        Card(icon: "fan", title: "Fan", chip: s.fanTargetMax == nil ? "Auto" : "Dynamic") {
+        Card(icon: "fan", title: "Fan", chip: s.fanTargetMax == nil ? "Auto" : "Dynamic", info: Self.info(.fan, unit: unit)) {
             BigValue(value: s.fanPercent.map(String.init) ?? "–", unit: "%")
             Sparkline(values: console.fanHistory, range: Self.range(for: console.fanHistory, padding: 5), color: Theme.cool)
                 .frame(height: 34)
@@ -119,7 +176,7 @@ struct StatusView: View {
             if let target = s.fanTargetMax {
                 // webMAN's dynamic mode: only the target moves, within FanControl.targets.
                 HStack(spacing: 6) {
-                    Footnote(text: "Target \(target) °C")
+                    Footnote(text: "Target \(unit.format(target))")
                     Spacer(minLength: 0)
                     Button { console.setFanTarget(target - 1) } label: { Image(systemName: "minus") }
                         .disabled(target <= FanControl.targets.lowerBound)
@@ -135,21 +192,23 @@ struct StatusView: View {
                 Footnote(text: "The console controls the fan")
             }
         }
-        .frame(height: 210)
     }
 
     /// The console's own buttons: the remote, quitting the game, the disc, and power.
     private func controls(_ s: ConsoleSnapshot) -> some View {
         HStack(spacing: 10) {
             Button { showsRemote = true } label: { Label("Remote", systemImage: "gamecontroller") }
+                .help("Steer the XMB from the Mac with the arrow keys, Return and Esc, and watch the TV")
             if s.isGameRunning {
                 Button { console.exitGame() } label: { Label("Quit Game", systemImage: "xmark.circle") }
+                    .help("Goes back to the XMB. Progress the game hasn't saved is lost.")
                 Button { console.toggleRecording() } label: {
                     Label(console.isRecording ? "Stop Recording" : "Record", systemImage: console.isRecording ? "stop.circle" : "record.circle")
                 }
                 .help("webMAN records the game as 720p MP4 in /dev_hdd0/VIDEO")
             }
             Button { console.eject() } label: { Label("Eject Disc", systemImage: "eject") }
+                .help("Ejects the disc in the PS3's drive")
             if let note = console.actionNote {
                 Text(note)
                     .font(.ui(.footnote))
@@ -160,7 +219,9 @@ struct StatusView: View {
             }
             Spacer(minLength: 10)
             Button { confirming = .restart } label: { Label("Restart…", systemImage: "arrow.clockwise") }
+                .help("Restarts the PS3 after a question. On HEN, enable HEN again afterwards.")
             Button { confirming = .shutdown } label: { Label("Shut Down…", systemImage: "power") }
+                .help("Turns the PS3 off after a question")
         }
         .buttonStyle(PillButtonStyle(prominent: false))
         .disabled(console.isActing)
@@ -170,7 +231,7 @@ struct StatusView: View {
     /// The footnote says what the bar is, since the big number is the free space.
     private func spaceCard(_ s: ConsoleSnapshot) -> some View {
         let parts = s.freeBytes.map { Format.bytes($0).split(separator: " ").map(String.init) } ?? ["–"]
-        return Card(icon: "internaldrive", title: "Free", chip: "/dev_hdd0") {
+        return Card(icon: "internaldrive", title: "Free", chip: "/dev_hdd0", info: Self.info(.free)) {
             BigValue(value: parts.first ?? "–", unit: parts.count > 1 ? parts[1] : nil)
             if let free = s.freeBytes, let total = s.totalBytes {
                 PSProgressBar(fraction: 1 - Double(free) / Double(total))
@@ -182,11 +243,10 @@ struct StatusView: View {
                 Footnote(text: (s.freeBytes ?? 0) < 50_000_000_000 ? "Running low on space" : "Plenty of room for more games")
             }
         }
-        .frame(height: 170)
     }
 
     private func networkCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "network", title: "Network", chip: s.network?.label) {
+        Card(icon: "network", title: "Network", chip: s.network?.label, info: Self.info(.network)) {
             Text(s.ip ?? console.host ?? "–")
                 .font(.ui(.title, weight: .light))
                 .foregroundStyle(Theme.primaryText)
@@ -201,7 +261,6 @@ struct StatusView: View {
                 }
             }
         }
-        .frame(height: 170)
     }
 
     /// Like "Friends Playing" in the PS app: the game's own art behind it, its icon, and
@@ -219,6 +278,8 @@ struct StatusView: View {
                         .font(.ui(.caption, weight: .bold))
                         .tracking(1.3)
                         .foregroundStyle(Theme.primaryText.opacity(0.85))
+                    InfoButton(info: Self.info(.nowPlaying))
+                        .padding(.vertical, -6)
                     Spacer()
                     // While a game runs, the green dot and "Playing" below already say so.
                     if !s.isGameRunning { Chip(text: "XMB", color: Theme.secondaryText) }
@@ -248,7 +309,6 @@ struct StatusView: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 170)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.cardStroke))
     }
@@ -287,7 +347,7 @@ struct StatusView: View {
     }
 
     private func systemCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "shield.lefthalf.filled", title: "System", chip: s.firmwareType) {
+        Card(icon: "shield.lefthalf.filled", title: "System", chip: s.firmwareType, info: Self.info(.system)) {
             VStack(alignment: .leading, spacing: 8) {
                 versionLine("Firmware", s.firmware)
                 versionLine("PS3HEN", s.henVersion)
@@ -295,7 +355,6 @@ struct StatusView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 170)
     }
 
     /// Follows the recent values so small changes are visible (a fixed 30–90 °C scale looks flat).

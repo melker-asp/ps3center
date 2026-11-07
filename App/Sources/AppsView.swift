@@ -86,6 +86,7 @@ struct AppsView: View {
             }
             .padding(4)
             .background(Capsule().fill(Color.black.opacity(0.45)))
+            .tourAnchor(.appsSections)
 
             Button {
                 if section == .mac {
@@ -146,6 +147,8 @@ struct AppsView: View {
                 Button("Add Package Folders…") { showsFolders = true }
                     .buttonStyle(PillButtonStyle())
                     .padding(.top, 4)
+                HelpLink(title: "How to install your own .pkg files", guide: .ownPackages)
+                    .padding(.top, 6)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if scrolls {
@@ -223,6 +226,9 @@ struct AppsView: View {
             SectionHeader(title: "Updates", count: apps.updates.count,
                           action: installable == 0 || apps.isUpdatingAll ? nil
                               : (installable == apps.updates.count ? "Update All…" : "Update \(installable)…", { plan = apps.updatePlan() }))
+            TipCard(.ignoreUpdate)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
             ForEach(apps.updates, id: \.id) { AppRow(status: $0, mode: .update) }
         }
         SectionHeader(title: "Up to Date", count: apps.current.count)
