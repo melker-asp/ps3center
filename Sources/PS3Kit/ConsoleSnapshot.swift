@@ -18,7 +18,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public var freeBytes: Int64?
     /// Size of /dev_hdd0 from PS3MAPI GETHDDINFO; nil on webMAN versions without it.
     public var totalBytes: Int64?
-    public var network: String?
+    public var network: NetworkKind?
     public var ip: String?
     public var playTime: String?
     public var mountedGamePath: String?
@@ -29,6 +29,8 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public var healthNotes: [String] = []
 
     public var isGameRunning: Bool { runningProcess != nil }
+
+    public var healthLevel: HealthLevel { HealthLevel(score: health) }
 
     public init() {}
 
@@ -62,7 +64,7 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
         s.payload = firstMatch(#"\b(Cobra|Mamba|qCFW)\s+([\d.]+)"#, in: sysInfo).map { "\($0[1]) \($0[2])" }
         if let ip = firstMatch(#"IP:\s*([\d.]+)\s+(\w+)"#, in: sysInfo) {
             s.ip = ip[1]
-            s.network = ip[2] == "WLAN" ? "Wi-Fi" : ip[2]
+            s.network = NetworkKind(webMAN: ip[2])
         }
         if let free = firstMatch(#"storage:\s*([\d.]+)\s*(KB|MB|GB|TB)\s*free"#, in: sysInfo),
            let value = Double(free[1]) {
@@ -90,12 +92,12 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
     public mutating func computeHealth() {
         var score = 100
         var notes: [String] = []
-        if let cpu = cpuTemp, cpu > 70 {
-            score -= min(30, (cpu - 70) * 2)
+        if let cpu = cpuTemp, cpu > Thermal.cpu.warnAt {
+            score -= min(30, (cpu - Thermal.cpu.warnAt) * 2)
             notes.append("CPU hot (\(cpu) °C)")
         }
-        if let rsx = rsxTemp, rsx > 75 {
-            score -= min(30, (rsx - 75) * 2)
+        if let rsx = rsxTemp, rsx > Thermal.rsx.warnAt {
+            score -= min(30, (rsx - Thermal.rsx.warnAt) * 2)
             notes.append("RSX hot (\(rsx) °C)")
         }
         if let free = freeBytes {
@@ -108,13 +110,79 @@ public struct ConsoleSnapshot: Codable, Equatable, Sendable {
             }
         }
         health = max(0, score)
-        switch health {
-        case 85...: healthLabel = "Excellent"
-        case 65..<85: healthLabel = "Good"
-        case 45..<65: healthLabel = "OK"
-        default: healthLabel = "Warning"
-        }
+        healthLabel = healthLevel.label
         healthNotes = notes
+    }
+}
+
+/// How the console is connected, from webMAN's "WLAN" or "LAN". The raw value is what the
+/// screens show and also the key in speeds.json and speed.json, so it never changes. Code
+/// compares the case, never the text.
+public enum NetworkKind: String, Codable, Sendable {
+    case wifi = "Wi-Fi"
+    case lan = "LAN"
+
+    init?(webMAN: String) {
+        switch webMAN.uppercased() {
+        case "WLAN": self = .wifi
+        case "LAN": self = .lan
+        default: return nil
+        }
+    }
+
+    public var label: String { rawValue }
+}
+
+/// The health score's bands. `ps3 status` gives each its own colour and the app's card three
+/// (warm for Good and OK); both read the bands from here.
+public enum HealthLevel: Int, Comparable, Sendable {
+    case warning, ok, good, excellent
+
+    public init(score: Int) {
+        switch score {
+        case 85...: self = .excellent
+        case 65..<85: self = .good
+        case 45..<65: self = .ok
+        default: self = .warning
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .excellent: return "Excellent"
+        case .good: return "Good"
+        case .ok: return "OK"
+        case .warning: return "Warning"
+        }
+    }
+
+    public static func < (a: HealthLevel, b: HealthLevel) -> Bool { a.rawValue < b.rawValue }
+}
+
+/// How warm the CPU or RSX runs: the limits behind the health score, the colours in `ps3 status`
+/// and the app's cards, and the app's "The PS3 is hot" notice.
+public enum Thermal: Sendable {
+    case cpu, rsx
+
+    /// Warm from here.
+    public var warnAt: Int { self == .cpu ? 70 : 75 }
+    /// Hot from here: ten degrees above `warnAt`.
+    public var hotAt: Int { warnAt + 10 }
+
+    public enum Level: Sendable {
+        case normal, warm, hot
+
+        public var label: String {
+            switch self {
+            case .normal: return "Normal"
+            case .warm: return "Warm"
+            case .hot: return "Hot"
+            }
+        }
+    }
+
+    public func level(_ celsius: Int) -> Level {
+        celsius >= hotAt ? .hot : celsius >= warnAt ? .warm : .normal
     }
 }
 

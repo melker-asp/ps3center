@@ -347,6 +347,6 @@ is in [PLAN.md](PLAN.md). Some decisions that apply going forward:
   from ROM or ISO archives.
 - **Plugins:** PS3 Center never changes `boot_plugins.txt`, so there will be no `plugin add/remove`.
   Missing plugins are reported by `ps3 maintain`.
-- **Screenshots without a PS3:** `PS3CENTER_FIXTURES=1` gives the app data from PS3Kit's `Fixtures`; CI
+- **Screenshots without a PS3:** `PS3CENTER_FIXTURES=1` gives the app data from `Fixtures` in the `PS3KitFixtures` target; CI
   renders every screen and uploads the PNGs as the artifact `screenshots`, and
   `make snapshot-fixtures` does the same on the Mac.

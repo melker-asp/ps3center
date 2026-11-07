@@ -199,14 +199,14 @@ public enum MacNetwork {
 public struct FoundConsole: Equatable, Sendable, Identifiable {
     public var id: String { host }
     public let host: String
-    /// "Wi-Fi" or "LAN", as the console reports it.
-    public var network: String?
+    /// Wi-Fi or a cable, as the console reports it.
+    public var network: NetworkKind?
     /// "4.93 CEX · PS3HEN 3.5.0"
     public var firmware: String?
     /// The Mac's connection it answered on ("USB 10/100/1000 LAN").
     public var via: String?
 
-    public init(host: String, network: String? = nil, firmware: String? = nil, via: String? = nil) {
+    public init(host: String, network: NetworkKind? = nil, firmware: String? = nil, via: String? = nil) {
         self.host = host
         self.network = network
         self.firmware = firmware

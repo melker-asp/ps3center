@@ -90,6 +90,8 @@ public enum DiscVerifier {
         /// In the copy, not on the disc.
         public var extra: [String] = []
 
+        package init(title: String) { self.title = title }
+
         public var isIntact: Bool { mismatched.isEmpty && missing.isEmpty && checked > 0 }
 
         /// Most files wrong at once: the image is still encrypted, as a redump or 3k3y ISO is.

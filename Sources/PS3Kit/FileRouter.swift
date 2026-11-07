@@ -54,6 +54,9 @@ public struct Route: Equatable, Sendable {
     /// Game title for the popup, when it can be read from the file.
     public let title: String?
 
+    /// A download to the Mac (a game patch from Sony's server) rather than an upload to the PS3.
+    public var isDownload: Bool { remote.hasPrefix("http://") || remote.hasPrefix("https://") }
+
     public init(local: URL, remote: String, kind: ContentKind, size: Int64, title: String?) {
         self.local = local
         self.remote = remote

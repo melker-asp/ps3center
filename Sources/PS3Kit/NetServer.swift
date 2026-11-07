@@ -11,6 +11,8 @@ import Network
 /// The root is virtual: /PS3ISO, /PS2ISO … are the linked folders of each kind merged. Next to
 /// every PS3 ISO, <name>.SFO and <name>.PNG are served from inside the image, which webMAN
 /// reads for the title and the icon (with the stock ps3netsrv they have to be extracted by hand).
+/// Unchecked: `listener`, `status` and `lastReport` are only touched under `lock`, and the
+/// listener's callbacks run on `queue`.
 public final class NetServer: @unchecked Sendable {
     public struct Status: Equatable, Sendable {
         public var isRunning = false
@@ -30,6 +32,15 @@ public final class NetServer: @unchecked Sendable {
     }
 
     public static let defaultPort: UInt16 = 38008
+
+    /// How webMAN reaches `netPath` on the Mac's game server through network server `slot`:
+    /// "/net0/PS3ISO/Game.iso".
+    public static func mountPath(slot: Int, netPath: String) -> String { "/net\(slot)" + netPath }
+
+    /// Whether webMAN has `path` from one of its network servers (/net0 … /net4).
+    public static func isNetMount(_ path: String) -> Bool {
+        path.range(of: #"^/net[0-9]/"#, options: .regularExpression) != nil
+    }
 
     public let port: UInt16
     private let root: NetRoot
@@ -245,6 +256,8 @@ enum NetCommand: UInt16 {
 }
 
 /// One console connection: commands are handled one after another, as ps3netsrv's client thread does.
+/// Unchecked: a session's mutable state is only touched from its connection's callbacks on the
+/// server's serial `queue`.
 final class NetSession: @unchecked Sendable {
     enum Failure: Error { case closed, refused }
 

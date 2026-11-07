@@ -34,6 +34,10 @@ public struct AppStatus: Codable, Sendable {
     /// `updateAvailable`, but lists and "Update All" leave it out.
     public var ignored = false
 
+    /// True when `note` only repeats `compatibility.summary` (a blocked update), so a screen
+    /// that already shows the compatibility needn't show the note as well.
+    public var noteIsCompatibility = false
+
     /// An update the user has not skipped: what the badges count and "Update All" offers.
     public var isPendingUpdate: Bool { state == .updateAvailable && !ignored }
 
@@ -66,7 +70,7 @@ public struct AppsService: Sendable {
 
     public init(host: String) { self.host = host }
 
-    struct LatestInfo: Sendable {
+    package struct LatestInfo: Sendable {
         let version: String
         let assetURL: URL?
         let assetName: String?
@@ -74,6 +78,16 @@ public struct AppsService: Sendable {
         let assetData: Data?
         var assetSize: Int64? = nil
         var releaseDate: String? = nil
+
+        package init(version: String, assetURL: URL?, assetName: String?, assetData: Data?,
+                     assetSize: Int64? = nil, releaseDate: String? = nil) {
+            self.version = version
+            self.assetURL = assetURL
+            self.assetName = assetName
+            self.assetData = assetData
+            self.assetSize = assetSize
+            self.releaseDate = releaseDate
+        }
     }
 
     // MARK: Check
@@ -109,7 +123,7 @@ public struct AppsService: Sendable {
         }
     }
 
-    func status(for entry: CatalogEntry, installedFile: Data?, console: ConsoleSnapshot,
+    package func status(for entry: CatalogEntry, installedFile: Data?, console: ConsoleSnapshot,
                 release: Result<LatestInfo, Error>?, ignored: [String: String] = [:]) -> AppStatus {
         var status = versionStatus(for: entry, installedFile: installedFile, console: console, release: release)
         status.ignored = status.state == .updateAvailable && IgnoredUpdates.skips(entry.id, latest: status.latest, in: ignored)
@@ -122,7 +136,10 @@ public struct AppsService: Sendable {
         var notifyOnly = false
         if case .notifyOnly = entry.action { notifyOnly = true }
         // HEN and plugins keep their own advice; for the rest the block is the news.
-        if status.state == .updateAvailable, !notifyOnly { status.note = compatibility.summary }
+        if status.state == .updateAvailable, !notifyOnly {
+            status.note = compatibility.summary
+            status.noteIsCompatibility = true
+        }
         return status
     }
 
@@ -289,8 +306,7 @@ public struct AppsService: Sendable {
     /// The same icons keyed by title ID, for apps that may not be in the catalog (the Mac's own
     /// packages).
     public func icons(titleIDs: [String], refresh: Bool = false) async -> [String: Data] {
-        let cache = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches/ps3center/icons", isDirectory: true)
+        let cache = StatePaths.caches.appendingPathComponent("icons", isDirectory: true)
         try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
         var result: [String: Data] = [:]
         var missing: [String] = []
@@ -341,8 +357,7 @@ public struct AppsService: Sendable {
     /// The XMB background (PIC1.PNG, 1920×1080) of an installed app, cached on disk like the icons.
     public func background(for entry: CatalogEntry) async -> Data? {
         guard let titleID = entry.titleID else { return nil }
-        let cache = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches/ps3center/backgrounds", isDirectory: true)
+        let cache = StatePaths.caches.appendingPathComponent("backgrounds", isDirectory: true)
         let file = cache.appendingPathComponent("\(titleID).png")
         if let data = try? Data(contentsOf: file) { return data }
         let downloaded = try? await TransferService(host: host).withFTP { ftp in
@@ -391,7 +406,11 @@ public struct AppsService: Sendable {
         if let titleID = entry.titleID,
            let version = try? await transfer.withFTP({ try await $0.download("/dev_hdd0/game/\(titleID)/PARAM.SFO", limit: 64 << 10) })
             .flatMap(ParamSFO.init(data:))?.appVersion {
-            InstalledRegistry.record(entry.id, tag: release.tagName, appVersion: version)
+            do {
+                try InstalledRegistry.record(entry.id, tag: release.tagName, appVersion: version)
+            } catch {
+                events(.note("\(entry.name) is installed, but which release it came from could not be saved: \(error.localizedDescription)"))
+            }
         }
         if case .installPackageThenManual(let note) = entry.action { events(.note(note)) }
     }
@@ -415,8 +434,12 @@ public struct AppsService: Sendable {
             }
             try await ftp.removeTree(path)
         }
-        InstalledRegistry.forget(entry.id)
-        OperationLog.record("uninstall", "\(entry.name) (\(path))")
+        do {
+            try InstalledRegistry.forget(entry.id)
+        } catch {
+            events(.note("Could not update installed.json: \(error.localizedDescription)"))
+        }
+        OperationLog.record(.uninstall, "\(entry.name) (\(path))")
         let reload = await XMBReload.afterRemoval(host: host)
         events(.note("\(entry.name) is uninstalled. \(reload)"))
     }
@@ -426,6 +449,17 @@ public struct AppsService: Sendable {
             throw PS3Error.unsupportedFile("\(status.name) cannot be updated automatically.")
         }
         try await install(entry, archive: archive, options: options, events: events)
+    }
+
+    /// After installing a loose .pkg (from Downloads, say): moves it into _Installed/Packages in
+    /// the mirror `root`, as an installed app's package is kept. Not one in a linked package
+    /// folder (it belongs there, like a game in a game folder), not one already in the archive,
+    /// and nothing without a mirror. Returns where it went, or nil when it stayed.
+    public func archiveLoosePackage(_ file: URL, root: URL?) throws -> URL? {
+        guard let root, !PackageFolders.contains(file) else { return nil }
+        let archive = MirrorRoot.packageArchive(in: root)
+        guard file.deletingLastPathComponent().standardizedFileURL != archive.standardizedFileURL else { return nil }
+        return try archivePackage(file, into: archive)
     }
 
     /// Moves `file` into the archive. Archived packages with the same title ID are trashed first.

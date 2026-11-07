@@ -64,16 +64,18 @@ struct Apps: AsyncParsableCommand {
             let statuses = try await AppsService(host: host).check(entries: entries)
             UI.endProgress()
 
-            // An ignored update is left out unless it was named.
-            let skipsIgnored = names.isEmpty
-            for status in statuses where skipsIgnored && status.ignored {
-                UI.skip("\(status.name) \(status.latestForDisplay ?? "") is ignored  (ps3 apps unignore \(status.id))")
+            // The same plan as the app's Update All. An ignored update is left out unless it was named.
+            let plan = UpdatePlan(statuses, includingIgnored: !names.isEmpty)
+            for skip in plan.skipped {
+                let status = skip.status
+                if status.ignored {
+                    UI.skip("\(status.name) \(status.latestForDisplay ?? "") is ignored  (ps3 apps unignore \(status.id))")
+                    continue
+                }
+                UI.warn("\(status.name) \(status.versionChange): \(skip.reason)")
+                if status.skip == .notAutomatic, let advice = status.note { print("      " + UI.paint(advice, .gray)) }
             }
-            let installable = statuses.filter { $0.canInstall && !(skipsIgnored && $0.ignored) }
-            let advisories = statuses.filter { $0.state == .updateAvailable && !$0.canInstall && !(skipsIgnored && $0.ignored) }
-            for status in advisories {
-                UI.warn("\(status.name) \(status.versionChange): \(status.note ?? "update manually")")
-            }
+            let installable = plan.installs
             guard !installable.isEmpty else {
                 UI.ok("Everything that can be updated automatically is already up to date.")
                 return
@@ -127,7 +129,7 @@ struct Apps: AsyncParsableCommand {
             let asJSON = json || !UI.isTTY
             let host = try await Console.host(global, quiet: asJSON)
             if !asJSON { UI.progress("Fetching the catalog…") }
-            let statuses = try await AppsService(host: host).check().filter { $0.installable || $0.installed != nil || $0.blocked }
+            let statuses = try await AppsService(host: host).check().filter(\.isListed)
             if asJSON { UI.json(statuses); return }
             UI.endProgress()
             for category in CatalogEntry.Category.allCases {
@@ -248,24 +250,18 @@ struct Apps: AsyncParsableCommand {
             for item in resolved {
                 switch item {
                 case .file(let file):
-                    // A package from the catalog gets the same safety check as when installed by name.
-                    if let known = try await apps.checkPackage(file) {
-                        if known.compatibility.blocksInstall {
-                            UI.fail("\(file.lastPathComponent) (\(known.entry.name)) does not work on your PS3: \(known.compatibility.summary).")
-                            blocked += 1
-                            continue
-                        }
-                        if known.compatibility.verdict == .untested { UI.warn("\(known.entry.name): \(known.compatibility.summary).") }
+                    // The same checks as the app's From Mac: a valid package, and a catalog app's
+                    // requirements, as when it is installed by name.
+                    do {
+                        try await apps.installOwnPackage(file, options: options) { printer.handle($0) }
+                    } catch PS3Error.incompatible(let message) {
+                        UI.fail(message)
+                        blocked += 1
+                        continue
                     }
-                    try await TransferService(host: host).installPackage(file, options: options) { printer.handle($0) }
                     installedNames.append(file.deletingPathExtension().lastPathComponent)
-                    // A package in a package folder belongs there, like a game in a game folder.
-                    guard !dryRun, !keep, !PackageFolders.contains(file), let root else { continue }
-                    let archive = MirrorRoot.packageArchive(in: root)
-                    if file.deletingLastPathComponent().standardizedFileURL != archive.standardizedFileURL {
-                        let moved = try apps.archivePackage(file, into: archive)
-                        UI.skip("Archived in \(moved.path.replacingOccurrences(of: root.path + "/", with: ""))")
-                    }
+                    guard !dryRun, !keep, let root, let moved = try apps.archiveLoosePackage(file, root: root) else { continue }
+                    UI.skip("Archived in \(moved.path.replacingOccurrences(of: root.path + "/", with: ""))")
 
                 case .catalog(let entry):
                     let compatibility = try await apps.compatibility(of: entry)
@@ -548,11 +544,8 @@ struct Apps: AsyncParsableCommand {
     }
 
     static func render(_ statuses: [AppStatus]) {
-        let updates = statuses.filter(\.isPendingUpdate)
-        let ignored = statuses.filter { $0.state == .updateAvailable && $0.ignored }
-        let current = statuses.filter { $0.state == .upToDate }
-        let manual = statuses.filter { $0.state == .manual || $0.state == .error }
-        let missing = statuses.filter { $0.state == .notInstalled }
+        let groups = AppGroups(statuses)
+        let (updates, ignored, current, manual, missing) = (groups.updates, groups.ignored, groups.current, groups.manual, groups.missing)
 
         func name(_ s: AppStatus) -> String { s.name.padding(toLength: 22, withPad: " ", startingAt: 0) }
 

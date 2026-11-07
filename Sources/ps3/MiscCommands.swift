@@ -35,14 +35,16 @@ struct Refresh: AsyncParsableCommand {
         let host = try await Console.host(global)
         let service = TransferService(host: host)
         let printer = TransferPrinter(dryRun: false)
-        try await service.waitUntilIdle(force: force) { printer.handle($0) }
         if xmb {
+            try await service.waitUntilIdle(force: force) { printer.handle($0) }
             try await service.webman.reloadXMB()
             UI.ok("Game list refreshed and XMB reloaded")
             return
         }
-        try await service.webman.refreshGames()
-        OperationLog.record("refresh", host)
+        try await service.refreshGameList(whenGameRuns: .wait, force: force) { event in
+            if case .refreshed = event { return }  // said once below
+            printer.handle(event)
+        }
         UI.ok("Game list refreshed")
     }
 }
@@ -79,12 +81,10 @@ struct Discover: AsyncParsableCommand {
         let found = await Discovery.find(interfaces: interfaces)
         guard let first = found.first else { throw PS3Error.noHost }
         for console in found {
-            let details = [console.network, console.firmware, console.via.map { "via \($0)" }].compactMap { $0 }
+            let details = [console.network?.label, console.firmware, console.via.map { "via \($0)" }].compactMap { $0 }
             UI.ok("webMAN answers at \(console.host)" + (details.isEmpty ? "" : UI.paint("  " + details.joined(separator: " · "), .gray)))
         }
-        var config = ConfigStore.load()
-        config.host = first.host
-        try ConfigStore.save(config)
+        try ConfigStore.edit { $0.host = first.host }
         UI.ok("Saved \(first.host) as the PS3's address")
         let prefix = first.host.split(separator: ".").prefix(3).joined(separator: ".")
         if let cable = interfaces.first(where: { $0.subnetPrefix == prefix && $0.isSlowLink }), let speed = cable.linkSpeedLabel {
@@ -124,8 +124,8 @@ struct Connection: ParsableCommand {
             print("  " + UI.paint(WiredSetup.ps3Remaining, .gray))
         }
         let measured = SpeedTest.byNetwork()
-        let speeds = [("Wi-Fi", "Wi-Fi"), ("LAN", "cable")].compactMap { key, name in
-            measured[key].map { "\(name) \(Format.rate($0.upload))" }
+        let speeds = [(NetworkKind.wifi, "Wi-Fi"), (.lan, "cable")].compactMap { network, name in
+            SpeedTest.measurement(over: network, in: measured).map { "\(name) \(Format.rate($0.upload))" }
         }
         if !speeds.isEmpty { print("\n  " + UI.paint("Measured with ps3 speedtest: " + speeds.joined(separator: ", "), .gray)) }
     }
@@ -298,23 +298,23 @@ struct Config: ParsableCommand {
         var value: String
 
         func run() throws {
-            var config = ConfigStore.load()
             let cleaned = value.isEmpty ? nil : value
+            var root: String?
             switch key {
-            case "host": config.host = cleaned
+            case "host": break
             case "root":
                 if let path = cleaned {
                     let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
                     guard MirrorRoot.looksLikeMirror(url) else {
                         throw ValidationError("\(url.path) does not look like the PS3 folder (missing dev_hdd0/ or _Installed/).")
                     }
-                    config.root = url.path
-                } else {
-                    config.root = nil
+                    root = url.path
                 }
             default: throw ValidationError("Unknown setting: \(key). Use host or root.")
             }
-            try ConfigStore.save(config)
+            try ConfigStore.edit { config in
+                if key == "host" { config.host = cleaned } else { config.root = root }
+            }
             UI.ok("\(key) = \(cleaned ?? "(removed)")")
         }
     }

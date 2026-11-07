@@ -191,10 +191,7 @@ struct GameDetailView: View {
         }
     }
 
-    /// A copied PS3 disc in a game folder (from ps3 rip, say), not an installed game.
-    private var canVerify: Bool {
-        game.platform == .ps3 && game.isFolder && !game.isInstalled && game.source == .console
-    }
+    private var canVerify: Bool { game.canVerifyWithIRD }
 
     // MARK: Compatibility
 

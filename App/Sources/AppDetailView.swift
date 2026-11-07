@@ -57,7 +57,7 @@ struct AppDetailView: View {
         VStack(alignment: .leading, spacing: 20) {
             header
             cards
-            if let note = status.note, note != status.compatibility.summary {
+            if let note = status.note, !status.noteIsCompatibility {
                 NoteBanner(text: note)
             }
             readmeSection

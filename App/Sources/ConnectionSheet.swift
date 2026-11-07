@@ -1,5 +1,6 @@
 import AppKit
 import PS3Kit
+import PS3KitFixtures
 import SwiftUI
 
 /// What the connection sheet knows: the consoles the search found, an address typed by hand,
@@ -213,7 +214,7 @@ struct ConnectionSheet: View {
                         .font(.ui(.headline, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
                         .monospacedDigit()
-                    if let network = found.network { Chip(text: network) }
+                    if let network = found.network { Chip(text: network.label) }
                 }
                 if !details.isEmpty {
                     Text(details.joined(separator: " · "))
@@ -369,8 +370,8 @@ struct ConnectionSheet: View {
 
     /// "Measured with the speed test: Wi-Fi 1.1 MB/s, cable 5.5 MB/s."
     private var measuredLine: String? {
-        let parts = [("Wi-Fi", "Wi-Fi"), ("LAN", "cable")].compactMap { key, name in
-            model.speeds[key].map { "\(name) \(Format.rate($0.upload))" }
+        let parts = [(NetworkKind.wifi, "Wi-Fi"), (.lan, "cable")].compactMap { network, name in
+            SpeedTest.measurement(over: network, in: model.speeds).map { "\(name) \(Format.rate($0.upload))" }
         }
         return parts.isEmpty ? nil : "Measured with the speed test: " + parts.joined(separator: ", ") + "."
     }

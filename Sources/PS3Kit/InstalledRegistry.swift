@@ -12,31 +12,18 @@ public enum InstalledRegistry {
 
     static var file: URL { ConfigStore.directory.appendingPathComponent("installed.json") }
 
-    public static func load() -> [String: Record] {
-        guard let data = try? Data(contentsOf: file) else { return [:] }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([String: Record].self, from: data)) ?? [:]
-    }
+    static var store: JSONFile<[String: Record]> { JSONFile(file, empty: [:]) }
 
-    public static func record(_ entryID: String, tag: String, appVersion: String) {
-        var records = load()
-        records[entryID] = Record(tag: tag, appVersion: appVersion, installedAt: Date())
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        try? FileManager.default.createDirectory(at: ConfigStore.directory, withIntermediateDirectories: true)
-        try? encoder.encode(records).write(to: file, options: .atomic)
+    public static func load() -> [String: Record] { store.load() }
+
+    public static func record(_ entryID: String, tag: String, appVersion: String) throws {
+        try store.edit { $0[entryID] = Record(tag: tag, appVersion: appVersion, installedAt: Date()) }
     }
 
     /// Forgets an app that was uninstalled.
-    public static func forget(_ entryID: String) {
-        var records = load()
-        guard records.removeValue(forKey: entryID) != nil else { return }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        try? encoder.encode(records).write(to: file, options: .atomic)
+    public static func forget(_ entryID: String) throws {
+        guard load()[entryID] != nil else { return }
+        try store.edit { $0[entryID] = nil }
     }
 
     /// The release tag for what is installed now, if PS3 Center installed it and nothing changed since.

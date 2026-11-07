@@ -37,9 +37,9 @@ struct StatusView: View {
                 VStack(spacing: 14) {
                     LazyVGrid(columns: columns, spacing: 14) {
                         healthCard(s)
-                        temperatureCard(icon: "cpu", title: "CPU", value: s.cpuTemp, warnAt: 70,
+                        temperatureCard(icon: "cpu", title: "CPU", value: s.cpuTemp, sensor: .cpu,
                                         history: console.cpuHistory)
-                        temperatureCard(icon: "square.stack.3d.up", title: "RSX", value: s.rsxTemp, warnAt: 75,
+                        temperatureCard(icon: "square.stack.3d.up", title: "RSX", value: s.rsxTemp, sensor: .rsx,
                                         history: console.rsxHistory)
                         fanCard(s)
                         spaceCard(s)
@@ -79,7 +79,7 @@ struct StatusView: View {
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 0)
-                HealthOrb(color: Theme.healthColor(s.health))
+                HealthOrb(color: Theme.healthColor(s.healthLevel))
                     .scaleEffect(0.62)
                     .frame(width: 70, height: 70)
                     .offset(y: 6)
@@ -88,10 +88,12 @@ struct StatusView: View {
         .frame(height: 210)
     }
 
-    private func temperatureCard(icon: String, title: String, value: Int?, warnAt: Int,
+    private func temperatureCard(icon: String, title: String, value: Int?, sensor: Thermal,
                                  history: [Double]) -> some View {
-        let color = value.map { Theme.temperatureColor($0, warnAt: warnAt) } ?? Theme.good
-        let label = value.map { $0 >= warnAt + 10 ? "Hot" : $0 >= warnAt ? "Warm" : "Normal" }
+        let level = value.map(sensor.level)
+        let color = level.map(Theme.temperatureColor) ?? Theme.good
+        let label = level?.label
+        let warnAt = sensor.warnAt
         return Card(icon: icon, title: title, chip: label, chipColor: color) {
             BigValue(value: value.map(String.init) ?? "–", unit: "°C")
             Sparkline(values: history, range: Self.range(for: history, padding: 3), color: color)
@@ -186,7 +188,7 @@ struct StatusView: View {
     }
 
     private func networkCard(_ s: ConsoleSnapshot) -> some View {
-        Card(icon: "network", title: "Network", chip: s.network) {
+        Card(icon: "network", title: "Network", chip: s.network?.label) {
             HStack(alignment: .center) {
                 Text(s.ip ?? console.host ?? "–")
                     .font(.ui(.title, weight: .light))
@@ -350,7 +352,7 @@ struct HistoryTable: View {
             ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
                 let described = Self.describe(entry)
                 HStack {
-                    Image(systemName: icon(for: entry.action))
+                    Image(systemName: entry.kind.map(Self.icon) ?? "circle")
                         .foregroundStyle(Theme.accent)
                         .frame(width: 20)
                     Text(described.subject)
@@ -374,24 +376,27 @@ struct HistoryTable: View {
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.cardStroke))
     }
 
-    private func icon(for action: String) -> String {
-        switch action {
-        case "install": return "shippingbox"
-        case "send": return "arrow.up.circle"
-        case "refresh": return "arrow.clockwise"
-        case "play": return "play.circle"
-        case "mount": return "opticaldisc"
-        case "unmount": return "eject"
-        case "exit": return "xmark.circle"
-        case "delete", "uninstall", "delete-save": return "trash"
-        case "update": return "arrow.down.circle"
-        case "eject", "insert": return "eject"
-        case "restart": return "arrow.clockwise.circle"
-        case "shutdown": return "power"
-        case "record": return "record.circle"
-        case "fan": return "fan"
-        case "restore": return "arrow.uturn.backward.circle"
-        default: return "circle"
+    /// Exhaustive on purpose: a new `OperationKind` doesn't build until it has an icon and words.
+    static func icon(_ kind: OperationKind) -> String {
+        switch kind {
+        case .install, .installTheme: return "shippingbox"
+        case .send, .covers, .libcrypt: return "arrow.up.circle"
+        case .refresh, .reloadXMB: return "arrow.clockwise"
+        case .play: return "play.circle"
+        case .mount, .rip, .ripAbort: return "opticaldisc"
+        case .unmount, .eject, .insert: return "eject"
+        case .exit: return "xmark.circle"
+        case .delete, .uninstall, .deleteSave: return "trash"
+        case .update: return "arrow.down.circle"
+        case .restart: return "arrow.clockwise.circle"
+        case .shutdown: return "power"
+        case .record: return "record.circle"
+        case .gameMusic: return "music.note"
+        case .screenshots: return "camera"
+        case .updateBlock: return "hand.raised"
+        case .fan: return "fan"
+        case .restore: return "arrow.uturn.backward.circle"
+        case .webmanSetup: return "gearshape"
         }
     }
 
@@ -399,38 +404,39 @@ struct HistoryTable: View {
     /// short action names that `ps3 history` and scripts read; this is only how they look here.
     static func describe(_ entry: OperationLog.Entry) -> (subject: String, action: String) {
         let file = (entry.detail as NSString).lastPathComponent
-        // "på" is how log lines written before the English interface say "on".
-        let onOff = ["på", "on", "start"].contains(entry.detail) ? "On" : "Off"
-        switch entry.action {
-        case "install": return (file, "Installed")
-        case "install-theme": return (file, "Theme installed")
-        case "send": return (file, "Sent")
-        case "update": return (entry.detail, "Updated")
-        case "uninstall": return (file, "Uninstalled")
-        case "delete": return (file, "Deleted")
-        case "delete-save": return (entry.detail, "Save deleted")
-        case "restore": return (entry.detail, "Save restored")
-        case "play": return (file, "Started")
-        case "mount": return (file, "Mounted")
-        case "unmount": return ("Disc", "Unmounted")
-        case "exit": return (file, "Quit")
-        case "refresh": return ("Game list", "Refreshed")
-        case "reload-xmb": return ("XMB", "Reloaded")
-        case "eject": return ("Disc", "Ejected")
-        case "insert": return ("Disc", "Inserted")
-        case "restart": return ("PS3", "Restarted")
-        case "shutdown": return ("PS3", "Shut down")
-        case "record": return ("Recording", onOff == "On" ? "Started" : "Stopped")
-        case "game-music": return ("In-game music", onOff)
-        case "screenshots": return ("In-game screenshots", "On")
-        case "update-block": return ("System update block", onOff)
-        case "fan": return ("Fan", "Target changed")
-        case "covers": return (entry.detail, "Covers sent")
-        case "libcrypt": return (file, "LibCrypt file sent")
-        case "rip": return (entry.detail, "Disc copied")
-        case "rip-abort": return ("Disc copy", "Stopped")
-        case "webman-setup": return ("webMAN settings", "Changed")
-        default: return (file, entry.action.replacingOccurrences(of: "-", with: " ").capitalized)
+        let onOff = entry.switchedOn == true ? "On" : "Off"
+        guard let kind = entry.kind else {
+            return (file, entry.action.replacingOccurrences(of: "-", with: " ").capitalized)
+        }
+        switch kind {
+        case .install: return (file, "Installed")
+        case .installTheme: return (file, "Theme installed")
+        case .send: return (file, "Sent")
+        case .update: return (entry.detail, "Updated")
+        case .uninstall: return (file, "Uninstalled")
+        case .delete: return (file, "Deleted")
+        case .deleteSave: return (entry.detail, "Save deleted")
+        case .restore: return (entry.detail, "Save restored")
+        case .play: return (file, "Started")
+        case .mount: return (file, "Mounted")
+        case .unmount: return ("Disc", "Unmounted")
+        case .exit: return (file, "Quit")
+        case .refresh: return ("Game list", "Refreshed")
+        case .reloadXMB: return ("XMB", "Reloaded")
+        case .eject: return ("Disc", "Ejected")
+        case .insert: return ("Disc", "Inserted")
+        case .restart: return ("PS3", "Restarted")
+        case .shutdown: return ("PS3", "Shut down")
+        case .record: return ("Recording", entry.switchedOn == true ? "Started" : "Stopped")
+        case .gameMusic: return ("In-game music", onOff)
+        case .screenshots: return ("In-game screenshots", "On")
+        case .updateBlock: return ("System update block", onOff)
+        case .fan: return ("Fan", "Target changed")
+        case .covers: return (entry.detail, "Covers sent")
+        case .libcrypt: return (file, "LibCrypt file sent")
+        case .rip: return (entry.detail, "Disc copied")
+        case .ripAbort: return ("Disc copy", "Stopped")
+        case .webmanSetup: return ("webMAN settings", "Changed")
         }
     }
 

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import PS3Kit
+import PS3KitFixtures
 
 // The review of Nov 7, 2026: ps3 mcp beside the app, error codes, versions, estimates and the
 // folders that kept their Swedish names.

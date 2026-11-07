@@ -172,7 +172,7 @@ struct Verify: AsyncParsableCommand {
             let console = try await Console.host(global)
             host = console
             let game = try await Games.find(target, host: console)
-            guard game.isFolder, game.platform == .ps3 else {
+            guard game.canVerifyWithIRD else {
                 throw PS3Error.refused("\(game.title) is not a game folder. Check an ISO on the Mac instead, or a folder from ps3 rip.")
             }
             checked = .console(game.path)

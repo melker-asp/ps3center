@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Thin client for webMAN MOD's HTTP web commands
 /// (https://github.com/aldostools/webMAN-MOD/wiki/Web-Commands).
@@ -215,39 +216,64 @@ public enum WebMANSettings {
         let a = fields(sent), b = fields(saved)
         return Set(a.keys).union(b.keys).filter { a[$0] != b[$0] }.sorted()
     }
+
+    /// One of webMAN's network servers (/net0 … /net4), as its settings page shows it.
+    public struct NetServerSlot: Decodable, Equatable, Sendable {
+        public let enabled: Bool
+        public let host: String
+        public let port: Int
+
+        public init(enabled: Bool, host: String, port: Int) {
+            self.enabled = enabled
+            self.host = host
+            self.port = port
+        }
+    }
+
+    /// The network server already pointing at `address:port`, if one is.
+    public static func readySlot(_ slots: [NetServerSlot], address: String, port: Int) -> Int? {
+        slots.firstIndex { $0.enabled && $0.host == address && $0.port == port }
+    }
+
+    /// Where to point a network server at `address`: one that already has that address (another
+    /// port, or turned off), else the first empty one. Nil when all are taken by other hosts;
+    /// those are the user's and never overwritten.
+    public static func slotToFill(_ slots: [NetServerSlot], address: String) -> Int? {
+        slots.firstIndex { $0.host == address } ?? slots.firstIndex { $0.host.isEmpty }
+    }
 }
 
 /// Counts the long commands in flight (see `WebMAN.isBusy`).
-final class LongCommands: @unchecked Sendable {
+final class LongCommands: Sendable {
     static let shared = LongCommands()
 
-    private let lock = NSLock()
-    private var running = 0
-    private var lastEnded = Date.distantPast
+    private struct State {
+        var running = 0
+        var lastEnded = Date.distantPast
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
 
     func begin() {
-        lock.lock()
-        running += 1
-        let first = running == 1
-        lock.unlock()
+        let first = state.withLock { state in
+            state.running += 1
+            return state.running == 1
+        }
         if first { Self.mark("running") }
     }
 
     func end() {
-        lock.lock()
-        running = max(0, running - 1)
-        lastEnded = Date()
-        let last = running == 0
-        lock.unlock()
+        let last = state.withLock { state in
+            state.running = max(0, state.running - 1)
+            state.lastEnded = Date()
+            return state.running == 0
+        }
         if last { Self.mark("ended") }
     }
 
     /// Also for 20 seconds after one ends: the next one in a series (folder after folder) follows.
     /// And while another process runs one: `ps3 maintain` or `ps3 mcp` beside the app.
     var isBusy: Bool {
-        lock.lock()
-        let local = running > 0 || Date().timeIntervalSince(lastEnded) < 20
-        lock.unlock()
+        let local = state.withLock { $0.running > 0 || Date().timeIntervalSince($0.lastEnded) < 20 }
         return local || Self.otherProcessIsBusy()
     }
 
@@ -284,19 +310,14 @@ final class LongCommands: @unchecked Sendable {
     }
 }
 
-final class DiskTotals: @unchecked Sendable {
-    private var totals: [String: Int64] = [:]
-    private let lock = NSLock()
+final class DiskTotals: Sendable {
+    private let totals = OSAllocatedUnfairLock(initialState: [String: Int64]())
 
     func get(_ host: String) -> Int64? {
-        lock.lock()
-        defer { lock.unlock() }
-        return totals[host]
+        totals.withLock { $0[host] }
     }
 
     func set(_ host: String, _ total: Int64) {
-        lock.lock()
-        defer { lock.unlock() }
-        totals[host] = total
+        totals.withLock { $0[host] = total }
     }
 }

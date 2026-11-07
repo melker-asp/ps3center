@@ -79,7 +79,7 @@ struct MenuBarView: View {
 
     private var statusColor: Color {
         switch console.connection {
-        case .online: return Theme.healthColor(console.snapshot?.health ?? 100)
+        case .online: return Theme.healthColor(console.snapshot?.healthLevel ?? .excellent)
         case .henOff: return Theme.warm
         default: return Theme.tertiaryText
         }

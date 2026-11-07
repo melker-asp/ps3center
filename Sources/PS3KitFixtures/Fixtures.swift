@@ -1,4 +1,5 @@
 import Foundation
+import PS3Kit
 
 /// Canned console and catalog data, so the app can render every screen without a PS3
 /// (`PS3CENTER_FIXTURES=1`, used by CI to produce screenshots). The console strings are
@@ -383,7 +384,7 @@ public enum Fixtures {
         return queue
     }
 
-    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: "Wi-Fi", measuredAt: Date())
+    public static let speed = SpeedResult(upload: 3_250_000, download: 4_100_000, network: .wifi, measuredAt: Date())
 
     /// The connection sheet's Mac: a USB adapter straight to a PS3 that only links at 100 Mbit,
     /// and Wi-Fi to the router (the numbers from the console in PLAN.md's tests, Nov 7, 2026).
@@ -395,14 +396,14 @@ public enum Fixtures {
 
     /// Two consoles answered: the one in use on Wi-Fi (`snapshot`) and one on the cable.
     public static let foundConsoles = [
-        FoundConsole(host: "10.0.1.35", network: "Wi-Fi", firmware: "4.93 CEX · PS3HEN 3.5.0", via: "Wi-Fi"),
-        FoundConsole(host: "192.168.2.2", network: "LAN", firmware: "4.92 CEX · PS3HEN 3.4.0", via: "USB 10/100/1000 LAN"),
+        FoundConsole(host: "10.0.1.35", network: .wifi, firmware: "4.93 CEX · PS3HEN 3.5.0", via: "Wi-Fi"),
+        FoundConsole(host: "192.168.2.2", network: .lan, firmware: "4.92 CEX · PS3HEN 3.4.0", via: "USB 10/100/1000 LAN"),
     ]
 
     /// What `ps3 speedtest` measured over each network (the same Nov 7 numbers).
     public static let speedsByNetwork: [String: SpeedResult] = [
-        "Wi-Fi": SpeedResult(upload: 1_112_650, download: 1_126_854, network: "Wi-Fi", measuredAt: Date()),
-        "LAN": SpeedResult(upload: 5_504_212, download: nil, network: "LAN", measuredAt: Date()),
+        NetworkKind.wifi.rawValue: SpeedResult(upload: 1_112_650, download: 1_126_854, network: .wifi, measuredAt: Date()),
+        NetworkKind.lan.rawValue: SpeedResult(upload: 5_504_212, download: nil, network: .lan, measuredAt: Date()),
     ]
 
     /// Sony's newer patches for Gran Turismo 5 (02.11 installed) and Red Dead Redemption, by game id.

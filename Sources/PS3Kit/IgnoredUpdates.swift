@@ -12,21 +12,21 @@ public enum IgnoredUpdates {
 
     /// Skips `version` (a release tag, as in `AppStatus.latest`) of the app with catalog id `id`.
     public static func ignore(_ id: String, version: String) throws {
-        var config = ConfigStore.load()
-        var ignored = config.ignoredUpdates ?? [:]
-        ignored[id] = version
-        config.ignoredUpdates = ignored
-        try ConfigStore.save(config)
+        try ConfigStore.edit { config in
+            var ignored = config.ignoredUpdates ?? [:]
+            ignored[id] = version
+            config.ignoredUpdates = ignored
+        }
     }
 
     /// Shows the app's updates again. False when nothing was ignored for it.
     @discardableResult
     public static func unignore(_ id: String) throws -> Bool {
-        var config = ConfigStore.load()
-        guard config.ignoredUpdates?.removeValue(forKey: id) != nil else { return false }
-        if config.ignoredUpdates?.isEmpty == true { config.ignoredUpdates = nil }
-        try ConfigStore.save(config)
-        return true
+        try ConfigStore.edit { config in
+            guard config.ignoredUpdates?.removeValue(forKey: id) != nil else { return false }
+            if config.ignoredUpdates?.isEmpty == true { config.ignoredUpdates = nil }
+            return true
+        }
     }
 
     /// True when the update to `latest` is the very release that was skipped.

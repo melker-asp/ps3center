@@ -51,12 +51,8 @@ struct PS2: AsyncParsableCommand {
                 _ = try await PS2ClassicKeys.fetch()
                 UI.ok("The keys are fetched, checked and saved in ~/.config/ps3center (for you only).")
             } else if !files.isEmpty {
-                var keys = PS2ClassicKeys.load() ?? PS2ClassicKeys()
-                let read = try PS2ClassicKeys.read(files.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) })
-                keys = PS2ClassicKeys(values: keys.values.merging(read.values) { $1 })
-                if !keys.wrong.isEmpty { throw PS3Error.invalidFile(keys.problem ?? "Wrong keys.") }
-                try keys.save()
-                UI.ok("Read \(read.values.count) of 6 values.")
+                let imported = try PS2ClassicKeys.importFiles(files.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) })
+                UI.ok("Read \(imported.read) of 6 values.")
             }
             let keys = PS2ClassicKeys.load()
             UI.header("Keys for PS2 Classics")
@@ -107,9 +103,7 @@ struct PS2: AsyncParsableCommand {
             guard let keys = PS2ClassicKeys.load(), keys.isComplete else {
                 throw PS3Error.refused("The keys for PS2 Classics are not on the Mac. Fetch them with `ps3 ps2 keys --fetch`.")
             }
-            if let volume = USBDrive.volume(containing: folder), volume.free < size {
-                throw PS3Error.refused("Not enough space on \(volume.name): needs \(Format.bytes(size)), \(Format.bytes(volume.free)) free.")
-            }
+            try PS2ClassicMaker.checkSpace(size, in: folder)
             UI.step("\(source.lastPathComponent) → \(UI.paint(output.path, .gray))")
             guard !dryRun else { return }
             let progress = FileProgress(source: source, target: output, size: size, title: titleID, announce: false)

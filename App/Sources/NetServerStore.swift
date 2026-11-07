@@ -53,7 +53,7 @@ final class NetServerStore {
         webMAN = .checking
         do {
             let slots = try await WebMANSetup(host: host).slots()
-            if let index = slots.firstIndex(where: { $0.enabled && $0.host == address && $0.port == Int(NetServer.defaultPort) }) {
+            if let index = WebMANSettings.readySlot(slots, address: address, port: Int(NetServer.defaultPort)) {
                 remember(index)
                 webMAN = .configured(slot: index)
             } else {
@@ -76,12 +76,8 @@ final class NetServerStore {
             remember(index)
             if !isEnabled { setEnabled(true) }
             webMAN = .working("Refreshing the game list…")
-            let webman = WebMAN(host: host)
-            let running = try await webman.isGameRunning()
-            if !running {
-                try await webman.refreshGames()
-                OperationLog.record("refresh", host)
-            }
+            // A running game keeps its list until later: the setup itself is done.
+            try await TransferService(host: host).refreshGameList(whenGameRuns: .skip)
             webMAN = .configured(slot: index)
         } catch {
             webMAN = .failed(error.localizedDescription)
@@ -90,17 +86,15 @@ final class NetServerStore {
 
     private func remember(_ index: Int) {
         slot = index
-        var config = ConfigStore.load()
-        config.netServerSlot = index == 0 ? nil : index
-        try? ConfigStore.save(config)
+        // Remembered for next time; the slot in webMAN is what counts now.
+        try? ConfigStore.edit { $0.netServerSlot = index == 0 ? nil : index }
     }
 
     func setEnabled(_ on: Bool) {
         guard !isFixture else { return }
         isEnabled = on
-        var config = ConfigStore.load()
-        config.netServer = on ? true : nil
-        try? ConfigStore.save(config)
+        // Remembered for next launch; the server starts or stops either way.
+        try? ConfigStore.edit { $0.netServer = on ? true : nil }
         if on { start() } else { stop() }
     }
 
@@ -134,7 +128,7 @@ final class NetServerStore {
 
     /// A game from the server is mounted: keep the Mac awake until it is not.
     func consoleMounted(_ path: String?) {
-        let playingFromMac = path?.hasPrefix("/net") == true && server != nil
+        let playingFromMac = path.map(NetServer.isNetMount) == true && server != nil
         if playingFromMac, awake == nil {
             awake = KeepAwake(reason: "The PS3 is playing from the Mac")
         } else if !playingFromMac {
